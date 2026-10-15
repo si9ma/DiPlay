@@ -1,8 +1,13 @@
 # DiPlay
 
+> 本分支基于上游0.2.19版本，增加了一些特性（在钛 7 7.0ui 上测试没问题，其他车型不确定是否好使）：
+> - 修复钛7日夜模式跟随，能跟随车机设置
+> - 通过悬浮窗支持类7.0 ui原生的 3 7 分屏
+> - 支持车机导航自动同步 carplay 导航(开始导航和结束导航)
+
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-**CarPlay for compatible BYD Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`.
+**CarPlay for compatible BYD Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay.bysi9ma`.
 
 > **BYD support scope:** These projects focus on BYD cars. They may work on other brands, but other brands are unsupported and there are no plans to add support or fix brand-specific incompatibilities.
 
