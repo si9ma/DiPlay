@@ -538,6 +538,19 @@
     <string name="center_map_no_permission_screen">لا توجد في وحدة القيادة شاشة إعدادات لهذا الإذن. اسمح به عبر ADB.</string>
     <string name="launcher_map_sharing">مشاركة الخريطة المباشرة مع المشغّلات الأخرى</string>
     <string name="launcher_map_sharing_description">يمكن للمشغّلات التي تدعم DiPlay عرض خريطة لوحة العدادات المباشرة داخل شاشتها الرئيسية. معطّل افتراضيًا، لأن أي تطبيق على وحدة القيادة يمكنه عندها طلب الخريطة. راجع docs/LAUNCHER_INTEGRATION.md.</string>
+    <string name="carplay_width" formatted="false">عرض CarPlay</string>
+    <string name="carplay_width_full" formatted="false">العرض الكامل (100%)</string>
+    <string name="carplay_position" formatted="false">موضع CarPlay</string>
+    <string name="carplay_position_left" formatted="false">يسار</string>
+    <string name="carplay_position_center" formatted="false">الوسط</string>
+    <string name="carplay_position_right" formatted="false">يمين</string>
+    <string name="carplay_width_hint" formatted="false">عند أقل من 100%، تبقى شاشة السيارة ظاهرة وقابلة للاستخدام بجانب CarPlay. ميزة تجريبية: يعتمد السلوك على وحدة الرأس.</string>
+    <string name="carplay_width_custom">مخصص…</string>
+    <string name="carplay_width_custom_hint">أدخل عرضًا بين %1$d و%2$d بالمئة من الشاشة.</string>
+    <string name="carplay_only_on" formatted="false">إظهار CarPlay في صفحات محددة فقط</string>
+    <string name="carplay_only_on_description" formatted="false">تظهر نافذة CarPlay العائمة فقط عندما تكون إحدى الصفحات أدناه في المقدمة، مثل عرض مسار المساعدة على القيادة، وتختفي في غير ذلك. تتطلب الوصول إلى بيانات الاستخدام. يستمر الصوت والملاحة أثناء الإخفاء.</string>
+    <string name="carplay_only_on_pages" formatted="false">صفحات CarPlay</string>
+    <string name="carplay_only_on_pages_hint" formatted="false">أسماء الحزم مفصولة بفواصل. الافتراضي com.byd.sr (عرض مسار المساعدة على القيادة). افتح الصفحة وابحث عن “Page guard: foreground app” في تقرير التشخيص.</string>
     <string name="turn_card_overlay_size">حجم بطاقة الانعطاف المخصصة</string>
     <string name="turn_card_overlay_opacity">شفافية بطاقة الانعطاف المخصصة</string>
     <string name="turn_card_overlay_opacity_option">%1$d %%</string>
@@ -730,6 +743,10 @@
     <string name="setup_badge_adb">يتطلب ADB عبر الشبكة</string>
     <string name="setup_done_title">أنت جاهز</string>
     <string name="setup_done_description">اتصل بـ iPhone الآن. يمكنك فتح هذا الدليل مرة أخرى من الإعدادات.</string>
+    <string name="settings_export">تصدير الإعدادات إلى ملف</string>
+    <string name="settings_import">استعادة الإعدادات من ملف</string>
+    <string name="settings_exported">تم تصدير %1$d إعدادًا</string>
+    <string name="settings_backup_failed">تعذّر حفظ الملف: %1$s</string>
     <string name="settings_discard_pending_title">تجاهل التغييرات؟</string>
     <string name="settings_discard_pending_message">لم يتم بعد حفظ الدقة ومعدل الإطارات والاتصال وباقي الإعدادات التي غيرتها. حفظ وإعادة الاتصال يطبقها.</string>
     <string name="settings_discard_pending_confirm">تجاهل</string>
@@ -787,6 +804,9 @@
     <string name="settings_disable_media_key_audio_focus_description">يمنع DiPlay من طلب تركيز صوت الوسائط أثناء تشغيل موسيقى CarPlay. فعّله إذا كانت وحدة السيارة توجّه أزرار مستوى الصوت الفعلية إلى DiPlay فلا تعود تضبط مستوى الصوت. قد تتوقف أزرار التشغيل والإيقاف المؤقت وتغيير المسار في عجلة القيادة على الوحدات التي تتطلب التركيز. يُطبّق عند اتصال CarPlay التالي.</string>
     <string name="settings_ambient_album">اتباع غلاف الألبوم</string>
     <string name="settings_ambient_album_description">يُطابق لون الغلاف تقريبياً مع ألوان السيارة المتاحة. تستخدم الأغلفة الرمادية أو السوداء أو المفقودة جميع الألوان الـ31؛ وقد تستخدم الأغلفة البيضاء غالباً الأبيض أو الأبيض البارد.</string>
+    <string name="handle_settings">إعدادات DiPlay</string>
+    <string name="handle_minimize">تصغير CarPlay</string>
+    <string name="handle_disconnect">قطع الاتصال</string>
     <string name="settings_cluster_speedometer">عداد سرعة لوحة العدادات (تجريبي)</string>
     <string name="settings_cluster_speedometer_description">يعرض سرعة السيارة عبر ADB المصرح به. يختفي إذا كانت القراءة غير متاحة أو قديمة. تُطبّق التغييرات فورًا.</string>
     <string name="settings_cluster_speedometer_horizontal">الموضع الأفقي لعداد السرعة</string>

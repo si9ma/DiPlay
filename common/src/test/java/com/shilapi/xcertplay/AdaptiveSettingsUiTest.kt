@@ -683,6 +683,7 @@ class AdaptiveSettingsUiTest {
         val display = visibleIn(R.string.settings_display)
         val audio = visibleIn(R.string.audio)
         val vehicle = visibleIn(R.string.settings_vehicle)
+        val navigation = visibleIn(R.string.settings_navigation)
         val advanced = visibleIn(R.string.settings_advanced)
         val connection = visibleIn(R.string.connection)
 
@@ -700,9 +701,15 @@ class AdaptiveSettingsUiTest {
         assertTrue(text(R.string.car_button_in_carplay) in vehicle)
         assertTrue(text(R.string.wheel_siri_key) in vehicle)
         assertTrue(text(R.string.settings_wheel_keys) in vehicle)
-        assertTrue(text(R.string.settings_navigation_wheel_volume) in advanced)
-        assertFalse(text(R.string.settings_navigation_wheel_volume) in audio)
-        assertFalse(text(R.string.settings_navigation_wheel_volume) in vehicle)
+        // Both follow the car's navigation, so they belong on the Navigation page, not under Advanced.
+        assertTrue(text(R.string.settings_navigation_wheel_volume) in navigation)
+        listOf(display, audio, vehicle, advanced).forEach {
+            assertFalse(text(R.string.settings_navigation_wheel_volume) in it)
+        }
+        assertTrue(text(R.string.settings_map_destination_title) in navigation)
+        listOf(display, audio, vehicle, advanced).forEach {
+            assertFalse(text(R.string.settings_map_destination_title) in it)
+        }
         assertTrue(text(R.string.settings_ambient_title) in advanced)
         assertFalse(text(R.string.settings_ambient_title) in audio)
         assertFalse(text(R.string.settings_ambient_title) in vehicle)

@@ -34,6 +34,19 @@ object SettingsBackupCodec {
         "harman_fullscreen", "safe_area_draw_outside", "main_display_disable_safe_area",
         "adapt_pip_resolution", "auto_start_on_boot", "bt_suspend_during_carplay", "hide_byd_call_popup",
         "bt_suspend_delay_seconds", "location_reporting_enabled", "external_controller", "usb_charging_current",
+        // The floating CarPlay window: its width, place and corners, and the pages it shows on or hides from.
+        "projection_width_percent", "projection_alignment", "overlay_corner_radius_dp", "overlay_corner_colored",
+        "overlay_corner_color", "carplay_only_on_pages", "carplay_only_on_packages", "carplay_only_on_require_split",
+        "carplay_never_on_packages",
+        // The head-unit map's destination, and the recorded taps that start and end the iPhone's guidance.
+        "head_unit_map_destination_listen", "head_unit_map_destination_adb", "head_unit_map_destination_follow",
+        "head_unit_map_destination_follow_stop", "head_unit_map_destination_link", "head_unit_map_destination_via",
+        "head_unit_map_destination_probe", "navigation_debug_overlay",
+        "carplay_stop_auto", "carplay_stop_taps", "carplay_stop_tap_count", "carplay_stop_tap_gap_ms",
+        "carplay_stop_parked_only", "carplay_stop_foreground_first", "carplay_stop_foreground_wait_millis",
+        "carplay_start_auto", "carplay_start_taps", "carplay_start_tap_count", "carplay_start_tap_gap_ms",
+        "carplay_start_delay_millis",
+        // Not here, on purpose: report_raw_car_log, the consent to put real destinations in a report.
     )
 
     /** Families of layout settings with many keys and nothing sensitive in them. */
@@ -53,6 +66,29 @@ object SettingsBackupCodec {
         "diplay" to Policy.Allow(DIPLAY_KEYS),
         "carplay_picture" to Policy.All,
         "diplay_car_hotspot" to Policy.All,
+        // Choices only, nothing that identifies the car or a phone.
+        "diplay_byd_outputs" to Policy.All,
+        "diplay_cluster_layout" to Policy.All,
+        // Where the floating map card and CarPlay's handle sit. These are positions on this car's
+        // screen, which is what a backup taken before reinstalling on the same car is for.
+        "diplay_center_map" to Policy.All,
+        "diplay_projection_handle" to Policy.All,
+    )
+
+    /**
+     * Keys that are not what their JSON value looks like. An import onto a fresh install has no stored
+     * value to take the type from, and guessing makes `2000` an Int and `1.0` an Int too; the app then
+     * reads a Long or a Float and throws, on every start. Every listed key read with getLong or getFloat
+     * is named here, by file.
+     */
+    private val TYPES: Map<String, Map<String, Char>> = mapOf(
+        "xcertplay_airplay" to mapOf(
+            "carplay_start_delay_millis" to 'l', "carplay_stop_foreground_wait_millis" to 'l',
+            "carplay_start_tap_gap_ms" to 'l', "carplay_stop_tap_gap_ms" to 'l',
+        ),
+        // The card's aspect ratio is a double's raw bits.
+        "diplay_center_map" to mapOf("aspect" to 'l'),
+        "diplay_projection_handle" to mapOf("y_fraction" to 'f'),
     )
 
     private sealed interface Policy {
@@ -94,7 +130,9 @@ object SettingsBackupCodec {
         if (root.optString("format") != FORMAT || root.optInt("version", Int.MIN_VALUE) !in 1..VERSION) {
             return SettingsImportOutcome(0, 0, invalid = true)
         }
-        val files = root.optJSONObject("settings")
+        // The earlier head-unit file says each value's type itself, which beats any guess.
+        val legacyTypes = HashMap<String, MutableMap<String, Char>>()
+        val files = root.optJSONObject("settings") ?: legacyFiles(root.optJSONObject("prefs"), legacyTypes)
             ?: return SettingsImportOutcome(0, 0, invalid = true)
         var applied = 0
         var skipped = 0
@@ -121,7 +159,13 @@ object SettingsBackupCodec {
                     is Float -> decimal(value)?.let { editor.putFloat(key, it); true } ?: false
                     is String -> if (value is String) { editor.putString(key, value); true } else false
                     is Set<*> -> stringSet(value)?.let { editor.putStringSet(key, it); true } ?: false
-                    null -> inferred(editor, key, value)
+                    null -> when (legacyTypes[name]?.get(key) ?: TYPES[name]?.get(key)) {
+                        'l' -> integral(value)?.let { editor.putLong(key, it); true } ?: false
+                        'f' -> decimal(value)?.let { editor.putFloat(key, it); true } ?: false
+                        's' -> if (value is String) { editor.putString(key, value); true } else false
+                        'S' -> stringSet(value)?.let { editor.putStringSet(key, it); true } ?: false
+                        else -> inferred(editor, key, value)
+                    }
                     else -> false
                 }
                 if (stored) applied++ else skipped++
@@ -129,6 +173,31 @@ object SettingsBackupCodec {
             editor.apply()
         }
         return SettingsImportOutcome(applied, skipped, invalid = false)
+    }
+
+    /**
+     * A file saved by the head-unit-only backup this branch had before it used this codec: the same
+     * format name and version, with each value under "prefs" wrapped as {"t": type, "v": value}. Unwrapped
+     * here, it goes through the same allow list as any other file, so it can set nothing this codec would
+     * not — that older backup let `pairing.<id>` through, which this list never does.
+     */
+    private fun legacyFiles(prefs: JSONObject?, types: MutableMap<String, MutableMap<String, Char>>): JSONObject? {
+        prefs ?: return null
+        val files = JSONObject()
+        for (name in prefs.keys()) {
+            val wrapped = prefs.optJSONObject(name) ?: continue
+            val file = JSONObject()
+            for (key in wrapped.keys()) {
+                val entry = wrapped.optJSONObject(key) ?: continue
+                if (!entry.has("v")) continue
+                file.put(key, entry.get("v"))
+                when (entry.optString("t")) {
+                    "l" -> 'l'; "f" -> 'f'; "s" -> 's'; "ss" -> 'S'; else -> null
+                }?.let { types.getOrPut(name) { HashMap() }[key] = it }
+            }
+            files.put(name, file)
+        }
+        return files
     }
 
     private fun inferred(editor: Editor, key: String, value: Any?): Boolean = when (value) {

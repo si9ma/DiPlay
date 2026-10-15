@@ -62,4 +62,52 @@ class StartupDiagnosticSnapshotTest {
         BootReceiver().onReceive(app, Intent("custom.intent.token=secret"))
         assertTrue(StartupDiagnosticSnapshot.report(app).contains("received=false"))
     }
+
+    /** The install time decides what a missing delivery means, so it has to be in the report. */
+    private fun setUpdatedAt(epochMillis: Long) {
+        val info = app.packageManager.getPackageInfo(app.packageName, 0)
+        info.lastUpdateTime = epochMillis
+        info.firstInstallTime = epochMillis
+        org.robolectric.Shadows.shadowOf(app.packageManager).installPackage(info)
+    }
+
+    /**
+     * A build installed after the last restart has had no boot to miss. Reporting that as a refusal
+     * would send someone chasing their firmware's autostart list over nothing, which is the usual
+     * case while beta builds are being replaced several times a day.
+     */
+    @Test fun aBuildInstalledSinceTheLastRestartCannotHaveMissedABoot() {
+        setUpdatedAt(System.currentTimeMillis())
+        val verdict = StartupDiagnosticSnapshot.verdict(app)
+        assertTrue(verdict, verdict.contains("has NOT restarted since DiPlay was last installed"))
+        assertTrue(StartupDiagnosticSnapshot.environment(app).contains("bootedSinceInstall=false"))
+    }
+
+    @Test fun aRestartAfterInstallWithNoDeliveryIsTheFirmwareRefusing() {
+        setUpdatedAt(0)
+        val verdict = StartupDiagnosticSnapshot.verdict(app)
+        assertTrue(verdict, verdict.contains("did not hand BOOT_COMPLETED to DiPlay"))
+        assertTrue(StartupDiagnosticSnapshot.environment(app).contains("bootedSinceInstall=true"))
+    }
+
+    /** Evidence kept from an earlier start-up must not read as the current one having worked. */
+    @Test fun aDeliveryOlderThanThisStartUpIsNotCreditedToIt() {
+        setUpdatedAt(0)
+        AirPlayPersistence.saveAutoStartOnBoot(app, true)
+        BootReceiver().onReceive(app, Intent(Intent.ACTION_BOOT_COMPLETED))
+        assertTrue(StartupDiagnosticSnapshot.verdict(app).contains("delivered on the current start-up"))
+
+        app.getSharedPreferences("diplay_startup_diagnostics", Context.MODE_PRIVATE).edit()
+            .putLong("receivedAt", 1_000L).commit()
+        val stale = StartupDiagnosticSnapshot.verdict(app)
+        assertTrue(stale, stale.contains("most recent restart did not hand BOOT_COMPLETED"))
+    }
+
+    @Test fun theEnvironmentCarriesNothingThatIdentifiesTheCar() {
+        setUpdatedAt(0)
+        val environment = StartupDiagnosticSnapshot.environment(app)
+        assertTrue(environment, environment.contains("upFor="))
+        assertNotNull(DiagnosticRedactor.redact(environment))
+        assertNotNull(DiagnosticRedactor.redact(StartupDiagnosticSnapshot.verdict(app)))
+    }
 }

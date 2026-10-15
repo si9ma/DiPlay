@@ -281,6 +281,13 @@ class AirPlaySession(
         ),
     )
 
+    /**
+     * Asks the iPhone to show [url] on the CarPlay screen, as a car's own buttons do: the car command
+     * requestUI. Whether the iPhone honours a URL with parameters (a destination) is still being tested.
+     */
+    fun requestUi(url: String): Boolean =
+        sendCommand(linkedMapOf("type" to "requestUI", "params" to linkedMapOf("url" to url)))
+
     /** Moves CarPlay on the main screen to one of its declared view areas, without reconnecting. */
     fun showViewArea(index: Int): Boolean =
         sendCommand(AirPlayInfoPlist.viewAreaCommand(index, config.main.viewAreas?.size ?: 1))

@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay
 
+import com.shilapi.xcertplay.adb.AdbDiagnostics
 import android.app.AlertDialog
 import android.Manifest
 import android.content.ActivityNotFoundException
@@ -506,6 +507,25 @@ class CarPlayHostActivity : ComponentActivity() {
     private var ambientLightThreshold = AmbientLightThreshold()
     private var ambientDelaySeconds = 2
     private var nightModeDiagnosticSource = ThemeModeDiagnostics.Source.CARPLAY_MODE
+    private var lastSystemNight: Boolean? = null
+
+    /** Held so teardown can tell this host's registration from a newer one's. */
+    private val mapDestinationEvent: (String) -> Unit = { message ->
+        appendLog("Map destination: $message")
+    }
+
+    /** Held so teardown can tell this host's registration from a newer one's. */
+    private val showNavigationDebugOverlay: () -> Unit = {
+        runOnUiThread { if (!isDestroyed) NavigationDebugOverlay.sync(this) }
+    }
+
+    /** Held so teardown can tell this host's registration from a newer one's. */
+    private val nightInputChanged: (String) -> Unit = { change ->
+        runOnUiThread {
+            appendLog("Day/night setting changed: $change")
+            refreshConfiguration(source = ThemeModeDiagnostics.Source.CALLBACK)
+        }
+    }
     private val nightModeController by lazy {
         CarPlayNightModeController(
             light = AndroidAmbientLight(this),
@@ -540,6 +560,8 @@ class CarPlayHostActivity : ComponentActivity() {
     private var gestureTracking = false
     private var gestureStartX = 0f
     private var gestureStartY = 0f
+    private var guidanceTapDownX = 0f
+    private var guidanceTapDownY = 0f
     private var recoveryPendingAfterMenu = false
     private var failurePendingAfterMenu: CarPlayStatus.Failed? = null
     private val shuttingDown = AtomicBoolean(false)
@@ -715,6 +737,7 @@ class CarPlayHostActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         NavigationWidgetUpdater.attach(applicationContext)
         CarPlayCallKeys.install(applicationContext)
+        HeadUnitMapDestination.sync(applicationContext)
         CenterMapOverlay.requestShow = ::showCenterMap
         MapMirrors.sink = mirrorSink
         MapMirrors.onChanged = mirrorsChanged
@@ -731,17 +754,43 @@ class CarPlayHostActivity : ComponentActivity() {
             ?.registerDisplayListener(clusterDisplayListener, mainHandler)
         initializeSessionLog()
         lastConfiguration = Configuration(resources.configuration)
+        // BYD's own day/night key changes without a configuration change, so it is observed and fed
+        // to the night-mode controller as its "system" input.
+        HeadUnitNightMode.migrateLegacySource(this)
+        HeadUnitNightMode.install(this)
+        HeadUnitNightMode.onChanged = nightInputChanged
+        HeadUnitMapDestination.onEvent = mapDestinationEvent
+        NavigationDebugOverlay.requestShow = showNavigationDebugOverlay
+        NavigationDebugOverlay.sync(this)
         darkMode = savedInstanceState?.getBoolean("carplay_night_active")
-            ?: nightModeOrNull(resources.configuration.uiMode) ?: false
+            ?: systemNightOrNull(resources.configuration) ?: false
         appNight = resolveAppNightNow(darkMode)
         logThemeState(ThemeModeDiagnostics.Source.CREATE, resources.configuration)
+        lastSystemNight = darkMode
+        appendLog("Day/night start ${HeadUnitNightMode.label(darkMode)} " +
+            "mode=${AirPlayPersistence.loadCarPlayNightMode(this).key}")
+        appendLog("Day/night inputs: ${HeadUnitNightMode.describe(this, resources.configuration)}")
         advancedAudioChannelMappingSupported =
             resources.getBoolean(R.bool.config_advanced_audio_channel_mapping)
         airPlayIdentity = AirPlayPersistence.loadIdentity(this)
         loadPersistedSettings()
         locationPermissionAvailable = hasFineLocationPermission()
+        overlayMode = ProjectionOverlay.wanted(this)
         setContentView(buildContentView())
+        if (overlayMode) {
+            // CarPlay video and touch live in ProjectionOverlay; this activity keeps only the status page.
+            (videoView as? TextureView)?.surfaceTextureListener = null
+            videoView?.visibility = View.GONE
+            gestureOverlay?.visibility = View.GONE
+            ProjectionOverlay.requestShow = ::showProjectionOverlay
+            ProjectionOverlay.onHidden = ::onProjectionOverlayHidden
+            showProjectionOverlay()
+        } else if (ProjectionWindow.isPartial(this)) {
+            appendLog("Projection overlay unavailable: draw over other apps is not allowed; " +
+                "using a narrowed activity window, whose uncovered area may not accept touches")
+        }
         applyFullscreenMode()
+        applyProjectionWindow()
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(true) {
@@ -782,7 +831,7 @@ class CarPlayHostActivity : ComponentActivity() {
         nightSchedule = AirPlayPersistence.loadCarPlayNightSchedule(this)
         nightModeController.configure(
             carPlayNightMode,
-            nightModeOrNull(resources.configuration.uiMode) ?: false,
+            systemNightOrNull(resources.configuration) ?: false,
             ambientLightThreshold,
             ambientDelaySeconds,
             nightSchedule,
@@ -1028,7 +1077,7 @@ class CarPlayHostActivity : ComponentActivity() {
         val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
         val savedDelay = AirPlayPersistence.loadAmbientDelaySeconds(this)
         val savedSchedule = AirPlayPersistence.loadCarPlayNightSchedule(this)
-        val systemNight = nightModeOrNull(resources.configuration.uiMode) ?: false
+        val systemNight = systemNightOrNull(resources.configuration) ?: false
         if (savedNightMode != carPlayNightMode || savedThreshold != ambientLightThreshold ||
             savedDelay != ambientDelaySeconds || savedSchedule != nightSchedule) {
             carPlayNightMode = savedNightMode
@@ -1103,6 +1152,12 @@ class CarPlayHostActivity : ComponentActivity() {
             harmanFullscreenEnabled = savedHarmanFullscreen
         }
         maybeStartCarPlay()
+        // The width setting or the overlay permission may have changed on the DiPlay settings page.
+        if (ProjectionOverlay.wanted(this) != overlayMode) {
+            appendLog("Projection mode changed overlay=${!overlayMode}; recreating the CarPlay screen")
+            recreate()
+            return
+        }
         applyFullscreenMode()
         if (systemBarsChanged) refreshDisplaySizeAfterLayout()
         videoView?.post {
@@ -1110,6 +1165,14 @@ class CarPlayHostActivity : ComponentActivity() {
             if (view.width > 0 && view.height > 0) {
                 scheduleDisplaySize(view.width, view.height)
             }
+        }
+        // Width may have changed on the DiPlay settings page; a resize restarts CarPlay at the new size.
+        applyProjectionWindow()
+        hostInFront = true
+        if (overlayMode) {
+            showProjectionOverlay()
+            // Already streaming: CarPlay is in the overlay, so let the car UI be the foreground app.
+            if (activeScreenStreamTypes.isNotEmpty() && !menuOpen) mainHandler.post { moveProjectionToBack() }
         }
     }
 
@@ -1562,6 +1625,8 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        hostInFront = false
+        updateProjectionOverlay()
         hostAppearanceResumed = false
         updateCallPopupGuard()
         AppAppearanceRuntime.clearHost(this)
@@ -1575,7 +1640,8 @@ class CarPlayHostActivity : ComponentActivity() {
         // The controller, USB/iAP2 link, and VPN attachment intentionally outlive the UI.
         isActivityStarted = false
         logThemeState(ThemeModeDiagnostics.Source.STOP, resources.configuration)
-        mainHandler.removeCallbacks(pollConfiguration)
+        // Overlay mode keeps CarPlay visible after the activity stops; keep following day/night.
+        if (!overlayMode) mainHandler.removeCallbacks(pollConfiguration)
         super.onStop()
         // Off screen there are no system bars to hide, so a launch waiting for focus can go now.
         onClusterLaunchTick()
@@ -1645,6 +1711,7 @@ class CarPlayHostActivity : ComponentActivity() {
         super.onConfigurationChanged(newConfig)
         refreshConfiguration(newConfig, ThemeModeDiagnostics.Source.CALLBACK)
         applyFullscreenMode()
+        applyProjectionWindow()
         stageStatusView?.maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
         connectionHelpView?.maxWidth = (resources.displayMetrics.widthPixels * 0.78f).toInt()
         scrollLogsToBottom()
@@ -1688,6 +1755,20 @@ class CarPlayHostActivity : ComponentActivity() {
         homeMonitor?.stop()
         CenterMapOverlay.hide()
         if (CenterMapOverlay.requestShow == (::showCenterMap)) CenterMapOverlay.requestShow = null
+        // Identity, so a recreated host that already registered its own callback is not cleared.
+        if (HeadUnitNightMode.onChanged === nightInputChanged) HeadUnitNightMode.onChanged = null
+        if (HeadUnitMapDestination.onEvent === mapDestinationEvent) HeadUnitMapDestination.onEvent = null
+        if (NavigationDebugOverlay.requestShow === showNavigationDebugOverlay) {
+            NavigationDebugOverlay.requestShow = null
+            NavigationDebugOverlay.hide()
+        }
+        pageGuard?.stop()
+        pageGuard = null
+        if (ProjectionOverlay.requestShow == (::showProjectionOverlay)) {
+            ProjectionOverlay.requestShow = null
+            ProjectionOverlay.onHidden = null
+            ProjectionOverlay.hide()
+        }
         if (MapMirrors.sink === mirrorSink) {
             MapMirrors.sink = null
             MapMirrors.setStreamActive(false)
@@ -1702,6 +1783,9 @@ class CarPlayHostActivity : ComponentActivity() {
         fallbackVideoView = null
         fallbackVideoBounds = null
         sessionLog?.append("Activity destroyed")
+        if (AdbDiagnostics.sink === adbDiagnosticsSink) AdbDiagnostics.sink = null
+        // Identity, so a recreated host that already installed its own log is not unhooked.
+        if (CarPlayBackgroundSession.sessionLog === sessionLog) CarPlayBackgroundSession.sessionLog = null
         sessionLog?.close()
         sessionLog = null
         super.onDestroy()
@@ -1811,6 +1895,10 @@ class CarPlayHostActivity : ComponentActivity() {
         paintWaitingScreen()
         viewport.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
         root.addView(viewport, FrameLayout.LayoutParams(-1, -1))
+        if (!overlayMode) {
+            // Overlay mode puts its own handle on the floating window instead.
+            root.addView(createHandle(this).view, FrameLayout.LayoutParams(-1, -1))
+        }
         // Above the video and gesture layer, below the menus.
         sidePanelBlur = ImageView(this).apply {
             visibility = View.GONE
@@ -5261,6 +5349,7 @@ class CarPlayHostActivity : ComponentActivity() {
             statusBarShown = statusBarShown(),
         )
         sessionDisplay = display
+        ProjectionWindow.sessionPercent = AirPlayPersistence.loadProjectionWidthPercent(this)
         videoView?.let { updateVideoLayout(it.width, it.height) }
         CarPlayBackgroundSession.store(next, renderer, size.width, size.height, this, display) { completion ->
             runOnUiThread {
@@ -5282,15 +5371,23 @@ class CarPlayHostActivity : ComponentActivity() {
         newConfig: Configuration = resources.configuration,
         source: ThemeModeDiagnostics.Source,
     ) {
-        if (lastConfiguration == newConfig) {
+        val configChanged = lastConfiguration != newConfig
+        // resources.configuration is mutated in place, so keep a copy to compare against.
+        if (configChanged) lastConfiguration = Configuration(newConfig)
+        // Evaluated every poll: BYD's night key and UiModeManager change without a configuration change.
+        val systemNight = systemNightOrNull(newConfig)
+        if (!configChanged && systemNight == lastSystemNight) {
             logThemeState(source, newConfig)
             return
         }
-        // resources.configuration is mutated in place, so keep a copy to compare against.
-        lastConfiguration = Configuration(newConfig)
+        if (systemNight != null && systemNight != lastSystemNight) {
+            appendLog("Head unit day/night input ${HeadUnitNightMode.label(systemNight)} " +
+                "(from ${HeadUnitNightMode.lastSource})")
+        }
+        lastSystemNight = systemNight
         nightModeDiagnosticSource = source
         try {
-            nightModeOrNull(newConfig.uiMode)?.let { nightModeController.systemChanged(it) }
+            systemNight?.let { nightModeController.systemChanged(it) }
         } finally {
             nightModeDiagnosticSource = ThemeModeDiagnostics.Source.CARPLAY_MODE
         }
@@ -5300,18 +5397,25 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun logThemeState(source: ThemeModeDiagnostics.Source, configuration: Configuration) {
         themeDiagnostics.observe(
             source, configuration.uiMode, darkMode, activeAirPlaySession != null, SystemClock.elapsedRealtime(),
-        )?.let(::appendLog)
+        )?.let {
+            // Every input travels with the sample: the report keeps minutes, not hours, so a one-off line
+            // at startup has scrolled away by the time a day/night complaint is looked into.
+            appendLog("$it | ${HeadUnitNightMode.describe(this, configuration)}")
+        }
     }
 
-    private fun syncAirPlayDarkMode(source: ThemeModeDiagnostics.Source) {
+    private fun systemNightOrNull(configuration: Configuration): Boolean? =
+        HeadUnitNightMode.read(this, configuration)
+
+    private fun syncAirPlayDarkMode(source: ThemeModeDiagnostics.Source, night: Boolean = darkMode) {
         val session = activeAirPlaySession
-        val night = darkMode
         if (session == null) {
             appendLog("THEME_DIAGNOSTIC request source=${source.label} applied=${if (night) "dark" else "light"} sessionActive=false")
             return
         }
         airPlayCommandExecutor.execute {
             try {
+                // false = the event channel is not open yet; the session sends it once the channel opens.
                 val sent = session.setNightMode(night)
                 // A successful write does not prove the iPhone changed its appearance.
                 appendLog(
@@ -5477,6 +5581,8 @@ class CarPlayHostActivity : ComponentActivity() {
         val display = sessionDisplay ?: return false
         if (display.rotation != displayRotation()) return true
         if (display.hideTopBar != hideTopBar || display.hideBottomBar != hideBottomBar) return true
+        // A new CarPlay width needs a new canvas, not a letterboxed copy of the old one.
+        if (ProjectionWindow.sessionPercent.let { it != null && it != AirPlayPersistence.loadProjectionWidthPercent(this) }) return true
         if (newSize != null && newSize.width > 0 && newSize.height > 0 &&
             display.windowWidth > 0 && display.windowHeight > 0) {
             // The negotiated canvas may be square to support screen rotation; compare the
@@ -5718,6 +5824,13 @@ class CarPlayHostActivity : ComponentActivity() {
             parent.addView(settingsMenu, index, FrameLayout.LayoutParams(-1, -1))
         }
         menuOpen = true
+        if (overlayMode) {
+            // The menu lives in this activity, which overlay mode keeps behind the car UI.
+            ProjectionOverlay.setHostMenuOpen(true)
+            startActivity(Intent(this, CarPlayHostActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+            appendLog("Settings menu opened in front of the car UI (overlay mode)")
+        }
         updateCallPopupGuard()
         gestureOverlay?.visibility = View.GONE
         settingsMenu?.visibility = View.VISIBLE
@@ -5803,6 +5916,7 @@ class CarPlayHostActivity : ComponentActivity() {
         menuOpen = false
         updateCallPopupGuard()
         menuSettingsSignature = null
+        if (overlayMode) ProjectionOverlay.setHostMenuOpen(false)
         settingsMenu?.visibility = View.GONE
         gestureOverlay?.visibility = View.VISIBLE
         settingsGestureHint?.text = settingsGestureHintText()
@@ -6037,6 +6151,8 @@ class CarPlayHostActivity : ComponentActivity() {
             MotionEvent.ACTION_DOWN -> {
                 gestureSequenceActive = false
                 gestureTracking = false
+                guidanceTapDownX = event.x
+                guidanceTapDownY = event.y
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (gestureFingerCount > 0 && event.pointerCount == gestureFingerCount && !gestureSequenceActive) {
@@ -6095,6 +6211,10 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         val contacts = CarPlayTouchMapper.contacts(event, content)
         val queued = controller?.sendTouch(contacts) ?: false
+        // A calibration records the driver's real taps, which are forwarded as usual so the map reacts.
+        if (event.actionMasked == MotionEvent.ACTION_UP && event.pointerCount == 1) {
+            recordGuidanceStopTap(contacts.firstOrNull(), event)
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
             MotionEvent.ACTION_POINTER_DOWN,
@@ -6107,6 +6227,25 @@ class CarPlayHostActivity : ComponentActivity() {
             )
         }
         return true
+    }
+
+    /**
+     * Records one tap of a calibration, for whichever sequence is being recorded. Only a real tap
+     * counts: a drag or a fling through the map would store a point the driver never meant to press.
+     */
+    private fun recordGuidanceStopTap(contact: com.shilapi.xcertplay.airplay.AirPlayContact?, event: MotionEvent) {
+        if (contact == null || CarPlayGuidanceStopper.remainingToRecord == null) return
+        if (event.eventTime - event.downTime > GUIDANCE_TAP_MAX_MILLIS) return
+        val slop = dp(GUIDANCE_TAP_SLOP_DP)
+        if (kotlin.math.abs(event.x - guidanceTapDownX) > slop ||
+            kotlin.math.abs(event.y - guidanceTapDownY) > slop) return
+        val remaining = CarPlayGuidanceStopper.recordCalibrationTap(this, contact.x, contact.y) ?: return
+        appendLog("Guidance stop calibration: tap recorded, $remaining to go")
+        android.widget.Toast.makeText(this, if (remaining > 0) {
+            getString(R.string.carplay_stop_calibration_progress, remaining)
+        } else {
+            getString(R.string.carplay_stop_calibration_done)
+        }, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun pointerCentroid(event: MotionEvent, horizontal: Boolean): Float {
@@ -6184,6 +6323,13 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun updateDebugOverlays() {
         statusScrollView?.visibility = View.GONE
         connectionPanel?.visibility = if (activeScreenStreamTypes.isEmpty()) View.VISIBLE else View.GONE
+        val streaming = activeScreenStreamTypes.isNotEmpty()
+        if (overlayMode && streaming && !projectionStreaming && hostInFront && !menuOpen) {
+            // Video has started in the overlay: hand the screen to the car UI, like the system bars.
+            mainHandler.post { moveProjectionToBack() }
+        }
+        projectionStreaming = streaming
+        updateProjectionOverlay()
     }
 
     // The keywords are English; matching the English text keeps the result the same in every UI language.
@@ -6235,7 +6381,12 @@ class CarPlayHostActivity : ComponentActivity() {
             )
         }
         sessionLog = activeLog
+        CarPlayBackgroundSession.sessionLog = activeLog
+        // DiPlay's own ADB link (127.0.0.1:5555): connect results and failures go to this log too.
+        AdbDiagnostics.sink = adbDiagnosticsSink
     }
+
+    private val adbDiagnosticsSink: (String) -> Unit = { line -> appendFileLog(line) }
 
     private fun refreshLogView(nowMillis: Long) {
         val cutoff = nowMillis - LOG_RETENTION_MILLIS
@@ -6288,6 +6439,129 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         controller.systemBarsBehavior =
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    private var lastProjectionSummary: String? = null
+    private var lastOutsideTouchLogMillis = 0L
+
+    private var overlayMode = false
+    private var pageGuard: ForegroundPageGuard? = null
+    private var hostInFront = false
+    private var projectionStreaming = false
+
+    private fun showProjectionOverlay() {
+        if (!overlayMode || shuttingDown.get()) return
+        if (!ProjectionOverlay.shown) {
+            val summary = ProjectionOverlay.show(this, textureListener, ::onOverlayTouch,
+                getString(R.string.getting_carplay_ready), createHandle(applicationContext).view)
+            if (summary == null) {
+                appendLog("Projection overlay could not be added")
+                return
+            }
+            appendLog(summary)
+        }
+        if (pageGuard == null) {
+            pageGuard = ForegroundPageGuard(this, ::appendLog) { hide, reason ->
+                ProjectionOverlay.setSuppressed(hide)
+                appendLog("Page guard: CarPlay ${if (hide) "hidden" else "shown again"} ($reason)")
+            }.also { it.start() }
+        }
+        videoView = ProjectionOverlay.texture
+        updateProjectionOverlay()
+    }
+
+    private fun onProjectionOverlayHidden() {
+        // DiPlay's own screen is in front; the texture listener has already detached the surface.
+        if (overlayMode) videoView = null
+        appendLog("Projection overlay hidden while a DiPlay screen is in front")
+    }
+
+    private fun updateProjectionOverlay() {
+        if (!overlayMode) return
+        ProjectionOverlay.update(activeScreenStreamTypes.isNotEmpty(), hostInFront,
+            friendlyStage(latestStage))
+    }
+
+    /** Edge pill: DiPlay's settings, the host's own panel, minimise and disconnect. */
+    private fun createHandle(context: android.content.Context): ProjectionHandle {
+        val side = if (ProjectionWindow.isPartial(this)) {
+            // The edge facing the uncovered car screen.
+            if (AirPlayPersistence.loadProjectionAlignment(this) == ProjectionWindow.Alignment.RIGHT) Gravity.LEFT else Gravity.RIGHT
+        } else {
+            // Away from CarPlay's dock, which sits on the driver's side.
+            if (rightHandDrive) Gravity.LEFT else Gravity.RIGHT
+        }
+        return ProjectionHandle(context, side, listOf(
+            // Named for DiPlay's settings screen, so it goes there. It used to open the host's own
+            // panel, from whose foot a second tap reached the real screen — reachable only after a
+            // scroll past every control above it, and looking like a different app on the way.
+            getString(R.string.handle_settings) to {
+                appendLog("Edge handle: DiPlay settings menuAlreadyOpen=$menuOpen")
+                // An edit left pending in the host panel is still the driver's to keep or discard.
+                if (menuOpen) leaveSettingsMenu { showDiPlayHome("settings") }
+                else showDiPlayHome("settings")
+            },
+            // The host's panel keeps its own entry: it holds what only makes sense over a running
+            // session, such as moving CarPlay to the passenger screen's view area.
+            getString(R.string.carplay_settings) to {
+                appendLog("Edge handle: CarPlay panel menuAlreadyOpen=$menuOpen")
+                openSettingsMenu()
+            },
+            getString(R.string.handle_minimize) to {
+                if (overlayMode) {
+                    val done = ProjectionOverlay.minimize(this)
+                    appendLog("Edge handle: minimise CarPlay overlay=$done")
+                } else {
+                    appendLog("Edge handle: CarPlay to the background moved=${moveTaskToBack(true)}")
+                }
+            },
+            getString(R.string.handle_disconnect) to {
+                appendLog("Edge handle: disconnect")
+                if (CarPlayBackgroundSession.hasSession()) CarPlayBackgroundSession.stop()
+                else shutdown(false, "Edge handle disconnect") { runOnUiThread { finish() } }
+            },
+        ))
+    }
+
+    private fun moveProjectionToBack() {
+        if (!overlayMode || !hostInFront || menuOpen || activeScreenStreamTypes.isEmpty() || !ProjectionOverlay.shown) return
+        val moved = moveTaskToBack(true)
+        appendLog("CarPlay shown in the overlay; DiPlay screen moved to the back=$moved")
+    }
+
+    // Overlay touches: CarPlay while streaming; otherwise a tap reopens the status page.
+    private fun onOverlayTouch(view: View, event: MotionEvent): Boolean {
+        if (activeScreenStreamTypes.isNotEmpty()) return onHostTouch(view, event)
+        if (event.actionMasked == MotionEvent.ACTION_UP) {
+            startActivity(Intent(this, CarPlayHostActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        return true
+    }
+
+    private fun applyProjectionWindow() {
+        val summary = ProjectionWindow.apply(this, edgeToEdge = hideTopBar && hideBottomBar, overlay = overlayMode)
+        if (summary != lastProjectionSummary) {
+            lastProjectionSummary = summary
+            appendLog(summary)
+            window.decorView.post {
+                val frame = android.graphics.Rect().also { window.decorView.getGlobalVisibleRect(it) }
+                val location = IntArray(2).also { window.decorView.getLocationOnScreen(it) }
+                appendLog("Projection window frame=${frame.width()}x${frame.height()} at x=${location[0]} y=${location[1]}")
+            }
+        }
+    }
+
+    // Outside touches are delivered to the car UI behind; this only records that it happened.
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_OUTSIDE) {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastOutsideTouchLogMillis > 5_000L) {
+                lastOutsideTouchLogMillis = now
+                appendLog("Touch outside CarPlay delivered to the car UI")
+            }
+            return true
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).roundToInt()
@@ -6355,6 +6629,9 @@ class CarPlayHostActivity : ComponentActivity() {
         const val PROTOCOL_TRACE_PREFIX = "TRACE "
         const val SETTINGS_SWIPE_DISTANCE_DP = 72
         const val SETTINGS_SWIPE_DIRECTION_RATIO = 1.15f
+        /** A calibration tap has to be a tap: longer or further than this is a press or a drag. */
+        const val GUIDANCE_TAP_MAX_MILLIS = 600L
+        const val GUIDANCE_TAP_SLOP_DP = 16
         const val MAX_SETTINGS_MENU_WIDTH_DP = 720
         const val SWIPE_PANEL_MARGIN_DP = 16
         const val SWIPE_PANEL_RADIUS_DP = 28
@@ -6411,6 +6688,15 @@ internal fun statusBarHiddenByAnotherWindow(display: CarPlaySessionDisplay, widt
 /** Process-local hand-off for keeping the CarPlay session alive while no Activity is visible. */
 internal object CarPlayBackgroundSession {
     @Volatile var active = false
+
+    /**
+     * The host's log, so the settings page can write out held-back repeats before it exports a report.
+     * Held here rather than passed around: the exporter runs in another activity of the same process.
+     */
+    @Volatile var sessionLog: SessionLogFile? = null
+
+    fun flushSessionLog() = runCatching { sessionLog?.flushRepeats() }.let { }
+
     @Volatile var callPopupReady = false
     private var stopAction: (((() -> Unit)) -> Unit)? = null
     private var stopping = false

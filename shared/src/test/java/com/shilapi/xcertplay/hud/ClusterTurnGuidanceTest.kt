@@ -6,10 +6,10 @@ import org.junit.Test
 class ClusterTurnGuidanceTest {
     @Test
     fun straightAheadKeepsTheCard() {
-        val guidance = ClusterTurnGuidance.from(BydClusterFrame.from(BydAppleManeuver(400, 3, 0, "环城路")))
+        val guidance = ClusterTurnGuidance.from(BydClusterFrame.from(BydAppleManeuver(400, 3, 0, "示例路")))
         assertEquals(9, guidance.icon)
         assertEquals(400, guidance.distanceMeters)
-        assertEquals("环城路", guidance.road)
+        assertEquals("示例路", guidance.road)
     }
 
     @Test

@@ -7,6 +7,10 @@ import java.io.File
 internal class SessionLogFile(val file: File) : Closeable {
     private val lock = Any()
     private var closed = false
+
+    /** A line that repeats unchanged spends the budget on nothing; see [SessionLogRateLimit]. */
+    private val rateLimit = SessionLogRateLimit()
+
     fun reset(header: String) = synchronized(lock) {
         if (!closed) {
             file.parentFile?.mkdirs()
@@ -18,14 +22,17 @@ internal class SessionLogFile(val file: File) : Closeable {
     fun append(line: String) = synchronized(lock) {
         if (closed) return@synchronized
         val safe = DiagnosticRedactor.redact(line) ?: return@synchronized
+        rateLimit.accept(safe, System.currentTimeMillis())?.let(::write)
+    }
+
+    private fun write(line: String) {
         runCatching {
             if (file.length() > MAX_BYTES) {
                 rotate()
                 file.writeText("")
             }
-            file.appendText(safe + "\n")
+            file.appendText(line + "\n")
         }
-        Unit
     }
     private fun rotate() {
         if (!file.exists() || file.length() == 0L) return
@@ -36,7 +43,15 @@ internal class SessionLogFile(val file: File) : Closeable {
         }
         file.copyTo(File(file.parentFile, ARCHIVE_NAMES.first()), overwrite = true)
     }
-    override fun close() = synchronized(lock) { closed = true }
+    override fun close() = synchronized(lock) {
+        if (!closed) rateLimit.drain().forEach(::write)
+        closed = true
+    }
+
+    /** Writes out the repeats held back so far, so an exported report is not missing their counts. */
+    fun flushRepeats() = synchronized(lock) {
+        if (!closed) rateLimit.drain().forEach(::write)
+    }
     companion object {
         const val MAX_BYTES = 512 * 1024L
         private val ARCHIVE_NAMES = listOf("previous.log") + (2..7).map { "previous-$it.log" }

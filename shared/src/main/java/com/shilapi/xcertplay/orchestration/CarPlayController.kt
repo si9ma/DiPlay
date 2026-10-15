@@ -582,6 +582,22 @@ class CarPlayController(
         }
     }
 
+    /** Sends the car command requestUI with [url]. The log names only the URL scheme, never its parameters. */
+    fun requestUi(url: String): Boolean {
+        if (closed) return false
+        val session = activeSession ?: return false
+        return try {
+            touchExecutor.execute {
+                if (!closed && activeSession === session) {
+                    debugLog("requestUI ${url.substringBefore(':')}: sent=${session.requestUi(url)}")
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** Opens Siri on the iPhone, as the car's voice button does in CarPlay. */
     fun requestSiri(): Boolean {
         if (closed) return false
@@ -1233,6 +1249,10 @@ class CarPlayController(
             val mfi = mfiSession?.client
                 ?: throw IOException("MFi coprocessor client is unavailable")
             // Wireless CarPlay begins over Bluetooth: a radio that is off is found before the Wi-Fi is changed.
+            // One that is still coming up is not off: a head unit that has just woken reports
+            // TURNING_ON for several seconds, and failing then cost the backoff and a second hotspot
+            // bring-up. A radio the driver switched off is STATE_OFF and still fails at once.
+            awaitBluetoothTurningOn(generation)
             BluetoothRadioCheck.blocker(
                 adapterPresent = bluetoothAdapter != null,
                 enabled = bluetoothAdapter?.isEnabled == true,
@@ -1318,7 +1338,22 @@ class CarPlayController(
 
             val adapter = bluetoothAdapter
                 ?: throw IOException(BluetoothRadioCheck.NO_ADAPTER)
-            val bluetoothRecoveryComplete = BydBluetoothSuspend.resumeAndWait(appContext, adapter)
+            var bluetoothRecoveryComplete = BydBluetoothSuspend.resumeAndWait(appContext, adapter)
+            debugLog("wireless Bluetooth before handshake: ${BydBluetoothSuspend.lastRecovery}")
+            // A head unit that has just woken brings its radio up well after DiPlay starts. Failing at
+            // once rebuilt the hotspot and backed off 2 s, then 4 s, so the iPhone was picked up up to
+            // several seconds after the radio was ready; waiting here starts the handshake the moment
+            // it is. A radio the driver switched off stays off, and the wait still ends with the error.
+            if (!adapter.isEnabled) {
+                val waitStarted = System.nanoTime()
+                val deadline = waitStarted + BLUETOOTH_ON_WAIT_MILLIS * 1_000_000L
+                while (!adapter.isEnabled && System.nanoTime() < deadline && !isStaleWirelessRun(generation)) {
+                    Thread.sleep(BLUETOOTH_ON_POLL_MILLIS)
+                }
+                val waited = (System.nanoTime() - waitStarted) / 1_000_000L
+                debugLog("wireless Bluetooth on after waiting=${adapter.isEnabled} waitedMs=$waited")
+                if (adapter.isEnabled) bluetoothRecoveryComplete = true
+            }
             if (!adapter.isEnabled) throw IOException(BluetoothRadioCheck.RADIO_OFF)
             if (!bluetoothRecoveryComplete) throw IOException("Bluetooth recovery did not complete before the handshake")
             val device = selectWirelessBluetoothDevice(adapter)
@@ -2370,6 +2405,20 @@ class CarPlayController(
         }
     }
 
+    /** Waits, bounded, while the radio reports TURNING_ON; returns at once in any other state. */
+    private fun awaitBluetoothTurningOn(generation: Int) {
+        val adapter = bluetoothAdapter ?: return
+        if (adapter.state != BluetoothAdapter.STATE_TURNING_ON) return
+        val started = System.nanoTime()
+        val deadline = started + BLUETOOTH_ON_WAIT_MILLIS * 1_000_000L
+        while (adapter.state == BluetoothAdapter.STATE_TURNING_ON && System.nanoTime() < deadline &&
+            !isStaleWirelessRun(generation)) {
+            Thread.sleep(BLUETOOTH_ON_POLL_MILLIS)
+        }
+        debugLog("wireless Bluetooth was turning on; on=${adapter.isEnabled} " +
+            "waitedMs=${(System.nanoTime() - started) / 1_000_000L}")
+    }
+
     private fun isStaleWirelessRun(generation: Int): Boolean =
         closed || phase != Phase.WIRELESS || generation != wirelessGeneration.get() || wirelessFailureReported.get()
 
@@ -3013,6 +3062,8 @@ class CarPlayController(
         private const val DEVICE_AVAILABILITY_POLL_INTERVAL_MILLIS = 2_000L
         private const val WIRELESS_HANDOFF_TIMEOUT_MILLIS = 45_000L
         private const val RFCOMM_CONNECT_TIMEOUT_MILLIS = 15_000L
+        private const val BLUETOOTH_ON_WAIT_MILLIS = 20_000L
+        private const val BLUETOOTH_ON_POLL_MILLIS = 100L
         private const val MAXIMUM_REENUMERATION_ATTEMPTS = 2
         private const val START_SESSION_PROGRESS = "iap2 tx=0x4301"
         private const val EXECUTOR_CLOSE_TIMEOUT_MILLIS = 2_000L

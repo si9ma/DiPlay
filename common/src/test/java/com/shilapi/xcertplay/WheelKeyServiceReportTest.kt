@@ -27,6 +27,7 @@ class WheelKeyServiceReportTest {
 
     @Before fun setUp() {
         WheelKeyLog.reset()
+        WheelKeyService.resetDiagnosticsForTest()
         service = Robolectric.buildService(WheelKeyService::class.java).create().get()
         service.getSharedPreferences("diplay_navigation_wheel", Context.MODE_PRIVATE).edit().clear().commit()
         service.getSharedPreferences("diplay_wheel_map_zoom", Context.MODE_PRIVATE).edit().clear().commit()
@@ -39,6 +40,7 @@ class WheelKeyServiceReportTest {
         service.onDestroy()
         CarPlayBackgroundSession.clear()
         WheelKeyLog.reset()
+        WheelKeyService.resetDiagnosticsForTest()
     }
 
     private fun send(code: Int, action: Int, repeat: Int = 0, downTime: Long = time): Boolean = service.javaClass

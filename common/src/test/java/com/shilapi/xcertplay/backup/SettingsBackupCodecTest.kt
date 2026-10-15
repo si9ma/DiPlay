@@ -131,6 +131,100 @@ class SettingsBackupCodecTest {
         assertEquals(60, prefs("xcertplay_airplay").getInt("display_fps", 0))
     }
 
+    /** The settings this branch added, which the phone page's list did not have, travel too. */
+    @Test
+    fun theFloatingWindowAndGuidanceSettingsTravelAndTheRawLogConsentDoesNot() {
+        prefs("xcertplay_airplay").edit()
+            .putInt("projection_width_percent", 66)
+            .putString("carplay_only_on_packages", "com.byd.sr")
+            .putString("carplay_stop_taps", "[{\"x\":0.27,\"y\":0.93,\"d\":250}]")
+            .putLong("carplay_stop_foreground_wait_millis", 500L)
+            .putBoolean("head_unit_map_destination_follow", true)
+            .putBoolean("report_raw_car_log", true)
+            .apply()
+        prefs("diplay_byd_outputs").edit().putBoolean("carplay_calls", true).apply()
+        prefs("diplay_projection_handle").edit().putInt("bubble_y", 300).apply()
+        val document = JSONObject(String(SettingsBackupCodec.export(context, "8.0.33"))).getJSONObject("settings")
+        val airplay = document.getJSONObject("xcertplay_airplay")
+        assertEquals(66, airplay.getInt("projection_width_percent"))
+        assertEquals("com.byd.sr", airplay.getString("carplay_only_on_packages"))
+        assertTrue(airplay.has("carplay_stop_taps"))
+        assertEquals(500L, airplay.getLong("carplay_stop_foreground_wait_millis"))
+        assertTrue(airplay.getBoolean("head_unit_map_destination_follow"))
+        // A consent stays with the person who gave it.
+        assertFalse(airplay.has("report_raw_car_log"))
+        assertTrue(document.getJSONObject("diplay_byd_outputs").getBoolean("carplay_calls"))
+        assertEquals(300, document.getJSONObject("diplay_projection_handle").getInt("bubble_y"))
+
+        val imported = """
+            {"format": "diplay-settings", "version": 1, "settings": {
+              "xcertplay_airplay": {"report_raw_car_log": true, "projection_width_percent": 50}
+            }}
+        """.trimIndent()
+        prefs("xcertplay_airplay").edit().putBoolean("report_raw_car_log", false).apply()
+        SettingsBackupCodec.import(context, imported.toByteArray())
+        assertEquals(false, prefs("xcertplay_airplay").getBoolean("report_raw_car_log", true))
+        assertEquals(50, prefs("xcertplay_airplay").getInt("projection_width_percent", 0))
+    }
+
+    /**
+     * A file saved by this branch's earlier head-unit backup: the same format name, values wrapped as
+     * {"t", "v"} under "prefs". It restores, and through the same allow list — that backup let
+     * `pairing.<id>` through, which must not become a way in now.
+     */
+    @Test
+    fun aFileFromTheEarlierHeadUnitBackupRestoresThroughTheSameAllowList() {
+        val legacy = """
+            {"format": "diplay-settings", "version": 1, "app": "8.0.31", "exported": "2026-10-12 10:00:00",
+             "prefs": {
+               "xcertplay_airplay": {
+                 "display_fps": {"t": "i", "v": 48},
+                 "projection_alignment": {"t": "s", "v": "LEFT"},
+                 "carplay_stop_tap_gap_ms": {"t": "l", "v": 500},
+                 "pairing.attacker": {"t": "s", "v": "00ff"}
+               },
+               "diplay_center_map": {"x": {"t": "i", "v": 120}}
+             }}
+        """.trimIndent()
+        val outcome = SettingsBackupCodec.import(context, legacy.toByteArray())
+        assertEquals(false, outcome.invalid)
+        assertEquals(4, outcome.applied)
+        assertEquals(1, outcome.skipped)
+        val airplay = prefs("xcertplay_airplay")
+        assertEquals(48, airplay.getInt("display_fps", 0))
+        assertEquals("LEFT", airplay.getString("projection_alignment", null))
+        // The file said Long, so it is stored as one although 500 fits an Int.
+        assertEquals(500L, airplay.getLong("carplay_stop_tap_gap_ms", 0L))
+        assertFalse(airplay.contains("pairing.attacker"))
+        assertEquals(120, prefs("diplay_center_map").getInt("x", 0))
+    }
+
+    /**
+     * On a fresh install nothing is stored to take the type from, and a guess makes 2000 an Int. The
+     * app reads these with getLong and getFloat, which would then throw on every start.
+     */
+    @Test
+    fun valuesReadAsLongOrFloatKeepThatTypeOnAFreshInstall() {
+        listOf("xcertplay_airplay", "diplay_center_map", "diplay_projection_handle").forEach { prefs(it).edit().clear().commit() }
+        val document = """
+            {"format": "diplay-settings", "version": 1, "settings": {
+              "xcertplay_airplay": {"carplay_start_delay_millis": 2000, "carplay_stop_foreground_wait_millis": 0,
+                "carplay_start_tap_gap_ms": 750, "carplay_stop_tap_gap_ms": 500},
+              "diplay_center_map": {"aspect": 4607182418800017408},
+              "diplay_projection_handle": {"y_fraction": 1}
+            }}
+        """.trimIndent()
+        val outcome = SettingsBackupCodec.import(context, document.toByteArray())
+        assertEquals(6, outcome.applied)
+        val airplay = prefs("xcertplay_airplay")
+        assertEquals(2000L, airplay.getLong("carplay_start_delay_millis", -1))
+        assertEquals(0L, airplay.getLong("carplay_stop_foreground_wait_millis", -1))
+        assertEquals(750L, airplay.getLong("carplay_start_tap_gap_ms", -1))
+        assertEquals(500L, airplay.getLong("carplay_stop_tap_gap_ms", -1))
+        assertEquals(1.0, java.lang.Double.longBitsToDouble(prefs("diplay_center_map").getLong("aspect", 0)), 0.0)
+        assertEquals(1f, prefs("diplay_projection_handle").getFloat("y_fraction", 0f))
+    }
+
     @Test
     fun exportImportRoundTripRestoresValues() {
         prefs("xcertplay_airplay").edit()

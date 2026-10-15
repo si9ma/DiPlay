@@ -552,6 +552,15 @@
     <string name="video_play">播放</string>
     <string name="video_pause">暂停</string>
     <string name="video_cannot_play">此视频无法在车机屏幕上播放。受保护的视频（例如 Apple TV+）需要获得授权的接收器。</string>
+    <string name="carplay_width" formatted="false">CarPlay 宽度</string>
+    <string name="carplay_width_full" formatted="false">全宽（100%）</string>
+    <string name="carplay_position" formatted="false">CarPlay 位置</string>
+    <string name="carplay_position_left" formatted="false">靠左</string>
+    <string name="carplay_position_center" formatted="false">居中</string>
+    <string name="carplay_position_right" formatted="false">靠右</string>
+    <string name="carplay_width_hint" formatted="false">低于 100% 时，CarPlay 旁边会露出车机原生界面并可直接操作。实验功能，效果取决于车机系统。</string>
+    <string name="carplay_width_custom">自定义…</string>
+    <string name="carplay_width_custom_hint">输入 %1$d 到 %2$d 之间的屏幕宽度百分比。</string>
     <string name="safe_area_mapping_summary">安全区域：%1$d x %2$d，位于 (%3$d, %4$d)，画面 %5$d x %6$d</string>
     <string name="navigation_widget_label">CarPlay 导航</string>
     <string name="navigation_widget_description">来自 CarPlay 的下一个转弯、距离、到达时间和歌曲</string>
@@ -577,6 +586,39 @@
     <string name="center_map_no_permission_screen">此车机没有该权限的设置界面，请通过 ADB 允许。</string>
     <string name="launcher_map_sharing">与其他启动器共享实时地图</string>
     <string name="launcher_map_sharing_description">支持 DiPlay 的启动器可以在自己的主屏幕中显示实时仪表盘地图。默认关闭，因为开启后车机上的任何应用都可以请求该地图。详见 docs/LAUNCHER_INTEGRATION.md。</string>
+    <string name="handle_settings">DiPlay 设置</string>
+    <string name="handle_minimize">收起 CarPlay</string>
+    <string name="handle_disconnect">断开连接</string>
+    <string name="overlay_corner_radius">悬浮窗圆角</string>
+    <string name="overlay_corner_square">直角</string>
+    <string name="overlay_corner_radius_hint">输入 %1$d 到 %2$d 之间的圆角半径（dp）。</string>
+    <string name="overlay_corner_fill">圆角区域</string>
+    <string name="overlay_corner_fill_transparent">透明</string>
+    <string name="overlay_corner_fill_color">颜色</string>
+    <string name="overlay_corner_color">圆角颜色</string>
+    <string name="overlay_corner_color_hint">按 #RRGGBB 格式输入颜色，例如 #0C111B。</string>
+    <string name="overlay_color_black">黑色</string>
+    <string name="overlay_color_diplay">DiPlay 深蓝</string>
+    <string name="overlay_color_graphite">石墨灰</string>
+    <string name="overlay_color_charcoal">炭灰</string>
+    <string name="overlay_color_dark_gray">深灰</string>
+    <string name="overlay_corner_hint">只对 CarPlay 悬浮窗生效。选透明时圆角处露出后面的车机界面；选颜色时用深色填充，适合深色车机主题。修改后下次显示 CarPlay 时生效。</string>
+    <string name="carplay_pages_usage_missing">需要“使用情况访问”权限。ADB 授权：adb shell appops set --user 10 %1$s GET_USAGE_STATS allow</string>
+    <string name="carplay_pages_none">无</string>
+    <string name="carplay_only_on" formatted="false">仅在指定页面显示 CarPlay</string>
+    <string name="carplay_only_on_description" formatted="false">只有下面指定的页面（例如智驾车道显示）在前台时才显示悬浮 CarPlay，其他时候自动隐藏。需要“使用情况访问”权限。隐藏期间声音和导航不受影响。</string>
+    <string name="carplay_only_on_pages" formatted="false">显示 CarPlay 的页面</string>
+    <string name="carplay_only_on_pages_hint" formatted="false">填写包名，或用“包名/Activity”只匹配某个页面，多个用逗号分隔。默认 com.byd.sr（智驾车道显示）。打开该页面后导出诊断报告，在“Page guard: foreground app … visible=”那一行可以找到。</string>
+    <string name="settings_export">导出设置到文件</string>
+    <string name="settings_import">从文件恢复设置</string>
+    <string name="settings_exported">已导出 %1$d 项设置</string>
+    <string name="settings_backup_failed">文件保存失败：%1$s</string>
+    <string name="carplay_never_on">隐藏 CarPlay 的页面</string>
+    <string name="carplay_never_on_description">这些页面打开时一律隐藏悬浮 CarPlay，即使它属于上面指定的应用（比如自动泊车就在 com.byd.sr 里面）。在 CarPlay 悬浮显示时打开一次该页面，再回到这里，在列表里勾选它即可。</string>
+    <string name="carplay_never_on_hint">填写包名，或用“包名/Activity”只匹配某个页面，多个用逗号分隔。</string>
+    <string name="carplay_never_on_manual">手动填写</string>
+    <string name="carplay_require_split">仅在分屏时显示</string>
+    <string name="carplay_require_split_description">打开“仅在指定页面显示 CarPlay”后生效：除了指定页面在前台，还要求旁边同时开着另一个应用（例如 3:7 分屏）。页面变成全屏时（比如 com.byd.sr 里的自动泊车）CarPlay 会隐藏。</string>
     <string name="usb_auto_confirm_status_on">USB 弹窗自动确认：已开启</string>
     <string name="usb_auto_confirm_dialog_msg">开启自动确认需要无障碍服务支持。比亚迪车机通常无法直接从系统设置中开启。\n\n此次设置还会为桌面地图申请使用情况访问权限和悬浮窗权限，并保留现有无障碍服务。\n\n是否通过车机本地 ADB 申请这三项权限？</string>
     <string name="usb_auto_confirm_active_hint">✓ 无障碍服务已激活（连接 iPhone 时将自动确认）</string>
@@ -825,6 +867,11 @@
     <string name="setup_badge_adb">需要网络 ADB</string>
     <string name="setup_done_title">准备就绪</string>
     <string name="setup_done_description">现在连接你的 iPhone。之后可在设置中再次打开本向导。</string>
+    <string name="adb_diagnostics_run">检查 DiPlay 的 ADB 连接</string>
+    <string name="adb_diagnostics_running">正在检查 ADB，最多 20 秒…</string>
+    <string name="adb_diagnostics_title">DiPlay 的 ADB 连接</string>
+    <string name="adb_diagnostics_copy">复制</string>
+    <string name="adb_diagnostics_copied">已复制</string>
     <string name="settings_discard_pending_title">要放弃更改吗？</string>
     <string name="settings_discard_pending_message">你刚更改的分辨率、帧率、连接以及其余设置尚未保存。“保存并重新连接”会应用它们。</string>
     <string name="settings_discard_pending_confirm">放弃</string>
@@ -835,6 +882,10 @@
     <string name="bt_suspend_delay_option">连接 %1$d 秒后</string>
     <string name="bt_suspend_during_carplay">CarPlay 期间暂停车机蓝牙 · 需要 ADB</string>
     <string name="bt_suspend_during_carplay_description">手机与车机保持免提连接时，来电会同时弹出车机蓝牙电话和 CarPlay 电话。开启后：CarPlay 连接期间通过 ADB 暂停车机蓝牙，来电只在 CarPlay 响应；蓝牙关闭期间，CarPlay 通话改走中控喇叭和车机麦克风，不再走电话免提。CarPlay 结束或下次无线连接握手前会自动恢复蓝牙。配对不受影响。更改在下次连接时生效。</string>
+    <string name="wheel_keys_service_refused">ADB 连接正常，但车机拒绝开启按键服务。请改到无障碍设置里手动打开“DiPlay 方向盘按键”；若仍失败，请导出诊断报告。</string>
+    <string name="cluster_display">仪表屏幕</string>
+    <string name="cluster_display_automatic">自动</string>
+    <string name="cluster_display_hint">“自动”只认识已验证车机的屏幕名称。如果仪表地图一直不显示、诊断报告里写着“no cluster projection display”，可以在这里逐个试：选错只会把地图投到别的屏幕上，没有其他影响。</string>
     <string name="cluster_small_window_card_theme">小屏转向卡主题</string>
     <string name="cluster_small_window_card_theme_follow">跟随转向卡主题</string>
     <string name="cluster_small_window_card_size">小屏转向卡 · 大小</string>

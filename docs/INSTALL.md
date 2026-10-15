@@ -48,6 +48,23 @@ Please reproduce unresolved problems on **0.2.19** and export a fresh report, ev
 
 The additional wireless/media/theme/own-app-exit records help identify the failing stage; they do not establish Qin Plus startup, Wi-Fi Direct stutter, Siri, iOS 15 or day/night firmware reports as resolved. See [0.2.19 release notes](RELEASE-NOTES-0.2.19.md).
 
+A report carries the newest 2,000,000 characters of the session logs, and a line that repeats without
+changing is folded into one entry a minute carrying its count. The two together are worth roughly a
+twelvefold span: a Di150VCP report used to spend 47% of its budget on `iAP tunnel iap2 rx=0x5201`,
+logged about once a second with the same value, and dropped 23035 lines — the half hour before the
+problem it was exported for. Folding never hides a line that carries a changing value, because such a
+line is a different line each time; what it folds is a repeat, and the count stays. If a report still
+begins with `(older log lines omitted: …)` and the event you are reporting is not in it, say so in the
+issue: the budget, not the capture, is what needs raising.
+
+Everything in a report is redacted, except one section that only appears if you asked for it. The
+navigation troubleshooting switches (see [BYD navigation displays](BYD_NAVIGATION.md)) add a section
+headed *"Head-unit map, as the car wrote it — NOT redacted; holds your real destinations"*, which is
+the car's own text: place names, coordinates and POI ids, unchanged. It has to be unchanged to be
+useful — the redactor drops exactly the line a destination is written on. Send such a report to the
+developer if asked, but read that section before posting it anywhere public, and turn the switches off
+once the problem is understood. With both off the section is absent and nothing is collected.
+
 APK installation restrictions are controlled by your car's firmware. ADB is optional if your car supports it, not an app runtime requirement:
 
 ```sh
