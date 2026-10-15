@@ -1,45 +1,41 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+# Android Studio and local IDE state
 .idea/
+*.iml
+.vscode/
 
-gameoflife
-gameoflife.test
+# Gradle and local tooling
+.gradle/
+.kotlin/
+.android-sdk/
+build/
+local.properties
 
-out/
+# Native build output
+.cxx/
+.externalNativeBuild/
+captures/
 
-cpu\.prof
+# Local agent working notes
+/agent_docs/
 
-mem\.prof
-
-coms20001_l04\.zip
-/coms20001_l04/
-
-*.qcow2
-
-profile*\.pdf
-
-gol-ref\.go
-
-base-out\.txt
-
-base-time\.txt
-
-baseline-out\.txt
-
-baseline-time\.txt
-
-compare
-
-your-out\.txt
-
-your-time\.txt
-
+# OS files
 .DS_Store
+Thumbs.db
+*.log
+/.idea
+
+# Local beta credentials and release signing (never commit)
+.private/
+*.jks
+*.keystore
+release-signing.properties
+
+# Never commit credential containers or installable distribution artifacts.
+*.pk8
+*.p7b
+*.p12
+*.pfx
+*.pem
+*.key
+*.apk
+*.aab
