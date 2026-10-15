@@ -204,6 +204,10 @@ internal class ClusterMapPresentation(
         fun findDisplay(context: Context, theme: DiLink51ClusterLayout.Theme = DiLink51ClusterLayout.theme(context)): Display? {
             val displays = context.getSystemService(DisplayManager::class.java)
                 ?.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION) ?: return null
+            // An explicit choice wins: head units outside the verified list name their cluster
+            // differently (e.g. bosdisplay0), so the name match below finds nothing for them.
+            val chosen = AirPlayPersistence.loadClusterDisplayName(context)
+            if (chosen.isNotEmpty()) return displays.firstOrNull { it.name == chosen }
             val name = DiLink51ClusterLayout.displayName(
                 displays.map { it.name }, android.os.Build.FINGERPRINT, theme,
             )

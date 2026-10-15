@@ -131,6 +131,8 @@ class WifiP2pGroupManager(
             val station = readStation()
             val stationFrequency = station.alignmentFrequency
             checkPrerequisites(station)
+            // Informational only: never spend the startup timeout on it.
+            WifiRadioDiagnostics.captureAsync(appContext, "preflight") { lines -> lines.forEach(diagnostic) }
             val remembered = configurationMemory.read()
             val preferred = remembered?.takeIf {
                 preferredChannel == WifiP2pChannels.AUTO && it.stationMHz == stationFrequency
@@ -293,6 +295,28 @@ class WifiP2pGroupManager(
         } catch (failure: Exception) {
             diagnostic("Wi-Fi P2P startup stopped type=${failure.javaClass.simpleName}")
             cleanupFailedStart(attempt)
+            if (failure is P2pCreateRejected) {
+                // Re-sample after the rejection: the system may have started a hotspot meanwhile.
+                val snapshot = WifiRadioDiagnostics.captureBounded(appContext, "create_rejected")
+                snapshot?.lines?.forEach(diagnostic)
+                    ?: diagnostic("Wi-Fi radio [create_rejected] diagnostics did not finish in time; skipped")
+                diagnostic(when (failure.reason) {
+                    // AOSP replies BUSY when the P2P interface itself cannot be created.
+                    WifiP2pManager.BUSY -> "Wi-Fi P2P hint: code=2 usually means no P2P interface could be created; " +
+                        "logcat 'HalDevMgr: bestIfaceCreationProposal is null' confirms a radio-combination conflict"
+                    // ERROR comes after the interface exists: wpa_supplicant/driver refused the group itself.
+                    WifiP2pManager.ERROR -> "Wi-Fi P2P hint: code=0 means the P2P interface exists but " +
+                        "wpa_supplicant or the Wi-Fi driver refused to start the group; check logcat for " +
+                        "wpa_supplicant / SupplicantP2pIfaceHal / WifiP2pNative errors"
+                    else -> "Wi-Fi P2P hint: createGroup rejected with code=${failure.reason}"
+                })
+                if (snapshot?.softApActive == true) throw IOException(
+                    "The car's Wi-Fi hotspot (${snapshot.softApInterfaces.ifEmpty { listOf("soft AP") }.joinToString(",")}) is using the radio and " +
+                        "this head unit cannot run Wi-Fi Direct at the same time. Turn off the car hotspot, " +
+                        "or choose Built-in car hotspot in Connection setup",
+                    failure,
+                )
+            }
             throw failure
         }
     }

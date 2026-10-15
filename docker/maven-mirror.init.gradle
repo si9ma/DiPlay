@@ -1,0 +1,20 @@
+// Container-only: redirect Maven Central to a mirror (Central rate-limits shared egress IPs with HTTP 429).
+// Override with MAVEN_CENTRAL_MIRROR; project build files stay untouched.
+def mirror = System.getenv('MAVEN_CENTRAL_MIRROR') ?: 'https://mirrors.tencent.com/nexus/repository/maven-public/'
+def redirect = { RepositoryHandler repos ->
+    repos.withType(MavenArtifactRepository).configureEach { repo ->
+        if (repo.url.toString().startsWith('https://repo.maven.apache.org/maven2')) {
+            repo.url = mirror
+        }
+    }
+}
+beforeSettings { settings ->
+    redirect(settings.pluginManagement.repositories)
+    redirect(settings.dependencyResolutionManagement.repositories)
+}
+// Robolectric downloads its Android runtime jars itself, outside Gradle's repositories.
+allprojects {
+    tasks.withType(Test).configureEach {
+        systemProperty 'robolectric.dependency.repo.url', mirror
+    }
+}

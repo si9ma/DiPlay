@@ -80,7 +80,39 @@ object AirPlayPersistence {
     private const val KEY_DIRECT_VIDEO_OUTPUT = "direct_video_output"
     private const val KEY_LOW_LATENCY_DECODER = "low_latency_decoder"
     private const val KEY_FPS_COUNTER = "fps_counter"
+    private const val KEY_MAP_DESTINATION_LISTEN = "head_unit_map_destination_listen"
+    private const val KEY_NIGHT_SOURCE = "carplay_night_source"
+    private const val KEY_MAP_DESTINATION_LINK = "head_unit_map_destination_link"
+    private const val KEY_MAP_DESTINATION_ADB = "head_unit_map_destination_adb"
+    private const val KEY_MAP_DESTINATION_PROBE = "head_unit_map_destination_probe"
+    private const val KEY_NAVIGATION_DEBUG_OVERLAY = "navigation_debug_overlay"
+    // A consent, not a preference: deliberately absent from SettingsBackupCodec, so a file cannot set it.
+    private const val KEY_REPORT_RAW_CAR_LOG = "report_raw_car_log"
+    private const val KEY_MAP_DESTINATION_VIA = "head_unit_map_destination_via"
+    private const val KEY_MAP_DESTINATION_FOLLOW = "head_unit_map_destination_follow"
+    private const val KEY_MAP_DESTINATION_FOLLOW_STOP = "head_unit_map_destination_follow_stop"
+    private const val KEY_CARPLAY_STOP_TAPS = "carplay_stop_taps"
+    private const val KEY_CARPLAY_START_TAPS = "carplay_start_taps"
+    private const val KEY_CARPLAY_START_COUNT = "carplay_start_tap_count"
+    private const val KEY_CARPLAY_START_AUTO = "carplay_start_auto"
+    private const val KEY_CARPLAY_START_DELAY = "carplay_start_delay_millis"
+
+    /**
+     * How long the map is given to open its route preview before the taps are replayed. The phone has
+     * to receive the requestUI, foreground the app, plan the route and draw the preview, which is
+     * slower on a cold start than on a warm one; the driver measures their own and picks it.
+     */
+    val CARPLAY_START_DELAY_CHOICES = listOf(1_000L, 1_500L, 2_000L, 3_000L, 4_000L, 6_000L, 8_000L)
+    const val CARPLAY_START_DELAY_DEFAULT_MILLIS = 3_000L
+    private const val KEY_CARPLAY_STOP_GAP = "carplay_stop_tap_gap_ms"
+    private const val KEY_CARPLAY_START_GAP = "carplay_start_tap_gap_ms"
+    private const val KEY_CARPLAY_STOP_COUNT = "carplay_stop_tap_count"
+    private const val KEY_CARPLAY_STOP_AUTO = "carplay_stop_auto"
+    private const val KEY_CARPLAY_STOP_PARKED = "carplay_stop_parked_only"
+    private const val KEY_CARPLAY_STOP_FOREGROUND = "carplay_stop_foreground_first"
+    private const val KEY_CARPLAY_STOP_FOREGROUND_WAIT = "carplay_stop_foreground_wait_millis"
     private const val KEY_CLUSTER_MAP = "cluster_map_enabled"
+    private const val KEY_CLUSTER_DISPLAY_NAME = "cluster_display_name"
     private const val KEY_ADB_CLUSTER_ACTIVITY = "adb_cluster_activity_enabled"
     private const val KEY_CENTER_MAP_OVERLAY = "center_map_overlay"
     private const val KEY_CENTER_MAP_AUTO_HIDE = "center_map_auto_hide"
@@ -105,6 +137,16 @@ object AirPlayPersistence {
     private const val KEY_RIGHT_HAND_DRIVE = "right_hand_drive"
     private const val KEY_HIDE_TOP_BAR = "hide_top_bar"
     private const val KEY_HIDE_BOTTOM_BAR = "hide_bottom_bar"
+    private const val KEY_PROJECTION_WIDTH_PERCENT = "projection_width_percent"
+    private const val KEY_PROJECTION_ALIGNMENT = "projection_alignment"
+    private const val KEY_OVERLAY_CORNER_RADIUS = "overlay_corner_radius_dp"
+    private const val KEY_OVERLAY_CORNER_COLORED = "overlay_corner_colored"
+    private const val KEY_OVERLAY_CORNER_COLOR = "overlay_corner_color"
+    private const val KEY_CARPLAY_ONLY_ON = "carplay_only_on_pages"
+    private const val KEY_CARPLAY_REQUIRE_SPLIT = "carplay_only_on_require_split"
+    private const val KEY_CARPLAY_ONLY_ON_PACKAGES = "carplay_only_on_packages"
+    private const val KEY_CARPLAY_NEVER_ON_PACKAGES = "carplay_never_on_packages"
+    const val DEFAULT_CARPLAY_ONLY_ON_PACKAGES = "com.byd.sr"
     private const val KEY_HARMAN_FULLSCREEN = "harman_fullscreen"
     private const val KEY_SAFE_AREA_DRAW_OUTSIDE = "safe_area_draw_outside"
     private const val KEY_MAIN_DISPLAY_DISABLE_SAFE_AREA = "main_display_disable_safe_area"
@@ -501,6 +543,210 @@ object AirPlayPersistence {
     fun saveBtSuspendDelaySeconds(context: Context, seconds: Int) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(KEY_BT_SUSPEND_DELAY, if (seconds in listOf(5, 10, 15, 30)) seconds else 10).apply()
+    }
+
+    fun loadMapDestinationListen(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_LISTEN, false)
+
+    fun saveMapDestinationListen(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_MAP_DESTINATION_LISTEN, enabled).apply()
+    }
+
+    /** Which head-unit input [CarPlayNightMode.SYSTEM] follows; only some firmware updates each one. */
+    internal fun loadNightSource(context: Context): HeadUnitNightMode.Source =
+        HeadUnitNightMode.Source.fromKey(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_NIGHT_SOURCE, null))
+
+    internal fun saveNightSource(context: Context, source: HeadUnitNightMode.Source) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_NIGHT_SOURCE, source.key).apply()
+    }
+
+    /** Reads the destination's coordinates from the head unit's map log; needs ADB over the network. */
+    fun loadMapDestinationAdb(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_ADB, false)
+
+    fun saveMapDestinationAdb(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MAP_DESTINATION_ADB, enabled).apply()
+    }
+
+    /** Records the shape of map log lines that might carry a destination but were not recognised. */
+    fun loadMapDestinationProbe(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_PROBE, false)
+
+    fun saveMapDestinationProbe(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MAP_DESTINATION_PROBE, enabled).apply()
+    }
+
+    /** Shows the navigation troubleshooting window, which holds real places and is never exported. */
+    fun loadNavigationDebugOverlay(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_NAVIGATION_DEBUG_OVERLAY, false)
+
+    fun saveNavigationDebugOverlay(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_NAVIGATION_DEBUG_OVERLAY, enabled).apply()
+    }
+
+    /**
+     * Whether a diagnostic report carries the head unit's map log as the car wrote it. Off by
+     * default: those lines hold real destinations and coordinates, and a report is easy to post
+     * somewhere public without reading it.
+     */
+    fun loadReportRawCarLog(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_REPORT_RAW_CAR_LOG, false)
+
+    fun saveReportRawCarLog(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_REPORT_RAW_CAR_LOG, enabled).apply()
+    }
+
+    /** Chains the head unit's via points into the link, for the links that can carry them. */
+    fun loadMapDestinationVia(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_VIA, true)
+
+    fun saveMapDestinationVia(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MAP_DESTINATION_VIA, enabled).apply()
+    }
+
+    /** Hands every newly planned head-unit route to the iPhone without the driver asking. */
+    fun loadMapDestinationFollow(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_FOLLOW, false)
+
+    fun saveMapDestinationFollow(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MAP_DESTINATION_FOLLOW, enabled).apply()
+    }
+
+    /** Forgets the destination once the head unit's map ends guidance. */
+    fun loadMapDestinationFollowStop(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MAP_DESTINATION_FOLLOW_STOP, true)
+
+    fun saveMapDestinationFollowStop(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_MAP_DESTINATION_FOLLOW_STOP, enabled).apply()
+    }
+
+    /** The recorded "end CarPlay guidance" tap sequence, as JSON; empty until it is calibrated. */
+    fun loadCarPlayStopTaps(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CARPLAY_STOP_TAPS, "").orEmpty()
+
+    fun saveCarPlayStopTaps(context: Context, json: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CARPLAY_STOP_TAPS, json).apply()
+    }
+
+    /** The recorded "start guidance" tap sequence, as JSON; empty until it is calibrated. */
+    fun loadCarPlayStartTaps(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CARPLAY_START_TAPS, "").orEmpty()
+
+    fun saveCarPlayStartTaps(context: Context, json: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CARPLAY_START_TAPS, json).apply()
+    }
+
+    fun loadCarPlayStartTapCount(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_CARPLAY_START_COUNT, 1)
+            .coerceIn(CarPlayGuidanceStopper.MIN_TAPS, CarPlayGuidanceStopper.MAX_TAPS)
+
+    fun saveCarPlayStartTapCount(context: Context, count: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_CARPLAY_START_COUNT,
+            count.coerceIn(CarPlayGuidanceStopper.MIN_TAPS, CarPlayGuidanceStopper.MAX_TAPS)).apply()
+    }
+
+    /** Presses the map's own "start guidance" after a destination has been handed over. */
+    fun loadCarPlayStartAuto(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CARPLAY_START_AUTO, false)
+
+    fun saveCarPlayStartAuto(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CARPLAY_START_AUTO, enabled).apply()
+    }
+
+    /** How long to wait for the map's route preview before the recorded taps are replayed. */
+    fun loadCarPlayStartDelayMillis(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_CARPLAY_START_DELAY, CARPLAY_START_DELAY_DEFAULT_MILLIS)
+            .coerceIn(CARPLAY_START_DELAY_CHOICES.first(), CARPLAY_START_DELAY_CHOICES.last())
+
+    fun saveCarPlayStartDelayMillis(context: Context, millis: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_CARPLAY_START_DELAY,
+            millis.coerceIn(CARPLAY_START_DELAY_CHOICES.first(), CARPLAY_START_DELAY_CHOICES.last())).apply()
+    }
+
+    /**
+     * A fixed pause between replayed taps, or 0 to keep the rhythm measured during calibration. Held
+     * per sequence: the stop sequence crosses one panel animation and the start sequence another.
+     */
+    internal fun loadCarPlayTapGapMillis(context: Context, action: CarPlayGuidanceStopper.Action): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(tapGapKey(action), 0L)
+
+    internal fun saveCarPlayTapGapMillis(context: Context, action: CarPlayGuidanceStopper.Action, millis: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putLong(tapGapKey(action), millis).apply()
+    }
+
+    private fun tapGapKey(action: CarPlayGuidanceStopper.Action): String =
+        if (action == CarPlayGuidanceStopper.Action.START) KEY_CARPLAY_START_GAP else KEY_CARPLAY_STOP_GAP
+
+    fun loadCarPlayStopTapCount(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_CARPLAY_STOP_COUNT, 1)
+            .coerceIn(CarPlayGuidanceStopper.MIN_TAPS, CarPlayGuidanceStopper.MAX_TAPS)
+
+    fun saveCarPlayStopTapCount(context: Context, count: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(KEY_CARPLAY_STOP_COUNT,
+            count.coerceIn(CarPlayGuidanceStopper.MIN_TAPS, CarPlayGuidanceStopper.MAX_TAPS)).apply()
+    }
+
+    /** Replays the sequence by itself when the head unit's map stops navigating. */
+    fun loadCarPlayStopAuto(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CARPLAY_STOP_AUTO, false)
+
+    fun saveCarPlayStopAuto(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CARPLAY_STOP_AUTO, enabled).apply()
+    }
+
+    fun loadCarPlayStopParkedOnly(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CARPLAY_STOP_PARKED, true)
+
+    fun saveCarPlayStopParkedOnly(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CARPLAY_STOP_PARKED, enabled).apply()
+    }
+
+    fun loadCarPlayStopForeground(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_CARPLAY_STOP_FOREGROUND, true)
+
+    fun saveCarPlayStopForeground(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CARPLAY_STOP_FOREGROUND, enabled).apply()
+    }
+
+    /** The wait between bringing the map forward and the first stop tap; was a fixed 1.2 s. */
+    val CARPLAY_STOP_FOREGROUND_WAIT_CHOICES = listOf(0L, 300L, 500L, 800L, 1_200L, 1_500L, 2_000L, 3_000L)
+    const val CARPLAY_STOP_FOREGROUND_WAIT_DEFAULT_MILLIS = 1_200L
+
+    fun loadCarPlayStopForegroundWaitMillis(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getLong(KEY_CARPLAY_STOP_FOREGROUND_WAIT, CARPLAY_STOP_FOREGROUND_WAIT_DEFAULT_MILLIS)
+            .coerceIn(CARPLAY_STOP_FOREGROUND_WAIT_CHOICES.first(), CARPLAY_STOP_FOREGROUND_WAIT_CHOICES.last())
+
+    fun saveCarPlayStopForegroundWaitMillis(context: Context, millis: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(KEY_CARPLAY_STOP_FOREGROUND_WAIT,
+            millis.coerceIn(CARPLAY_STOP_FOREGROUND_WAIT_CHOICES.first(), CARPLAY_STOP_FOREGROUND_WAIT_CHOICES.last())).apply()
+    }
+
+    internal fun loadMapDestinationLink(context: Context): HeadUnitMapDestination.Link {
+        val name = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_MAP_DESTINATION_LINK, null)
+        return HeadUnitMapDestination.Link.entries.firstOrNull { it.name == name } ?: HeadUnitMapDestination.Link.APPLE_MAPS
+    }
+
+    internal fun saveMapDestinationLink(context: Context, link: HeadUnitMapDestination.Link) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_MAP_DESTINATION_LINK, link.name).apply()
     }
 
     /** Keys from a paired keyboard, remote or rotary controller drive CarPlay's knob alongside touch. */
@@ -912,6 +1158,15 @@ object AirPlayPersistence {
             .putInt(KEY_SETTINGS_GESTURE_FINGERS, if (fingers == 0) 0 else fingers.coerceIn(2, 4)).apply()
     }
 
+    /** The presentation display chosen for the cluster map; empty = match verified names. */
+    fun loadClusterDisplayName(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CLUSTER_DISPLAY_NAME, "").orEmpty()
+
+    fun saveClusterDisplayName(context: Context, name: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CLUSTER_DISPLAY_NAME, name.trim()).apply()
+    }
+
     fun loadCenterMapFollowsDashboard(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(KEY_CENTER_MAP_FOLLOWS_DASHBOARD, true)
@@ -1272,6 +1527,93 @@ object AirPlayPersistence {
     fun saveHideBottomBar(context: Context, hide: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_HIDE_BOTTOM_BAR, hide)
+            .apply()
+    }
+
+    fun loadProjectionWidthPercent(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_PROJECTION_WIDTH_PERCENT, ProjectionWindow.FULL_WIDTH_PERCENT)
+            .takeIf { it in ProjectionWindow.MIN_WIDTH_PERCENT..ProjectionWindow.FULL_WIDTH_PERCENT }
+            ?: ProjectionWindow.FULL_WIDTH_PERCENT
+
+    fun saveProjectionWidthPercent(context: Context, percent: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_PROJECTION_WIDTH_PERCENT, percent)
+            .apply()
+    }
+
+    /** Floating CarPlay is shown only while one of [loadCarPlayOnlyOnPackages] is the foreground app. */
+    fun loadCarPlayOnlyOn(context: Context): Boolean = bool(context, KEY_CARPLAY_ONLY_ON, false)
+    fun saveCarPlayOnlyOn(context: Context, value: Boolean) = putBool(context, KEY_CARPLAY_ONLY_ON, value)
+
+    /** With "only on pages": also require a second app in front beside the page (split screen). */
+    fun loadCarPlayRequireSplit(context: Context): Boolean = bool(context, KEY_CARPLAY_REQUIRE_SPLIT, false)
+    fun saveCarPlayRequireSplit(context: Context, value: Boolean) = putBool(context, KEY_CARPLAY_REQUIRE_SPLIT, value)
+
+    fun loadCarPlayOnlyOnPackages(context: Context): Set<String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_CARPLAY_ONLY_ON_PACKAGES, DEFAULT_CARPLAY_ONLY_ON_PACKAGES).orEmpty()
+            .split(',', ' ', '\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+    /** Pages (package or package/activity) that always hide floating CarPlay, e.g. auto parking. */
+    fun loadCarPlayNeverOnPackages(context: Context): Set<String> =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_CARPLAY_NEVER_ON_PACKAGES, "").orEmpty()
+            .split(',', ' ', '\n').map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+    fun saveCarPlayNeverOnPackages(context: Context, packages: Collection<String>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CARPLAY_NEVER_ON_PACKAGES, packages.map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString(", "))
+            .apply()
+    }
+
+    fun saveCarPlayOnlyOnPackages(context: Context, packages: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CARPLAY_ONLY_ON_PACKAGES, packages.trim()).apply()
+    }
+
+    // Rounded corners of the floating CarPlay window: radius in dp, and what fills the cut corners.
+    const val MAX_OVERLAY_CORNER_RADIUS_DP = 64
+    const val DEFAULT_OVERLAY_CORNER_COLOR = 0xFF000000.toInt()
+
+    fun loadOverlayCornerRadiusDp(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OVERLAY_CORNER_RADIUS, 16)
+            .coerceIn(0, MAX_OVERLAY_CORNER_RADIUS_DP)
+
+    fun saveOverlayCornerRadiusDp(context: Context, dp: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_OVERLAY_CORNER_RADIUS, dp.coerceIn(0, MAX_OVERLAY_CORNER_RADIUS_DP)).apply()
+    }
+
+    /** false = transparent corners (the car screen shows through), true = filled with [loadOverlayCornerColor]. */
+    fun loadOverlayCornerColored(context: Context): Boolean = bool(context, KEY_OVERLAY_CORNER_COLORED, false)
+    fun saveOverlayCornerColored(context: Context, value: Boolean) = putBool(context, KEY_OVERLAY_CORNER_COLORED, value)
+
+    fun loadOverlayCornerColor(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_OVERLAY_CORNER_COLOR, DEFAULT_OVERLAY_CORNER_COLOR)
+
+    fun saveOverlayCornerColor(context: Context, color: Int) {
+        // Always opaque: a half-transparent corner would just look like a smudge.
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_OVERLAY_CORNER_COLOR, color or 0xFF000000.toInt()).apply()
+    }
+
+    private fun bool(context: Context, key: String, default: Boolean) =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(key, default)
+
+    private fun putBool(context: Context, key: String, value: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(key, value).apply()
+    }
+
+    fun loadProjectionAlignment(context: Context): ProjectionWindow.Alignment {
+        val stored = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PROJECTION_ALIGNMENT, null)
+        return ProjectionWindow.Alignment.entries.firstOrNull { it.name == stored } ?: ProjectionWindow.Alignment.CENTER
+    }
+
+    fun saveProjectionAlignment(context: Context, alignment: ProjectionWindow.Alignment) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(KEY_PROJECTION_ALIGNMENT, alignment.name)
             .apply()
     }
 

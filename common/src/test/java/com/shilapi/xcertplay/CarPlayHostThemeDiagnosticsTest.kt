@@ -30,6 +30,10 @@ class CarPlayHostThemeDiagnosticsTest {
 
     @Before fun setUp() {
         activity = Robolectric.buildActivity(CarPlayHostActivity::class.java).get()
+        // These cases exercise the activity configuration alone, so every input ahead of and behind it
+        // in the detection chain has to report nothing. BYD's key is absent on this device already.
+        blankNightMode(activity.applicationContext.resources.configuration)
+        blankNightMode(android.content.res.Resources.getSystem().configuration)
         (getField("airPlayCommandExecutor") as ExecutorService).shutdownNow()
         commands = PausedExecutorService()
         setField("airPlayCommandExecutor", commands)
@@ -92,6 +96,11 @@ class CarPlayHostThemeDiagnosticsTest {
     }
 
     private fun configuration(mode: Int) = Configuration().apply { uiMode = mode }
+
+    private fun blankNightMode(configuration: Configuration) {
+        configuration.uiMode = (configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+            Configuration.UI_MODE_NIGHT_UNDEFINED
+    }
 
     private fun getField(name: String): Any? = activity.javaClass.getDeclaredField(name)
         .apply { isAccessible = true }.get(activity)

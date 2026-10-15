@@ -10,6 +10,12 @@
         <item name="android:windowSplashScreenBackground" tools:targetApi="31">#0C111B</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+
+    <!-- CarPlay host: translucent so a narrowed window can reveal the car's screen beside it. -->
+    <style name="Theme.Xcertplay.Projection">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
     <style name="Theme.Xcertplay.Light">
         <item name="android:colorAccent">#245A9C</item>
         <item name="android:windowLightStatusBar">true</item>

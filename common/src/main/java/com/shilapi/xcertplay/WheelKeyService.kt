@@ -15,6 +15,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.Toast
 import java.util.concurrent.atomic.AtomicBoolean
 import com.shilapi.xcertplay.adb.AdbKeys
+import com.shilapi.xcertplay.adb.AdbUser
 import com.shilapi.xcertplay.adb.LocalAdb
 import com.shilapi.xcertplay.telecom.PhoneAudioRoute
 import com.shilapi.xcertplay.airplay.AirPlayKnobState
@@ -431,16 +432,26 @@ class WheelKeyService : AccessibilityService() {
          * BYD's settings have no accessibility page, so the user can turn the service on through the car's
          * own adb (allowed once on the car screen). Services already in the list stay there.
          */
-        fun enableOverAdb(context: Context, mayAsk: Boolean = true): LocalAdb.Access = LocalAdb(AdbKeys.load(context)).use { adb ->
+        /**
+         * The ADB link and whether the service was actually allowed. The two are separate: adbd can
+         * answer while the write to the accessibility list is refused, and reporting that as an ADB
+         * failure sends the driver to look at the wrong setting.
+         */
+        data class EnableResult(val access: LocalAdb.Access, val serviceAllowed: Boolean) {
+            val ok: Boolean get() = access == LocalAdb.Access.READY && serviceAllowed
+        }
+
+        fun enableOverAdb(context: Context, mayAsk: Boolean = true): EnableResult = LocalAdb(AdbKeys.load(context)).use { adb ->
             val access = adb.connect(mayAsk)
-            if (access != LocalAdb.Access.READY) return@use access
-            if (!mayAsk && !needsRestore(context)) return@use if (connected()) access else LocalAdb.Access.UNREACHABLE
+            if (access != LocalAdb.Access.READY) return@use EnableResult(access, false)
+            if (!mayAsk && !needsRestore(context)) return@use EnableResult(access, connected())
             val allowed = applyServiceSettings(context, adb::shell) {
                 mayAsk || wanted(context)
             }
             if (allowed && mayAsk) NavigationWheelSettings.recordAuthorization(context)
-            if (allowed) note("wheel key service allowed over adb")
-            if (allowed) access else LocalAdb.Access.UNREACHABLE
+            // Into the report as well as logcat, success or not: the step is what tells the two apart.
+            note("wheel key service over adb: allowed=$allowed user=${AdbUser.id(context)} step=\"$lastApplyStep\"")
+            EnableResult(access, allowed)
         }
 
         private const val GRANT_EXIT = "DIPLAY_WHEEL_EXIT"
@@ -460,9 +471,14 @@ class WheelKeyService : AccessibilityService() {
 
         private fun applyServiceSettingsLocked(context: Context, shell: (String) -> String?,
             shouldContinue: () -> Boolean): Boolean {
-            if (!shouldContinue()) return false
-            val current = checkedShell("settings get secure enabled_accessibility_services", shell) ?: return false
-            val lists = allowedServices(current, component(context).flattenToString()) ?: return false
+            fun fail(step: String): Boolean = false.also { lastApplyStep = "failed at $step" }
+            if (!shouldContinue()) return fail("start (no longer wanted)")
+            // BYD runs DiPlay as a secondary user; without --user the write lands on user 0.
+            val settings = AdbUser.settings(context)
+            val current = checkedShell("$settings get secure enabled_accessibility_services", shell)
+                ?: return fail("read of the allowed list")
+            val lists = allowedServices(current, component(context).flattenToString())
+                ?: return fail("parse of the allowed list (${current.count { it == ':' } + 1} entries)")
             // Binding may finish after the read. Check again immediately before a destructive rebind,
             // after the continuation callback, without blocking the service's main-thread callback.
             // Android marks a service whose process died as crashed and does not bind it again until
@@ -471,22 +487,84 @@ class WheelKeyService : AccessibilityService() {
             // under "Crashed services" in dumpsys accessibility (#606), so the list is left without
             // it for a moment first.
             lists.first?.let {
-                if (!shouldContinue()) return false
+                if (!shouldContinue()) return fail("crash reset (no longer wanted)")
+                // $settings, not a bare "settings": without --user this cleared user 0's list instead of
+                // DiPlay's, so the crash reset it exists for never happened on BYD's secondary user.
                 if (!connected() && checkedShell(
-                        "settings put secure enabled_accessibility_services '$it' && sleep $CRASH_RESET_PAUSE_SECONDS",
+                        "$settings put secure enabled_accessibility_services '$it' && sleep $CRASH_RESET_PAUSE_SECONDS",
                         shell,
                     ) == null
-                ) return false
+                ) return fail("crash reset write")
             }
-            for (command in listOf(
-                "settings put secure enabled_accessibility_services '${lists.second}'",
-                "settings put secure accessibility_enabled 1",
+            for ((step, command) in listOf(
+                "write of the allowed list" to "$settings put secure enabled_accessibility_services '${lists.second}'",
+                "accessibility_enabled=1" to "$settings put secure accessibility_enabled 1",
             )) {
-                if (!shouldContinue() || checkedShell(command, shell) == null) return false
+                if (!shouldContinue()) return fail("$step (no longer wanted)")
+                if (checkedShell(command, shell) == null) return fail(step)
             }
-            return enabledInSettings(context) &&
-                Settings.Secure.getInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
+            var listed = enabledInSettings(context)
+            val enabled = Settings.Secure.getInt(context.contentResolver, Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
+            // Both writes reported success. Whether the list still holds DiPlay is what separates a
+            // write the car reverted from one that took and then failed to bind.
+            lastApplyStep = "writes accepted; listedAfterWrite=$listed accessibilityEnabled=$enabled " +
+                "resetFirst=${lists.first != null}"
+            if (!listed && shouldContinue()) {
+                listed = investigateRevert(context, shell, settings, lists.second)
+                lastApplyStep += "; $lastRevert"
+            }
+            return listed && enabled
         }
+
+        /**
+         * A Di150VCP accepted both writes and, read back at once, no longer listed DiPlay, while
+         * accessibility_enabled=1 stayed. Three questions decide what that is, and the report needs the
+         * answers rather than a guess:
+         *  - `shellListed`: does the car's own shell still see DiPlay in the list? If yes, the app read
+         *    a stale value and nothing reverted anything.
+         *  - `restricted`: Android 13+ marks a sideloaded app's accessibility service as a "restricted
+         *    setting" (appop ACCESS_RESTRICTED_SETTINGS). Allowing it is what the app-info menu's
+         *    "Allow restricted settings" does, so it is tried once, and the list written again.
+         *  - `system`: what the car's accessibility code logged in the moment after the write.
+         */
+        private fun investigateRevert(context: Context, shell: (String) -> String?, settings: String,
+            wantedList: String): Boolean {
+            val ours = component(context).flattenToString()
+            val pkg = context.packageName
+            fun shellListed(): String = checkedShell("$settings get secure enabled_accessibility_services", shell)
+                ?.let { (ours in it.split(':')).toString() } ?: "unreadable"
+            val immediately = shellListed()
+            val later = checkedShell("sleep 1; $settings get secure enabled_accessibility_services", shell)
+                ?.let { (ours in it.split(':')).toString() } ?: "unreadable"
+            val opBefore = checkedShell("${AdbUser.appopsGet(context)} $pkg ACCESS_RESTRICTED_SETTINGS", shell)
+                ?.substringAfter("ACCESS_RESTRICTED_SETTINGS:", "")?.trim()?.substringBefore(';')?.take(40)
+                ?.ifEmpty { "unset" } ?: "unreadable"
+            // Every letter in its own class, so the audit record of this very grep cannot match it.
+            val pattern = "AccessibilityManager|A11y|accessibility|${pkg.substringAfterLast('.')}"
+                .map { if (it.isLetterOrDigit()) "[$it]" else "$it" }.joinToString("")
+            val system = checkedShell("logcat -d -v brief -t 600 | grep -E '$pattern' | grep -v -F auditd | tail -6", shell)
+                ?.lines()?.filter { it.isNotBlank() }
+                ?.mapNotNull { DiagnosticRedactor.redact(it.trim().take(180)) }.orEmpty()
+            var listedNow = false
+            var retry = "not tried"
+            if (!opBefore.startsWith("allow")) {
+                val set = checkedShell("${AdbUser.appopsSet(context)} $pkg ACCESS_RESTRICTED_SETTINGS allow", shell) != null
+                val rewrote = set &&
+                    checkedShell("$settings put secure enabled_accessibility_services '$wantedList'", shell) != null
+                listedNow = rewrote && enabledInSettings(context)
+                retry = "opSet=$set rewrote=$rewrote listedAfterRetry=$listedNow shellListedAfterRetry=${shellListed()}"
+            }
+            lastRevert = "shellListed=$immediately shellListedAfter1s=$later restricted=$opBefore retry=[$retry]"
+            lastRevertSystemLines = system
+            Log.i(TAG, "wheel key service write did not stick: $lastRevert system=$system")
+            return listedNow
+        }
+
+        @Volatile internal var lastRevert: String = "not investigated"
+        @Volatile internal var lastRevertSystemLines: List<String> = emptyList()
+
+        /** What the last attempt to allow the service did, for the report; no package names. */
+        @Volatile internal var lastApplyStep: String = "not tried"
 
         internal fun needsRestore(context: Context): Boolean = !connected() && wanted(context)
 
@@ -516,11 +594,13 @@ class WheelKeyService : AccessibilityService() {
                         needsRestore = { needsRestore(app) },
                         restore = { enableOverAdb(app, mayAsk = false) },
                         sleep = Thread::sleep,
-                    ) { attempt, access ->
-                        Log.i(TAG, "wheel key service restore attempt=$attempt adb=$access bound=${connected()}")
+                    ) { attempt, result ->
+                        Log.i(TAG, "wheel key service restore attempt=$attempt adb=${result.access} " +
+                            "allowed=${result.serviceAllowed} bound=${connected()}")
                         // Without its number, a run of attempts that end the same way is one line of the report.
-                        WheelKeyLog.note("wheel key service restore attempt adb=$access bound=${connected()}")
-                        recordRestore(app, attempt, access)
+                        WheelKeyLog.note("wheel key service restore attempt adb=${result.access} " +
+                            "allowed=${result.serviceAllowed} bound=${connected()}")
+                        recordRestore(app, attempt, result.access)
                     }
                 } catch (error: Exception) {
                     Log.w(TAG, "wheel key service restore failed", error)
@@ -538,17 +618,19 @@ class WheelKeyService : AccessibilityService() {
          */
         internal fun restoreWithRetries(
             needsRestore: () -> Boolean,
-            restore: () -> LocalAdb.Access,
+            restore: () -> EnableResult,
             sleep: (Long) -> Unit,
             attempts: Int = RESTORE_ATTEMPTS,
-            onAttempt: (Int, LocalAdb.Access) -> Unit,
+            onAttempt: (Int, EnableResult) -> Unit,
         ) {
             for (attempt in 1..attempts) {
                 sleep(if (attempt == 1) RESTORE_GRACE_MILLIS else RESTORE_RETRY_MILLIS)
                 if (!needsRestore()) return
-                val access = restore()
-                onAttempt(attempt, access)
-                if (access == LocalAdb.Access.NOT_APPROVED || access == LocalAdb.Access.UNSUPPORTED) return
+                val result = restore()
+                onAttempt(attempt, result)
+                // Unapproved or unsupported adb is terminal; anything else, including a list that was
+                // written but not bound yet, is worth another attempt.
+                if (result.access == LocalAdb.Access.NOT_APPROVED || result.access == LocalAdb.Access.UNSUPPORTED) return
             }
         }
 
@@ -557,18 +639,33 @@ class WheelKeyService : AccessibilityService() {
                 .putLong("at", System.currentTimeMillis())
                 .putInt("attempt", attempt)
                 .putString("adb", access.name)
+                .putString("step", if (access == LocalAdb.Access.READY) lastApplyStep else "adb not ready")
                 .apply()
         }
 
-        /** One line for the diagnostic report: why the keys may still read "Allowed, starting…". */
+        /**
+         * One line for the diagnostic report: why the keys may still read "Allowed, starting…".
+         * `step` is where the last write got to. "writes accepted; listedAfterWrite=true" with
+         * allowedInSettings=false now means something on the car took DiPlay back off the list after
+         * DiPlay wrote it; "failed at …" names the command the car's shell refused.
+         */
         fun report(context: Context): String {
             val prefs = context.getSharedPreferences(RESTORE_PREFS, Context.MODE_PRIVATE)
             val at = prefs.getLong("at", 0L)
             val last = if (at == 0L) "none" else
                 "attempt=${prefs.getInt("attempt", 0)} adb=${prefs.getString("adb", null)} " +
-                    "ageMs=${System.currentTimeMillis() - at}"
+                    "ageMs=${System.currentTimeMillis() - at} step=\"${prefs.getString("step", null) ?: "unrecorded"}\""
             return "Wheel key service: wanted=${wanted(context)} allowedInSettings=${enabledInSettings(context)} " +
-                "bound=${connected()} lastRestore=$last"
+                "bound=${connected()} user=${AdbUser.id(context)} lastRestore=$last lastManual=\"$lastApplyStep\""
+        }
+
+        /** What the car's own accessibility code logged right after a write that did not stick. */
+        fun revertReport(): List<String> = lastRevertSystemLines.map { "  car log: $it" }
+
+        internal fun resetDiagnosticsForTest() {
+            lastApplyStep = "not tried"
+            lastRevert = "not investigated"
+            lastRevertSystemLines = emptyList()
         }
 
         /**

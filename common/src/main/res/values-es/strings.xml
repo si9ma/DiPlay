@@ -517,6 +517,15 @@
     <string name="video_play">Reproducir</string>
     <string name="video_pause">Pausa</string>
     <string name="video_cannot_play">Este vídeo no se puede reproducir en la pantalla del coche. El vídeo protegido, como Apple TV+, necesita un receptor con licencia.</string>
+    <string name="carplay_width" formatted="false">Ancho de CarPlay</string>
+    <string name="carplay_width_full" formatted="false">Ancho completo (100%)</string>
+    <string name="carplay_position" formatted="false">Posición de CarPlay</string>
+    <string name="carplay_position_left" formatted="false">Izquierda</string>
+    <string name="carplay_position_center" formatted="false">Centro</string>
+    <string name="carplay_position_right" formatted="false">Derecha</string>
+    <string name="carplay_width_hint" formatted="false">Por debajo del 100%, la pantalla propia del coche sigue visible y utilizable junto a CarPlay. Experimental: depende de la unidad principal.</string>
+    <string name="carplay_width_custom">Personalizado…</string>
+    <string name="carplay_width_custom_hint">Introduce un ancho entre el %1$d y el %2$d por ciento de la pantalla.</string>
     <string name="safe_area_mapping_summary">Zona segura: %1$d x %2$d en (%3$d, %4$d) dentro de %5$d x %6$d</string>
     <string name="navigation_widget_label">Navegación de CarPlay</string>
     <string name="navigation_widget_description">Próximo giro, distancia, llegada y canción de CarPlay</string>
@@ -538,6 +547,10 @@
     <string name="center_map_no_permission_screen">Esta unidad principal no tiene pantalla de ajustes para este permiso. Permítelo por ADB.</string>
     <string name="launcher_map_sharing">Compartir el mapa en vivo con otros launchers</string>
     <string name="launcher_map_sharing_description">Los launchers compatibles con DiPlay pueden mostrar el mapa en vivo del panel de instrumentos en su propia pantalla de inicio. Desactivado por defecto, porque entonces cualquier aplicación de la unidad principal podría pedir el mapa. Consulta docs/LAUNCHER_INTEGRATION.md.</string>
+    <string name="carplay_only_on" formatted="false">Mostrar CarPlay solo en páginas elegidas</string>
+    <string name="carplay_only_on_description" formatted="false">CarPlay flotante aparece solo cuando una de las páginas de abajo está al frente, como la vista de carriles de asistencia, y se oculta en el resto. Requiere acceso a datos de uso. El audio y la navegación siguen funcionando.</string>
+    <string name="carplay_only_on_pages" formatted="false">Páginas de CarPlay</string>
+    <string name="carplay_only_on_pages_hint" formatted="false">Nombres de paquete separados por comas. Por defecto com.byd.sr (vista de carriles de asistencia). Abre la página y busca “Page guard: foreground app” en un informe de diagnóstico.</string>
     <string name="turn_card_overlay_size">Tamaño de la tarjeta personalizada</string>
     <string name="turn_card_overlay_opacity">Opacidad de la tarjeta personalizada</string>
     <string name="turn_card_overlay_opacity_option">%1$d %%</string>
@@ -730,6 +743,10 @@
     <string name="setup_badge_adb">Requiere ADB por red</string>
     <string name="setup_done_title">Todo listo</string>
     <string name="setup_done_description">Conecta tu iPhone ahora. Puedes volver a abrir esta guía desde Ajustes.</string>
+    <string name="settings_export">Exportar ajustes a un archivo</string>
+    <string name="settings_import">Restaurar ajustes desde un archivo</string>
+    <string name="settings_exported">%1$d ajustes exportados</string>
+    <string name="settings_backup_failed">No se pudo guardar el archivo: %1$s</string>
     <string name="settings_discard_pending_title">¿Descartar los cambios?</string>
     <string name="settings_discard_pending_message">La resolución, la velocidad de fotogramas, la conexión y los demás ajustes que acabas de cambiar todavía no se han guardado. Guardar y reconectar los aplica.</string>
     <string name="settings_discard_pending_confirm">Descartar</string>
@@ -787,6 +804,9 @@
     <string name="settings_disable_media_key_audio_focus_description">Impide que DiPlay solicite el foco de audio multimedia mientras se reproduce música de CarPlay. Actívalo si la unidad dirige los botones físicos de volumen a DiPlay y dejan de ajustar el volumen. Los controles del volante para reproducir, pausar y cambiar de pista pueden dejar de funcionar en unidades que requieren el foco. Se aplica en la próxima conexión de CarPlay.</string>
     <string name="settings_ambient_album">Seguir la portada del álbum</string>
     <string name="settings_ambient_album_description">Usa el color de la portada o colores cercanos disponibles del vehículo. Las portadas grises, negras o ausentes usan los 31 colores; las mayormente blancas pueden usar blanco o blanco frío.</string>
+    <string name="handle_settings">Ajustes de DiPlay</string>
+    <string name="handle_minimize">Minimizar CarPlay</string>
+    <string name="handle_disconnect">Desconectar</string>
     <string name="settings_cluster_speedometer">Velocímetro del cluster (experimental)</string>
     <string name="settings_cluster_speedometer_description">Muestra la velocidad real mediante ADB autorizado. Se oculta si el dato no está disponible o queda desactualizado. Los cambios se aplican al momento.</string>
     <string name="settings_cluster_speedometer_horizontal">Posición horizontal del velocímetro</string>

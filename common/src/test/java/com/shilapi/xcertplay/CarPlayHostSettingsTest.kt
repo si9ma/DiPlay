@@ -346,6 +346,51 @@ class CarPlayHostSettingsTest {
             shadowOf(activity).nextStartedActivity.component!!.className)
     }
 
+    /**
+     * The edge pill's first item is named for DiPlay's settings screen, so it opens that screen. It
+     * used to open the host's own panel, whose link to the real screen sits below every control in
+     * it: the driver had to scroll to the foot of an unfamiliar-looking page and tap a second time.
+     */
+    @Test fun theEdgeHandleOpensDiPlaysSettingsScreenDirectly() {
+        val settings = handleActions().first()
+        assertEquals(activity.getString(R.string.handle_settings), settings.first)
+        settings.second()
+        assertFalse(field("menuOpen") as Boolean)
+        val intent = shadowOf(activity).nextStartedActivity
+        assertEquals(DiPlayActivity::class.java.name, intent.component!!.className)
+        assertEquals("settings", intent.getStringExtra("page"))
+    }
+
+    /** The host's panel keeps an entry of its own: it holds controls for the running session. */
+    @Test fun theEdgeHandleStillReachesTheHostsOwnPanel() {
+        attachController()
+        val panel = handleActions()[1]
+        assertEquals(activity.getString(R.string.carplay_settings), panel.first)
+        panel.second()
+        assertTrue(field("menuOpen") as Boolean)
+    }
+
+    /** An edit staged in the host panel is the driver's to keep, even on the way to the full screen. */
+    @Test fun theEdgeHandleAsksBeforeDiscardingAStagedEdit() {
+        attachController()
+        invoke("openSettingsMenu")
+        resolutionSlider().progress = 0
+        handleActions().first().second()
+        assertTrue(field("menuOpen") as Boolean)
+        assertNull(shadowOf(activity).nextStartedActivity)
+        discardPendingEdits()
+        assertEquals("settings", shadowOf(activity).nextStartedActivity.getStringExtra("page"))
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun handleActions(): List<Pair<String, () -> Unit>> {
+        val handle = CarPlayHostActivity::class.java
+            .getDeclaredMethod("createHandle", android.content.Context::class.java)
+            .apply { isAccessible = true }.invoke(activity, activity)
+        return ProjectionHandle::class.java.getDeclaredField("actions")
+            .apply { isAccessible = true }.get(handle) as List<Pair<String, () -> Unit>>
+    }
+
     @Test fun theQuestionAloneChangesNothing() {
         attachController()
         invoke("openSettingsMenu")

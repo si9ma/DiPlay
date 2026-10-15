@@ -8,7 +8,15 @@
     <string name="settings_app_appearance_description">Auto follows the saved CarPlay day/night setting; while CarPlay is open, it follows the live result. Light and Dark stay fixed and do not require a reconnect.</string>
     <string name="settings_switch_to_light_appearance">Switch to light appearance</string>
     <string name="settings_switch_to_dark_appearance">Switch to dark appearance</string>
-    <string name="carplay_night_system">Follow Android system</string>
+    <string name="carplay_night_system">Follow the car</string>
+    <string name="carplay_night_source">Which input to follow</string>
+    <string name="carplay_night_source_auto">Automatic</string>
+    <string name="carplay_night_source_byd">The car\'s day/night switch</string>
+    <string name="carplay_night_source_screen">The CarPlay screen\'s configuration</string>
+    <string name="carplay_night_source_app">The app\'s configuration</string>
+    <string name="carplay_night_source_system">Android\'s night mode</string>
+    <string name="carplay_night_source_ui_mode_manager">Android\'s UiModeManager</string>
+    <string name="carplay_night_source_hint">Each firmware updates a different one of these, so automatic takes the first that reports anything, the car\'s own switch first. If CarPlay does not follow your car, switch the car between day and night and watch the line below: pick the input that changes with it.</string>
     <string name="carplay_night_ambient">Follow ambient light</string>
     <string name="carplay_night_day">Always day</string>
     <string name="carplay_night_night">Always night</string>
@@ -17,7 +25,7 @@
     <string name="carplay_night_end">Night ends</string>
     <string name="carplay_night_schedule_hint">Uses the head unit’s local time. Set different start and end times; overnight ranges are supported.</string>
     <string name="carplay_night_schedule_same_time">Start and end times must differ.</string>
-    <string name="carplay_night_hint">Save and return to CarPlay to apply.</string>
+    <string name="carplay_night_hint">Save and return to CarPlay to apply. Following the car reads the head unit\'s own day/night setting first, then Android\'s night mode.</string>
     <string name="carplay_night_ambient_hint">Uses the threshold and delay below. Without a light sensor, it follows Android.</string>
     <string name="carplay_night_time_note">When appearance is set to Automatic in CarPlay settings, CarPlay also considers the iPhone time. Even if you select Always day, CarPlay may still appear dark at night.</string>
 </resources>

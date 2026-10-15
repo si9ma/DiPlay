@@ -15,6 +15,18 @@ object BydBluetoothSuspend {
     private const val PREFS = "diplay_bt_suspend"
     private const val KEY_RESTORE_ENABLED = "restore_initially_enabled"
     private const val STATE_TIMEOUT_MILLIS = 8_000L
+
+    /**
+     * Turning the radio back on takes BYD's Bluetooth stack far longer than turning it off: on a
+     * Di150VCP, about 20 s after a pause that had outlived a killed DiPlay. Waiting 8 s failed the
+     * attempt, rebuilt the hotspot and backed off twice before the radio was up, so connecting took
+     * 28 s where 5 s is usual. Waiting longer for this one transition costs nothing when it is quick.
+     */
+    internal const val ENABLE_TIMEOUT_MILLIS = 30_000L
+
+    /** How the last pre-handshake recovery went, for the session log. */
+    @Volatile var lastRecovery: String = "not run"
+        private set
     private val shell = BydAdbShell(TAG)
     private val worker = Executors.newSingleThreadScheduledExecutor { task ->
         Thread(task, "diplay-bt-suspend").apply { isDaemon = true }
@@ -82,7 +94,16 @@ object BydBluetoothSuspend {
     }
 
     /** Bounded recovery before wireless bootstrap; never enables a radio that was already OFF. */
-    fun resumeAndWait(context: Context, adapter: BluetoothAdapter?, timeoutMillis: Long = STATE_TIMEOUT_MILLIS): Boolean {
+    fun resumeAndWait(
+        context: Context,
+        adapter: BluetoothAdapter?,
+        // A queued restore from onAppOpened may hold the worker for its own full enable wait first.
+        timeoutMillis: Long = ENABLE_TIMEOUT_MILLIS + STATE_TIMEOUT_MILLIS,
+    ): Boolean {
+        val app = context.applicationContext
+        val started = SystemClock.elapsedRealtime()
+        val owned = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_RESTORE_ENABLED, false)
+        val before = radioEnabled(app)
         val task = synchronized(gate) {
             val state = lease(context)
             val ticket = state.beforeHandshake()
@@ -90,9 +111,20 @@ object BydBluetoothSuspend {
             pending = null
             worker.submit<Boolean> { state.restore(ticket) }
         }
-        return runCatching {
-            task.get(timeoutMillis.coerceAtLeast(1), TimeUnit.MILLISECONDS) && adapter?.isEnabled == true
-        }.getOrDefault(false)
+        val restored = runCatching { task.get(timeoutMillis.coerceAtLeast(1), TimeUnit.MILLISECONDS) }
+            .getOrDefault(false)
+        val enabled = adapter?.isEnabled == true
+        // "pausedByDiPlay" separates a radio this app turned off from one the driver or car did.
+        lastRecovery = "pausedByDiPlay=$owned radioBefore=${describe(before)} restored=$restored " +
+            "enabledNow=$enabled stateNow=${describe(radioEnabled(app))} " +
+            "tookMs=${SystemClock.elapsedRealtime() - started}"
+        return restored && enabled
+    }
+
+    private fun describe(enabled: Boolean?): String = when (enabled) {
+        true -> "on"
+        false -> "off"
+        null -> "changing"
     }
 
     fun isSuspendedByUs(context: Context): Boolean {
@@ -116,7 +148,7 @@ object BydBluetoothSuspend {
     }.getOrNull()
 
     private fun awaitRadio(context: Context, enabled: Boolean): Boolean {
-        val deadline = SystemClock.elapsedRealtime() + STATE_TIMEOUT_MILLIS
+        val deadline = SystemClock.elapsedRealtime() + if (enabled) ENABLE_TIMEOUT_MILLIS else STATE_TIMEOUT_MILLIS
         while (SystemClock.elapsedRealtime() < deadline) {
             if (radioEnabled(context) == enabled) return true
             SystemClock.sleep(100)

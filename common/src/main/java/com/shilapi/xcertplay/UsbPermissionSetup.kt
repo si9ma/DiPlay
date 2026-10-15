@@ -81,7 +81,7 @@ internal object UsbPermissionSetup {
                     for (permission in Permission.entries) {
                         if (isCancelled) break
                         if (granted(permission)) continue
-                        val command = command(permission, context.packageName)
+                        val command = command(permission, context.packageName, com.shilapi.xcertplay.adb.AdbUser.id(context))
                         if (isCancelled) break
                         val output = adb.shell(withExitStatus(command))
                         if (isCancelled) break
@@ -105,28 +105,32 @@ internal object UsbPermissionSetup {
     private fun quote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
     /** Read and append in the device shell; neither path replaces the other enabled services. */
-    internal fun command(permission: Permission, packageName: String): String {
+    internal fun command(permission: Permission, packageName: String, userId: Int = 0): String {
         require(Regex("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+").matches(packageName))
+        require(userId >= 0)
         val pkg = quote(packageName)
+        // A secondary user (BYD uses 10) needs --user, or the grant lands on user 0.
+        val user = if (userId == 0) "" else " --user $userId"
+        val settings = "settings$user"
         return when (permission) {
-            Permission.USAGE -> "appops set $pkg GET_USAGE_STATS allow"
-            Permission.OVERLAY -> "appops set $pkg SYSTEM_ALERT_WINDOW allow"
+            Permission.USAGE -> "appops set$user $pkg GET_USAGE_STATS allow"
+            Permission.OVERLAY -> "appops set$user $pkg SYSTEM_ALERT_WINDOW allow"
             Permission.ACCESSIBILITY -> {
                 val service = quote("$packageName/com.shilapi.xcertplay.UsbAutoConfirmService")
-                """current=${'$'}(settings get secure enabled_accessibility_services) || exit 1;
+                """current=${'$'}($settings get secure enabled_accessibility_services) || exit 1;
                     case "${'$'}current" in null|"") current="";; esac;
                     case "${'$'}current" in *[!a-zA-Z0-9_./:${'$'}]*) exit 1;; esac;
                     service=$service;
                     case ":${'$'}current:" in *":${'$'}service:"*) ;; *)
                         if [ -n "${'$'}current" ]; then current="${'$'}current:${'$'}service"; else current="${'$'}service"; fi;;
                     esac;
-                    settings put secure enabled_accessibility_services "${'$'}current" &&
-                    settings put secure accessibility_enabled 1""".trimIndent().replace("\n", " ")
+                    $settings put secure enabled_accessibility_services "${'$'}current" &&
+                    $settings put secure accessibility_enabled 1""".trimIndent().replace("\n", " ")
             }
         }
     }
 
-    fun manualCommand(packageName: String): String = Permission.entries.joinToString(" && ") {
-        "adb shell ${quote(command(it, packageName))}"
+    fun manualCommand(packageName: String, userId: Int = 0): String = Permission.entries.joinToString(" && ") {
+        "adb shell ${quote(command(it, packageName, userId))}"
     }
 }

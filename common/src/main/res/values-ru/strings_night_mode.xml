@@ -8,7 +8,7 @@
     <string name="settings_app_appearance_description">Авто следует сохранённой настройке дневного/ночного режима CarPlay, а пока CarPlay открыт — текущему результату. Светлое и тёмное оформление остаются фиксированными и не требуют переподключения.</string>
     <string name="settings_switch_to_light_appearance">Переключить на светлое оформление</string>
     <string name="settings_switch_to_dark_appearance">Переключить на тёмное оформление</string>
-    <string name="carplay_night_system">Как в системе Android</string>
+    <string name="carplay_night_system">Как в автомобиле</string>
     <string name="carplay_night_ambient">По окружающему освещению</string>
     <string name="carplay_night_day">Всегда дневной</string>
     <string name="carplay_night_night">Всегда ночной</string>
@@ -17,7 +17,15 @@
     <string name="carplay_night_end">Конец ночного режима</string>
     <string name="carplay_night_schedule_hint">Используется местное время головного устройства. Время начала и конца должно различаться; период может переходить через полночь.</string>
     <string name="carplay_night_schedule_same_time">Время начала и конца должно различаться.</string>
-    <string name="carplay_night_hint">Сохраните и вернитесь в CarPlay.</string>
+    <string name="carplay_night_hint">Сохраните и вернитесь в CarPlay, чтобы применить. «Как в автомобиле» сначала читает собственную настройку дня/ночи головного устройства, затем ночной режим Android.</string>
     <string name="carplay_night_ambient_hint">Используются порог и задержка ниже. Без датчика света используются настройки Android.</string>
     <string name="carplay_night_time_note">Если в настройках оформления внутри CarPlay выбран автоматический режим, CarPlay также учитывает время iPhone. Даже если выбран режим «Всегда дневной», ночью CarPlay может отображаться в тёмном оформлении.</string>
+    <string name="carplay_night_source">Какой источник использовать</string>
+    <string name="carplay_night_source_auto">Автоматически</string>
+    <string name="carplay_night_source_byd">Переключатель дня/ночи автомобиля</string>
+    <string name="carplay_night_source_screen">Настройки экрана CarPlay</string>
+    <string name="carplay_night_source_app">Настройки приложения</string>
+    <string name="carplay_night_source_system">Ночной режим Android</string>
+    <string name="carplay_night_source_ui_mode_manager">UiModeManager в Android</string>
+    <string name="carplay_night_source_hint">Разные прошивки обновляют разные источники, поэтому автоматический режим берёт первый, который даёт показание, начиная с собственного переключателя автомобиля. Если CarPlay не следует за автомобилем, переключите автомобиль между днём и ночью и следите за строкой ниже: выберите источник, который меняется вместе с ним.</string>
 </resources>

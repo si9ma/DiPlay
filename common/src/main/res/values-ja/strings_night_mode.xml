@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="carplay_night_source">追従する入力</string>
+    <string name="carplay_night_source_auto">自動</string>
+    <string name="carplay_night_source_byd">車の昼／夜切り替え</string>
+    <string name="carplay_night_source_screen">CarPlay画面の構成</string>
+    <string name="carplay_night_source_app">アプリの構成</string>
+    <string name="carplay_night_source_system">Androidのナイトモード</string>
+    <string name="carplay_night_source_ui_mode_manager">AndroidのUiModeManager</string>
+    <string name="carplay_night_source_hint">どれが更新されるかはファームウェアによって異なるため、「自動」では車自身の切り替えを最優先に、最初に値を報告したものを使います。CarPlayが車に追従しない場合は、車を昼と夜で切り替えながら下の行を見て、一緒に変わる入力を選んでください。</string>
+</resources>

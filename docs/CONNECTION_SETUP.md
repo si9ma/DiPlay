@@ -116,6 +116,32 @@ automatically. The head unit may also require its own auto-start permission.
 Connect when DiPlay opens remains a separate choice: the app can start the hotspot
 without connecting to an iPhone.
 
+DIAGNOSING A HEAD UNIT THAT DOES NOT START DIPLAY
+A report's "Last received boot and app-launch result" now carries the two facts
+that decide what a missing delivery means, and a one-line verdict:
+
+  Start-up environment: upFor=3d 4h bootedAtEpochMs=... installedAtEpochMs=...
+  updatedAtEpochMs=... bootedSinceInstall=false user=10
+  Boot verdict: the head unit has NOT restarted since DiPlay was last installed
+  or updated, so no boot delivery is expected yet ...
+
+Read the verdict first:
+  - "has NOT restarted since DiPlay was last installed": nothing is wrong yet.
+    A build installed since the last start-up has had no boot to miss. This is
+    the usual reading while beta builds are replaced several times a day.
+    Restart the head unit, then export a report.
+  - "did not hand BOOT_COMPLETED to DiPlay": the system started with this build
+    present and the broadcast never arrived, so the firmware is withholding it.
+    Try Boot auto-start · ADB repair, and the car's own auto-start list.
+  - "delivered on the current start-up": the broadcast arrived. If DiPlay still
+    did not appear, the launch result on the line above says whether the request
+    was accepted; an accepted request does not prove the car displayed the app.
+
+`upFor` separates a restart from a resume. A head unit that is switched off with
+the car and comes back with days of uptime never shut down, so BOOT_COMPLETED is
+never broadcast and no autostart permission can change that — what works there is
+a trigger that happens on waking, such as Phone Bluetooth wake or USB attach.
+
 OPTIONAL: DIPLAY AUTOMATIC INSTRUMENT MAP
 On the supported DiLink 5.1 firmware, open Settings → BYD navigation →
 Automatic map setup · ADB. Follow the displayed one-time computer setup,

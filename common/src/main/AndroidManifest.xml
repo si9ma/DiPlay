@@ -19,6 +19,9 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Optional, owner-enabled Usage Access for the verified DiLink 5.1 cluster profile. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Optional, granted over ADB: re-enable the camera-detection accessibility service after
+         Android removes it (it does so whenever the app is force-stopped, e.g. cleared from recents). -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <!-- The centre card also follows whichever launcher is the default home. -->
     <queries>
         <package android:name="com.byd.carsettings" />
@@ -79,7 +82,7 @@
             android:launchMode="singleTask"
             android:resizeableActivity="true"
             android:screenOrientation="fullSensor"
-            android:theme="@style/Theme.Xcertplay"
+            android:theme="@style/Theme.Xcertplay.Projection"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />

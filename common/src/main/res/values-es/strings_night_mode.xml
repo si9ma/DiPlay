@@ -8,7 +8,7 @@
     <string name="settings_app_appearance_description">Automática sigue el ajuste de día/noche guardado de CarPlay; mientras CarPlay está abierto, sigue el resultado actual. Clara y Oscura permanecen fijas y no requieren reconectar.</string>
     <string name="settings_switch_to_light_appearance">Cambiar a apariencia clara</string>
     <string name="settings_switch_to_dark_appearance">Cambiar a apariencia oscura</string>
-    <string name="carplay_night_system">Seguir el sistema Android</string>
+    <string name="carplay_night_system">Seguir al coche</string>
     <string name="carplay_night_ambient">Según la luz ambiental</string>
     <string name="carplay_night_day">Siempre de día</string>
     <string name="carplay_night_night">Siempre de noche</string>
@@ -17,7 +17,15 @@
     <string name="carplay_night_end">Fin del modo noche</string>
     <string name="carplay_night_schedule_hint">Usa la hora local de la unidad. El inicio y el fin deben ser distintos; se admiten periodos que cruzan la medianoche.</string>
     <string name="carplay_night_schedule_same_time">La hora de inicio y la de fin deben ser distintas.</string>
-    <string name="carplay_night_hint">Guarda y vuelve a CarPlay para aplicar.</string>
+    <string name="carplay_night_hint">Guarda y vuelve a CarPlay para aplicarlo. «Seguir al coche» lee primero el ajuste de día/noche de la unidad principal y después el modo nocturno de Android.</string>
     <string name="carplay_night_ambient_hint">Usa el umbral y el retardo de abajo. Sin sensor de luz, sigue Android.</string>
     <string name="carplay_night_time_note">Cuando la apariencia está en Automático en los ajustes de CarPlay, CarPlay también tiene en cuenta la hora del iPhone. Aunque selecciones Siempre de día, CarPlay puede seguir mostrando una apariencia oscura por la noche.</string>
+    <string name="carplay_night_source">Qué entrada seguir</string>
+    <string name="carplay_night_source_auto">Automático</string>
+    <string name="carplay_night_source_byd">El interruptor día/noche del coche</string>
+    <string name="carplay_night_source_screen">La configuración de la pantalla de CarPlay</string>
+    <string name="carplay_night_source_app">La configuración de la app</string>
+    <string name="carplay_night_source_system">El modo nocturno de Android</string>
+    <string name="carplay_night_source_ui_mode_manager">El UiModeManager de Android</string>
+    <string name="carplay_night_source_hint">Cada firmware actualiza una de estas entradas distinta, por lo que el modo automático toma la primera que dé una lectura, empezando por el interruptor del propio coche. Si CarPlay no sigue a tu coche, cambia el coche entre día y noche y observa la línea de abajo: elige la entrada que cambie con él.</string>
 </resources>

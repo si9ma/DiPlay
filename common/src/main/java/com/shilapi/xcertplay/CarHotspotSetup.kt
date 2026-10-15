@@ -38,7 +38,7 @@ internal object CarHotspotSetup {
                 for (permission in permissions) {
                     if (!permission.granted(context)) {
                         Log.i("DiPlay-ADB", "request permission: ${permission.appOp}")
-                        it.shell("appops set ${context.packageName} ${permission.appOp} allow")
+                        it.shell("${com.shilapi.xcertplay.adb.AdbUser.appopsSet(context)} ${context.packageName} ${permission.appOp} allow")
                     }
                     val granted = permission.granted(context)
                     Log.i("DiPlay-ADB", "permission ${permission.appOp}: granted=$granted")

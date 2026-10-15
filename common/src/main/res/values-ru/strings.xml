@@ -517,6 +517,15 @@
     <string name="video_play">Воспроизвести</string>
     <string name="video_pause">Пауза</string>
     <string name="video_cannot_play">Это видео нельзя воспроизвести на экране машины. Защищённому видео, например Apple TV+, нужен лицензированный приёмник.</string>
+    <string name="carplay_width" formatted="false">Ширина CarPlay</string>
+    <string name="carplay_width_full" formatted="false">Во всю ширину (100%)</string>
+    <string name="carplay_position" formatted="false">Положение CarPlay</string>
+    <string name="carplay_position_left" formatted="false">Слева</string>
+    <string name="carplay_position_center" formatted="false">По центру</string>
+    <string name="carplay_position_right" formatted="false">Справа</string>
+    <string name="carplay_width_hint" formatted="false">Меньше 100%: рядом с CarPlay остаётся видимым и доступным собственный экран автомобиля. Экспериментально: зависит от головного устройства.</string>
+    <string name="carplay_width_custom">Свой вариант…</string>
+    <string name="carplay_width_custom_hint">Введите ширину от %1$d до %2$d процентов экрана.</string>
     <string name="safe_area_mapping_summary">Безопасная область: %1$d x %2$d в точке (%3$d, %4$d) на экране %5$d x %6$d</string>
     <string name="navigation_widget_label">Навигация CarPlay</string>
     <string name="navigation_widget_description">Следующий поворот, расстояние, прибытие и песня из CarPlay</string>
@@ -538,6 +547,10 @@
     <string name="center_map_no_permission_screen">На этом головном устройстве нет экрана настроек для этого разрешения. Разрешите его через ADB.</string>
     <string name="launcher_map_sharing">Делиться живой картой с другими лаунчерами</string>
     <string name="launcher_map_sharing_description">Лаунчеры с поддержкой DiPlay смогут показывать живую карту приборной панели на своём главном экране. Выключено по умолчанию, потому что тогда карту сможет запросить любое приложение на головном устройстве. Подробнее: docs/LAUNCHER_INTEGRATION.md.</string>
+    <string name="carplay_only_on" formatted="false">Показывать CarPlay только на выбранных страницах</string>
+    <string name="carplay_only_on_description" formatted="false">Плавающее окно CarPlay показывается только когда впереди одна из страниц ниже, например экран полос ассистента вождения, и скрывается в остальных случаях. Нужен доступ к истории использования. Звук и навигация продолжают работать.</string>
+    <string name="carplay_only_on_pages" formatted="false">Страницы CarPlay</string>
+    <string name="carplay_only_on_pages_hint" formatted="false">Имена пакетов через запятую. По умолчанию com.byd.sr (экран полос ассистента вождения). Откройте страницу и найдите «Page guard: foreground app» в диагностическом отчёте.</string>
     <string name="turn_card_overlay_size">Размер собственной карточки</string>
     <string name="turn_card_overlay_opacity">Прозрачность собственной карточки</string>
     <string name="turn_card_overlay_opacity_option">%1$d %%</string>
@@ -730,6 +743,10 @@
     <string name="setup_badge_adb">Требуется ADB по сети</string>
     <string name="setup_done_title">Всё готово</string>
     <string name="setup_done_description">Подключите iPhone сейчас. Этот мастер можно снова открыть в настройках.</string>
+    <string name="settings_export">Экспортировать настройки в файл</string>
+    <string name="settings_import">Восстановить настройки из файла</string>
+    <string name="settings_exported">Экспортировано настроек: %1$d</string>
+    <string name="settings_backup_failed">Не удалось сохранить файл: %1$s</string>
     <string name="settings_discard_pending_title">Отменить изменения?</string>
     <string name="settings_discard_pending_message">Разрешение, частота кадров, подключение и остальные изменённые настройки ещё не сохранены. «Сохранить и переподключиться» применяет их.</string>
     <string name="settings_discard_pending_confirm">Отменить</string>
@@ -787,6 +804,9 @@
     <string name="settings_disable_media_key_audio_focus_description">Запрещает DiPlay запрашивать аудиофокус мультимедиа во время воспроизведения музыки CarPlay. Включите, если головное устройство перенаправляет физические кнопки громкости в DiPlay и они перестают регулировать громкость. Кнопки воспроизведения, паузы и смены трека на руле могут перестать работать на устройствах, которым нужен аудиофокус. Применяется при следующем подключении CarPlay.</string>
     <string name="settings_ambient_album">Цвет обложки альбома</string>
     <string name="settings_ambient_album_description">Цвет обложки приближённо сопоставляется с доступными цветами автомобиля. Для серой, чёрной или отсутствующей обложки используются все 31 цвет; для преимущественно белой — белый или холодный белый.</string>
+    <string name="handle_settings">Настройки DiPlay</string>
+    <string name="handle_minimize">Свернуть CarPlay</string>
+    <string name="handle_disconnect">Отключить</string>
     <string name="settings_cluster_speedometer">Спидометр приборной панели (экспериментально)</string>
     <string name="settings_cluster_speedometer_description">Показывает скорость автомобиля через авторизованный ADB. Скрывается, если данные недоступны или устарели. Изменения применяются сразу.</string>
     <string name="settings_cluster_speedometer_horizontal">Положение спидометра по горизонтали</string>

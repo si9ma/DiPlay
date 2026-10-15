@@ -179,6 +179,185 @@ physical acceptance still needs confirmation on each target firmware: answering/
 from the wheel, caller card and timer on cluster/HUD, microphone routing, cancellation/disable and
 process-death cleanup. The reported live key codes alone do not prove these behaviors.
 
+## Head-unit map destination to the iPhone (experimental)
+
+CarPlay gives the car no way to pass a route to the iPhone; iAP2 route guidance runs from the iPhone to the car only. The car can pass a place: the car command `requestUI` with a URL (`{"type": "requestUI", "params": {"url": …}}`) on the event channel. **Settings → Advanced → Head-unit map destination** tests this end to end:
+
+- **Read the head-unit map's destination** (off by default) registers a receiver for AMap's standard broadcasts, `AUTONAVI_STANDARD_BROADCAST_SEND` (from the map) and `AUTONAVI_STANDARD_BROADCAST_RECV` (other apps asking the map to navigate, such as KEY_TYPE 10038 with `LAT`/`LON`). A point destination is a latitude/longitude key pair whose name marks the end point (`DEST`, `END`, `TARGET`, `TERMINAL`, `ARRIV`, `TO_…`, `EXTRA_DLAT`/`EXTRA_DLON`); car, current, start, `FROM_…` and via points are ignored. Nested bundles and JSON string extras are searched as dotted keys.
+- Without a coordinate, the destination's region is used: `TO_CITY_NAME`, `TO_TOWN_NAME` and `TO_AD_NAME` from the trip broadcast, joined as "<city><district>" with a repeated name kept once. The iPhone looks that name up, so it routes to the district rather than to the place the driver chose. A region never replaces a point.
+- **Follow the head unit's route automatically** (off by default, needs the log reader) hands each newly planned route over as soon as it is read, with no tap. A route is identified by its via points and its end, rounded to six decimals, so a re-plan to the same stops for traffic is not sent twice and does not interrupt the iPhone; a send that found no session clears that key so the same place is tried again. The first read looks back hours, so it only sets the state and never sends.
+- **Forget the destination when the head unit stops** (on by default, needs the log reader) acts on `onNaviStop`, logged by the AutoSDK presenters, or on `clearRouteCarResultData`, logged by BYD's navigation layer. Both are matched: the two do not always appear together.
+- **The poll must not read back its own command.** SELinux's auditd writes the argv of every process
+  the shell starts into logcat:
+
+      W/auditd(483): type=1309 audit(0.0:64589): argc=3 a0="grep" a1="-E"
+      a2="mToPoi=POI|storeRouteCarResultData|…|onNaviStop|clearRouteCarResultData"
+
+  That record holds every marker the pattern looks for, so a plainly written pattern matches the audit
+  record of the poll that looked for it. On a Di150VCP this read as the map having stopped **24 times
+  in one drive while the car's navigation logged no stop at all**; each false stop cleared the
+  destination, and the car's next periodic `onReroute` — logged about once a minute while guiding —
+  then looked like a new route and was handed over again. CarPlay's guidance ended and restarted
+  repeatedly on a drive that never stopped. Three nets, outermost first:
+  1. Each alternative in the shell's pattern has its last character bracketed, so the pattern cannot
+     match its own text: `onNaviSto[p]` still matches `onNaviStop`, but the command now reads
+     `onNaviSto[p]`, which has a `[` where the regex wants a `p`. This holds for any channel that
+     echoes the command, not only the one auditd was caught using.
+  2. `grep -v -F 'auditd'` drops the records outright, before they cross the link.
+  3. The parser rejects a line that is quoting a command (`auditd`, `type=N audit(`, `a0="`). On the
+     two reports this was diagnosed from it blocked 42 of 42 echoes and touched none of the 725 real
+     navigation lines.
+- CarPlay has no car-to-phone command that ends the iPhone's guidance — the car sends `requestUI`, `showUI`/`stopUI` for an alt screen, `requestSiri` and HID reports, none of which cancel a route — so the switch drops the stored destination, which stops it being handed over again and tells the driver the two are out of step. **End the iPhone's guidance too** (off by default, under this switch) is the only way to reach the iPhone's own "End route": replaying recorded taps (see `CarPlayGuidanceStopper`).
+- **The map log is followed, not polled.** Once the first read has set the state, DiPlay keeps one
+  `logcat -v time -T '<since>' -e '<pattern>'` open over ADB and parses each burst of lines about
+  150 ms after it ends. Polling read the last 20 s every second, plus a second read for the probe,
+  and acted only after both: on a Di150VCP a stop at 19:00:11.855 was acted on at 19:00:14.146,
+  and every start and stop lost 1.4–2.5 s this way. logcat filters by itself (`-e`) with no `grep`
+  in a pipe, because a pipe stage that buffers would hold a stop back with nothing to show for it.
+  Every letter of the pattern is bracketed so the audit record of the command cannot match it. A
+  firmware whose logcat ends the stream at once three times in a row falls back to polling; the
+  report's `mode=` and `followFailures=` say which is in use.
+- **A held route goes as soon as its coordinate arrives.** The name-and-id line and the line with
+  the point share a POI id, so the point was "not a new route" and the hold ran its full five
+  seconds, then sent. It is now handed over the moment the point is in.
+- **What is left of the delay is the taps' own timing**, which is the driver's to set: the start
+  delay (3 s by default), the pause between taps (the recorded rhythm unless a fixed one is chosen),
+  and for the stop, the wait after the map is brought to the front (1.2 s by default, a setting of
+  its own) or nothing at all with "Bring the map to the front first" off.
+- **Nothing waits before the first tap but what the driver set.** The pause recorded before the
+  first tap is the driver reaching for the screen after pressing Start, which a replay does not go
+  through, so it is never replayed; neither is a fixed tap spacing, which applies between taps.
+- **A replayed tap lifts at the point it pressed.** The HID touch report carries a position in every
+  frame, so a release built from an empty contact list reports (0, 0) — the screen's top-left corner,
+  not where the finger was. A real finger keeps its coordinates on `ACTION_UP`
+  (`CarPlayTouchMapper`), and a replay now does the same. This is a correctness fix, not a diagnosis:
+  the stop sequence has always worked with the empty release, which is evidence that iOS ignores the
+  position on a release rather than reading it as a drag. An empty report is still used where
+  abandoning a half-sent tap is the point: the error path of a replay, and leaving the CarPlay screen.
+- **A route with no coordinate is held back before it is handed over.** The map writes one
+  destination as a run of increasingly complete lines: `buildRequestParam` when it starts working
+  the route out, carrying a name and sometimes a POI id but never a point; the presenter's line with
+  the coordinate once the route is computed; then the name alone as it is stored. Acting on the first
+  of those is acting on the least of them, and two faults came of it. In one, the id-only line
+  went over and the coordinate arrived three seconds later — the same route by then, so it was
+  never re-sent, and the iPhone had only a name to resolve and asked which of several addresses
+  was meant. In the other, the region went over and the point three seconds after it, a different
+  route by its key, so CarPlay was sent somewhere twice in quick succession. `parseAll` already folds such a run to its richest line, but only within one poll's
+  window, and these runs straddle polls. So a coordinate-less route now waits `SETTLE_MILLIS`; a
+  point for the same route cancels the wait and goes instead, and if none arrives the wait expires
+  and the vague one is sent as logged. Both outcomes are named in the log.
+- **The pause between replayed taps can be set** rather than kept from the calibration, per sequence.
+  A recorded pause is whatever the finger happened to do; a panel animation takes a fixed time, so a
+  fixed pause is usually steadier. Offered only where a sequence has more than one tap.
+- **Every step of a replay reaches the navigation debug window.** A blind tap sequence cannot be
+  judged by its outcome: a button that highlights and does nothing looks exactly like one that was
+  never pressed. So the sequence records what it sent and when — the recorded points as percentages,
+  the wait before each tap, whether the touch was queued, how long the contact was held, and the
+  reason it stopped early (no session, not parked, already running, nothing recorded). The
+  calibration records the points it saved for the same reason. Collection follows the existing
+  switch, so nothing is kept unless troubleshooting is on. `result=REPLAYED` still means only that
+  the taps were sent; DiPlay cannot see what was under the point.
+- **A test steps out of the way while the debug window is on.** The replay happens on the CarPlay
+  screen, which the settings page is covering, so with the window collecting a test closes that page
+  and brings CarPlay to the front before running — what the calibration already does — and reports
+  the result in the window rather than as a toast the finished page could not show. The debug window
+  is a display-level overlay, so it stays on top of CarPlay and can be watched throughout.
+- **Each test button does the setup its automatic path does.** A calibration tap is forwarded to the
+  iPhone like any other (`CarPlayHostActivity.recordGuidanceStopTap`), so recording the start
+  sequence presses 开始导航 for real: the drive begins and the route preview closes. A replay
+  straight afterwards would aim at a button that is no longer on screen, which made the start test
+  look broken when the taps themselves were fine. **Test the start tap now** therefore hands the last
+  destination over again first — the same `requestUi` the automatic path uses — then waits the
+  configured delay and taps. The stop test has always done its own setup through `bringMapToFront`.
+  Neither sequence can be judged from a replay that was aimed at the wrong screen.
+- The map keeps broadcasting the trip's region for a while after guidance ends, which would otherwise
+  resurrect a destination the log reader had just cleared and leave the settings page offering a
+  district for a drive that is over. While the map is stopped a region-only broadcast is ignored; a
+  point ends the stopped state, because a real new trip is planned before it is broadcast.
+- State flags (`KEY_TYPE`, `EXTRA_STATE`, `EXTRA_IS_*`, `EXTRA_LINKTYPE`, `IS_BYD_MAP`) are recorded
+  with their value rather than only their type: what "navigation ended" looks like is firmware-specific
+  and a report showing only `Integer` cannot tell a start from an end. They name no place.
+- Routes, stops, hand-overs and reader failures are mirrored into the session log as `Map destination:`
+  lines, since the counters alone cannot show the order things happened in. No place or coordinate.
+- Either navigation troubleshooting switch also collects the **raw text of every read** into
+  `NavigationDebugLog`: the exact command sent over adb, the car's exact answer, each unrecognised
+  line, and each map broadcast with its real values. This exists because the session log cannot carry
+  it — `DiagnosticRedactor` drops any line matching `name[=:]`, and a route reads
+  `mToPoi=POI{id='…', name='…'}`, so the one line worth having is the one that disappears, silently.
+  Multi-line output is dropped outright and anything past 700 characters is cut.
+  - **Show the navigation debug window** puts it on the car's screen live, in a small window. Needs
+    "display over other apps". Drag the title bar to move it, **tap** the title bar to send it to the
+    strip CarPlay is not using and tap again to bring it back, hold the title bar and drag to resize.
+    Position and size are remembered.
+
+    Its bounds are the display's, taken from `maximumWindowMetrics`, not `resources.displayMetrics`.
+    In overlay mode the CarPlay host's own window is only as wide as the projection — 1267 of 1920 px
+    on a Di150VCP — and `resources.displayMetrics` follows the window, so clamping a drag to it
+    confined the debug window to the projection, which is the one place it is in the way. It opens on
+    the free strip for the same reason. It may be dragged partly off a side edge, with 72 dp kept on
+    screen so it can always be grabbed back, and never above the top edge, since the title bar is the
+    only way to move it. The geometry is in `NavigationDebugPlacement`, apart from the window so that
+    it can be tested without a Looper.
+  - A diagnostic report exported while either switch is on carries the same buffer **unredacted**, in
+    a section headed *"Head-unit map, as the car wrote it — NOT redacted; holds your real
+    destinations"*. The heading is the safeguard: the section is named so it cannot be attached to a
+    public issue without noticing. The rest of the report keeps its redaction, which is what protects
+    credentials; this section is about the destination, which the driver already knows.
+  - Bounded to 1500 lines with a dropped count, a single read clipped to 4000 characters, memory only,
+    and both switches off clears the buffer and the raw sink in the same call. Nothing is collected
+    when neither is on, so the usual report is unchanged and the section is absent.
+- **Record unrecognised map log lines** (off by default, needs the log reader) is for a car this parser
+  does not fit. It widens the shell's grep to `ToPoi|MidPois|RouteCarResultData|GeoPoint|DestPoi|EndPoi|TargetPoi`
+  over a window of 40 lines, and keeps the lines that matched but were not recognised as a route or a
+  stop. Each is kept twice: the line itself goes to `NavigationDebugLog`, and its *shape* goes to the
+  session log as `Map destination: candidate line: …`, because the raw line cannot survive the
+  redactor there. Lines are deduplicated by shape, so one real example of each distinct format is
+  kept. The shape is built as: quoted text becomes its length, decimals become `#.#`, integers of six digits
+  or more become `#`, and non-ASCII runs become `…`. Field names, class names and punctuation survive,
+  which is what a parser has to match; AMap's five-digit state codes (10002, 10019, 10038) survive too,
+  because they are what tells one line's meaning from another, while a district's adcode starts at six
+  and does say where the driver is. Shapes repeat exactly, so the session log folds them into one line
+  and a count, and at most six distinct shapes are taken per poll. The shell also drops lines carrying
+  DiPlay's own tag: everything logged through `android.util.Log` reaches logcat, so a candidate written
+  there was matched by the next poll and logged again, each pass wrapping the one before. On a car this
+  nested five deep within two minutes and crowded out the real lines; candidates now go to the session
+  log only, never to logcat, so the loop is cut at both ends. The probe also reads through its own
+  command rather than sharing the markers': a wide pattern and a narrow one behind one `tail` lets
+  noise evict signal, which is the one thing a diagnostic must never do.
+- The diagnostic report lists every broadcast seen by key name and value type, with a count, and where the last destination came from and whether it was a point or a region. Places and coordinates stay in memory and are never logged; DiPlay's own guidance broadcasts are addressed to BYD's adapter and are not received.
+- **Also read the coordinates from the map's log** (off by default, needs ADB over the network) covers the firmware whose broadcasts carry only the region. One route is written several times within a second or two, by different parts of the map and in different shapes, and **only some of those lines carry the coordinate**. All of them are read, because which ones a given route produces is not predictable — on a Di150VCP a route planned from a stopped map wrote the coordinate, while one planned 30 s later did not:
+  - The AutoSDK presenters log `mMidPois=[POI{…}], mFromPoi=POI{…}, mToPoi=POI{id='…', name='…', point=GeoPoint{lon=…, lat=…}}`, from `BaseNaviPresenter` as the route is planned and from `NaviView` as the guidance view updates. This is the richest shape: a coordinate and the via points, up to eight. `mFromPoi` is the car's own position and is not matched; the via list is anchored on the `mFromPoi` that follows it, so a place name holding a bracket cannot run on.
+  - `storeRouteCarResultData: toPoi=<name>` and, on the next line, `createEndPoiInfo poiId:<id>`. A name and an id, no coordinate; the id is carried across from the line before.
+  - `[buildRequestParam] start = POI{…}, end = <name><id>, via = […]`, logged by BYD's drive module. The name and the POI id run together with no delimiter, split on AMap's id shape of a letter and nine more upper-case characters or digits. **This was the only marker present for every route planned in a probe of a guiding car**, so it is the dependable fallback; `start` is the car and is not read.
+
+  Within one window the richest wins rather than the last, so a coordinate is never thrown away for a name logged beneath it, and a stop ends whatever came before it so only the routes after the last stop count. A destination with no coordinate cannot start AMap's `iosamap://navi`; the link falls back to a name the iPhone looks up, which is still a place rather than a district.
+- Each poll re-reads the last two minutes rather than only what is new since the previous one. The coordinate-bearing line is written once per route and nowhere else — a probe of a guiding car held four in 23 minutes — so a single window that misses it loses the destination until the next route is planned. Overlapping costs nothing: an event is keyed on its own log timestamp and one already reported is dropped. DiPlay polls every 3 s through its existing adb shell with `logcat -d -v time -T '<window>' | grep -E 'mToPoi=POI|onNaviStop' | tail -12`, so only route and stop lines cross the link. logcat is chronological, so the newest recognised line is the event: a route followed by a stop reads as the stop, and a stop followed by a new route reads as the route. adbd runs on the same device, so the window is this process's own clock; the first read looks back six hours to catch a route planned before DiPlay started, later reads cover the time since the previous poll. A route from the log is a point and replaces an earlier region. The report shows whether the reader runs, how many reads it has made and whether adbd answered; the place and the coordinates are never logged.
+- **Send destination to iPhone** sends `requestUI` with the chosen **Open with** link: Apple Maps as `maps:?daddr=…&dirflg=d` or `https://maps.apple.com/?daddr=…`, and three AMap URIs. `iosamap://navi?…&lat=&lon=&dev=0` starts guidance at once but documents lat/lon as required, so it is marked "needs coordinates" and refused while only a region is known. `iosamap://path?…` and the cross-platform `amapuri://route/plan/?…` open the route page, which needs one more tap, and take `dlat`/`dlon` or `dname` alone as a name to look up. AMap coordinates are GCJ-02 and are passed unchanged with `dev=0`, which declares them already encrypted. AMap for iPhone ignores the route-preference parameter since 7.7.4; the app's own setting wins. The session log records only the URL scheme and whether the command was written.
+
+`requestUI` with parameters reaches the iPhone: an `iosamap://keywordNavi` URL made the iPhone's AMap open and report that the app needed an update, on a current app version. That path is not in AMap's documentation, so the app treats it as one a newer build would know. Only AMap's documented URIs are offered now, all supported since the iPhone app's V5.0.0. Whether any of them actually starts guidance from a car-initiated `requestUI`, and whether Apple Maps accepts `daddr`, still needs a vehicle test.
+
+Measured on a BYD Di150VCP (Android 14, `auto8676p1_64_bsp_vm`) with the stock `com.byd.launchermap`: the map does broadcast to third-party receivers, but in that capture only two types arrived. KEY_TYPE 10002 (trip) carried `FROM_`/`TO_` `AD_CODE`, `AD_NAME`, `CITY_NAME`, `TOWN_NAME` and `TRIP_REMAIN_TIME`, with no coordinate and no place name; KEY_TYPE 10019 (navigation state) carried `EXTRA_STATE`, `EXTRA_IS_FOREGROUND` and `EXTRA_IS_NAVI_LIFECYCLE`. These are the map's own: DiPlay addresses its broadcasts to the adapter package and never sends `EXTRA_IS_NAVI_LIFECYCLE`. The per-second guidance broadcast, KEY_TYPE 10001, never arrived; the map was in the foreground for about seventeen seconds in that capture, so a longer navigation session is still needed to tell a short test apart from a map that addresses 10001 to its adapter only.
+
+The route itself cannot be handed over. Its shape is not logged: `PathInfo` appears only as an object address, and the geometry stays in the AMap SDK's native memory. `requestUI` carries a URL, and a URL holds places, so **Include the via points** (on by default) chains them into Apple's maps links as `daddr=via1+to:via2+to:destination`; AMap's documented URIs take a single destination and drop them, which the settings page states when such a link is chosen. The iPhone plans its own way between the stops, so its route and its ETA differ from the car's. The log does carry the rest of the route's state — alternative count and the selected index (`setPathInfos selectIndex: 0, size：3`), total and remaining distance (`TMCLightBar … totalDist: restDist:`), ETA and next road (`sendNaviInfoBroadcast etaText: … nextRouteName:`) — none of which CarPlay can accept from the car.
+
+An adb probe of the same head unit (`scripts/probe-map-destination.sh`, run while the map guided to a place) found the destination in the map's log but nowhere else a shell can read: `dumpsys` prints broadcast extras as "(has extras)", the map's providers are not readable by the shell user, and no binder service answers for the route. The logged coordinate is GCJ-02, matching the broadcasts.
+
+Not yet verified on a car: which of the four links the iPhone acts on, and whether Apple Maps places a GCJ-02 coordinate correctly inside China.
+
+## Ending the iPhone's guidance from the car (experimental)
+
+`requestUI` points the iPhone at a URL; it cannot press anything. The car's other commands are `showUI`/`stopUI` for an alt screen, `requestSiri` (`siriAction` 2 and 3, the steering-wheel voice key) and `hidSendReport`, none of which cancel a route. So the only way to reach the iPhone's own "End route" is to send the same touch the driver's finger would, which DiPlay already does for every real touch.
+
+That is blind. DiPlay never decodes the CarPlay screen, so it cannot tell what is under a point: it replays a sequence recorded once by the driver and hopes the layout has not moved. An iOS update, a different map app or a differently negotiated CarPlay width all move those buttons, and a mis-aimed tap can start a call or change a setting with no warning. The controls are built around that risk:
+
+- **Record the taps**: the driver starts guidance on the iPhone and then ends the route in the CarPlay window as usual. DiPlay closes its own page, brings the chosen map app to the front through `requestUI` (so the recorded screen matches the replayed one), and records each tap's position normalized to the video content — the same coordinates `CarPlayTouchMapper` produces, so they hold across overlay sizes — plus the driver's own pause between taps, clamped to 250–4000 ms. Only a real tap counts: longer than 600 ms or further than 16 dp from where the finger went down is a press or a drag and is ignored. One to four taps, and changing the count clears the sequence.
+- **Replay**: the same foreground step first, then each recorded contact down for 90 ms. The stored sequence is JSON in the preferences; a point outside the video, or beyond four taps, is dropped on read, and a contact is always lifted in a `finally`, so a failure between down and up cannot leave the screen stuck under a finger.
+- **Only while parked** (on by default): the gear is read over ADB, and a gear that cannot be read counts as moving, so a blind sequence never runs while the car may be driving. Turning it off is explicit.
+- The replayed taps are the same input path a touch takes (`CarPlayController.sendTouch`), so nothing distinguishes them from the driver's own finger on the iPhone side. The report and the settings page say only how many taps were recorded and where, never a frame of content.
+
+Reached from **Settings → Advanced → Head-unit map destination → Forget the destination when the head unit stops**, which is also where the automatic replay is turned on: a stop with no new route after it replays the sequence. The first log read looks back hours, and its stop is history, so it never taps. A **Try it once** button replays on demand without waiting for a real stop.
+
+Also unverified on a car: whether the taps land on the buttons they were recorded from, on this firmware and iOS version.
 ### Car phone audio (experimental)
 
 Two more settings under **Settings → Advanced → Video and audio**, off by default, let the car's own call processing handle the echo instead of DiPlay's canceller. On a GCC Han (DiLink 3, Android 10) the car's audio layer has a phone state that BYD's Telecom enters for any call (`AudioManager.setCallState(CALL_CLIENT_BT, MODE_IN_CALL)` in the Telecom log). Measured with a test app, not yet with a real CarPlay call:

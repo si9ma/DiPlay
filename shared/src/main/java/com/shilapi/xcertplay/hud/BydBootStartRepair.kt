@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.hud
 
 import android.content.Context
 import com.shilapi.xcertplay.adb.AdbKeys
+import com.shilapi.xcertplay.adb.AdbUser
 import com.shilapi.xcertplay.adb.LocalAdb
 
 /**
@@ -28,8 +29,8 @@ object BydBootStartRepair {
                 LocalAdb.Access.UNSUPPORTED -> return Result(listOf("ADB pairing-only"))
             }
             for (op in listOf("RUN_ANY_IN_BACKGROUND", "RUN_IN_BACKGROUND")) {
-                adb.shell("appops set $packageName $op allow")
-                val check = adb.shell("appops get $packageName $op")
+                adb.shell("${AdbUser.appopsSet(context)} $packageName $op allow")
+                val check = adb.shell("${AdbUser.appopsGet(context)} $packageName $op")
                 val allowed = check?.contains("allow") == true
                 lines += "$op ${if (allowed) "allow ✓" else (check?.trim().takeUnless { it.isNullOrEmpty() } ?: "no answer")}"
             }

@@ -315,6 +315,17 @@ class CarPlayVideoActivity : Activity() {
     private fun causes(error: Throwable): String = generateSequence(error) { it.cause }.take(4)
         .joinToString(" <- ") { "${it.javaClass.simpleName}(${it.message?.replace(Regex("\\w+://\\S+"), "<url>")})" }
 
+    // The parked-video player is full screen; keep the narrowed CarPlay overlay off it.
+    override fun onStart() {
+        super.onStart()
+        ProjectionOverlay.hide()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) ProjectionOverlay.requestShow?.invoke()
+    }
+
     private fun playbackNetworkSummary(): String {
         val manager = getSystemService(ConnectivityManager::class.java)
         val network = manager?.activeNetwork

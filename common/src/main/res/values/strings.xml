@@ -390,7 +390,7 @@
     <string name="settings_connection_summary">Phone, cable, wireless and automatic connection</string>
     <string name="settings_display_summary">Appearance, full screen, resolution and frame rate</string>
     <string name="settings_audio_summary">Speaker routing and music buffering</string>
-    <string name="settings_navigation_summary">Location reporting and supported dashboard guidance</string>
+    <string name="settings_navigation_summary">Location reporting, dashboard guidance and the head-unit map destination</string>
     <string name="settings_vehicle_summary">Driving side, wheel keys, car button and CarPlay gestures</string>
     <string name="settings_reconnect_pending">Saved. Some changes apply when CarPlay reconnects.</string>
     <string name="settings_reconnect_now">Reconnect now</string>
@@ -592,6 +592,15 @@
     <string name="video_play">Play</string>
     <string name="video_pause">Pause</string>
     <string name="video_cannot_play">This video can\'t play on the car screen. Protected video, such as Apple TV+, needs a licensed receiver.</string>
+    <string name="carplay_width" formatted="false">CarPlay width</string>
+    <string name="carplay_width_full" formatted="false">Full width (100%)</string>
+    <string name="carplay_position" formatted="false">CarPlay position</string>
+    <string name="carplay_position_left" formatted="false">Left</string>
+    <string name="carplay_position_center" formatted="false">Center</string>
+    <string name="carplay_position_right" formatted="false">Right</string>
+    <string name="carplay_width_hint" formatted="false">Below 100%, the car\'s own screen stays visible and usable beside CarPlay. Experimental: behavior depends on the head unit.</string>
+    <string name="carplay_width_custom">Custom…</string>
+    <string name="carplay_width_custom_hint">Enter a width between %1$d and %2$d percent of the screen.</string>
     <string name="navigation_widget_label">CarPlay navigation</string>
     <string name="navigation_widget_description">Next turn, distance, arrival and song from CarPlay</string>
     <string name="widget_not_connected">CarPlay is not connected</string>
@@ -616,6 +625,39 @@
     <string name="center_map_no_permission_screen">This head unit has no settings screen for this permission. Allow it over ADB.</string>
     <string name="launcher_map_sharing">Share the live map with other launchers</string>
     <string name="launcher_map_sharing_description">Launchers that support DiPlay can show the live dashboard map inside their own home screen. Off by default, because any app on the head unit could then ask for the map. See docs/LAUNCHER_INTEGRATION.md.</string>
+    <string name="handle_settings">DiPlay settings</string>
+    <string name="handle_minimize">Minimise CarPlay</string>
+    <string name="handle_disconnect">Disconnect</string>
+    <string name="overlay_corner_radius">Floating window corners</string>
+    <string name="overlay_corner_square">Square</string>
+    <string name="overlay_corner_radius_hint">Enter a radius between %1$d and %2$d dp.</string>
+    <string name="overlay_corner_fill">Corner area</string>
+    <string name="overlay_corner_fill_transparent">Transparent</string>
+    <string name="overlay_corner_fill_color">Colour</string>
+    <string name="overlay_corner_color">Corner colour</string>
+    <string name="overlay_corner_color_hint">Enter a colour as #RRGGBB, for example #0C111B.</string>
+    <string name="overlay_color_black">Black</string>
+    <string name="overlay_color_diplay">DiPlay navy</string>
+    <string name="overlay_color_graphite">Graphite</string>
+    <string name="overlay_color_charcoal">Charcoal</string>
+    <string name="overlay_color_dark_gray">Dark grey</string>
+    <string name="overlay_corner_hint">For the floating CarPlay window only. Transparent corners show the car screen behind them; a colour suits a dark car theme. Changes apply the next time CarPlay is shown.</string>
+    <string name="carplay_pages_usage_missing">Needs Usage Access. Over ADB: adb shell appops set --user 10 %1$s GET_USAGE_STATS allow</string>
+    <string name="carplay_pages_none">none</string>
+    <string name="carplay_only_on" formatted="false">Show CarPlay only on chosen pages</string>
+    <string name="carplay_only_on_description" formatted="false">Floating CarPlay appears only while one of the pages below is in front, such as the driver-assist lane view, and hides everywhere else. Needs Usage Access. Audio and navigation keep running while hidden.</string>
+    <string name="carplay_only_on_pages" formatted="false">CarPlay pages</string>
+    <string name="carplay_only_on_pages_hint" formatted="false">Package names, or package/activity for a single page, separated by commas. Default com.byd.sr (driver-assist lane view). Open the page and look for “Page guard: foreground app … visible=” in a diagnostic report.</string>
+    <string name="settings_export">Export settings to a file</string>
+    <string name="settings_import">Restore settings from a file</string>
+    <string name="settings_exported">Exported %1$d settings</string>
+    <string name="settings_backup_failed">Could not save the file: %1$s</string>
+    <string name="carplay_never_on">Pages that hide CarPlay</string>
+    <string name="carplay_never_on_description">These pages always hide floating CarPlay, even inside an app listed above (auto parking runs inside com.byd.sr). With CarPlay floating, open the page once, come back here and tick it in the list.</string>
+    <string name="carplay_never_on_hint">Package names, or package/activity for a single page, separated by commas.</string>
+    <string name="carplay_never_on_manual">Type</string>
+    <string name="carplay_require_split">Only in split screen</string>
+    <string name="carplay_require_split_description">With “Show CarPlay only on chosen pages” on, CarPlay also needs a second app open beside the page, as in the 3:7 split. A page that goes full screen, such as auto parking in com.byd.sr, then hides CarPlay.</string>
     <string name="usb_auto_confirm_status_on">USB Dialog Auto-Confirm: Enabled</string>
     <string name="usb_auto_confirm_dialog_msg">Auto-confirm requires the Accessibility Service. Many car head units do not expose the system accessibility settings.\n\nThis setup also requests Usage Access and permission to draw over other apps for the home-screen map. Existing accessibility services are preserved.\n\nApply these three permissions via local ADB?</string>
     <string name="usb_auto_confirm_active_hint">✓ Accessibility Service is active (USB prompt will be auto-confirmed)</string>
@@ -868,6 +910,11 @@
     <string name="setup_badge_adb">Needs ADB over network</string>
     <string name="setup_done_title">You’re ready</string>
     <string name="setup_done_description">Connect your iPhone now. You can open this guide again from Settings.</string>
+    <string name="adb_diagnostics_run">Check DiPlay\'s ADB connection</string>
+    <string name="adb_diagnostics_running">Checking ADB… up to 20 seconds</string>
+    <string name="adb_diagnostics_title">DiPlay ADB connection</string>
+    <string name="adb_diagnostics_copy">Copy</string>
+    <string name="adb_diagnostics_copied">Copied</string>
     <string name="settings_discard_pending_title">Discard your changes?</string>
     <string name="settings_discard_pending_message">Resolution, frame rate, connection and the other settings you just changed are not saved yet. Save and reconnect applies them.</string>
     <string name="settings_discard_pending_confirm">Discard</string>
@@ -878,6 +925,10 @@
     <string name="bt_suspend_delay_option">%1$d s after connecting</string>
     <string name="bt_suspend_during_carplay">Pause car Bluetooth during CarPlay · needs ADB</string>
     <string name="bt_suspend_during_carplay_description">The phone keeps its hands-free link to the car, so a call rings on both the car Bluetooth phone and CarPlay. While CarPlay runs, pause the car Bluetooth over ADB so calls ring on CarPlay only; with Bluetooth off, CarPlay calls play on the cabin speaker and microphone instead of the phone SCO. Bluetooth turns back on when CarPlay ends and before the next wireless handshake. Pairing is never touched. Changes apply on the next connection.</string>
+    <string name="wheel_keys_service_refused">ADB works, but the car refused to switch the key service on. Turn “DiPlay wheel keys” on in Accessibility settings instead, and export a diagnostic report if it keeps failing.</string>
+    <string name="cluster_display">Cluster screen</string>
+    <string name="cluster_display_automatic">Automatic</string>
+    <string name="cluster_display_hint">Automatic knows the screen names of the verified head units only. If the cluster map stays off and the report says “no cluster projection display”, pick a screen here and try each one: the wrong choice shows the map on another screen, with no other effect.</string>
     <string name="cluster_small_window_card_theme">Small-window turn card theme</string>
     <string name="cluster_small_window_card_theme_follow">Follow the turn card theme</string>
     <string name="cluster_small_window_card_size">Small-window turn card · size</string>
