@@ -171,7 +171,12 @@ class WheelKeyService : AccessibilityService() {
         if (CarPlayCallKeys.onKey(this, event.keyCode, down)) return true
         if (BydOutputSettings.carPlayCallControls(this) &&
             CarPlayMediaButton.opensSiriWhileCarPlay(event.keyCode) && session() != null) {
-            if (!down) note("CarPlay voice key ${event.keyCode}: Siri sent=${CarPlayBackgroundSession.snapshot()?.controller?.requestSiri() == true}")
+            if (!down) {
+                val shortPressIgnored = WheelZoomSettings.siriLongPressOnly(this) && CarPlayMediaButton.isShortVoiceKey(event.keyCode)
+                val sent = !shortPressIgnored && VoiceKeyPair.shared.allowCarPlayKey(event.eventTime) &&
+                    CarPlayBackgroundSession.snapshot()?.controller?.requestSiri() == true
+                note("CarPlay voice key ${event.keyCode}: Siri sent=$sent")
+            }
             return true
         }
         val key = WheelKey.of(event)
@@ -854,6 +859,33 @@ class WheelSiriKey {
     }
 }
 
+/**
+ * One press of BYD's voice key arrives as two keys: the CarPlay pair (327 short, 328 long) for the wheel key
+ * service and the generic pair (304 short, 312 long) for the CarPlay window, about half a second apart.
+ * Each opens Siri, and a second request ends the Siri session the first one began, so only the first of the
+ * two within [WINDOW_MILLIS] is sent. No Android types, so it is unit-tested.
+ */
+class VoiceKeyPair {
+    private var carPlayKeyMillis: Long? = null
+    private var genericKeyMillis: Long? = null
+
+    fun allowCarPlayKey(nowMillis: Long): Boolean = take(nowMillis, genericKeyMillis) { carPlayKeyMillis = it }
+    fun allowGenericKey(nowMillis: Long): Boolean = take(nowMillis, carPlayKeyMillis) { genericKeyMillis = it }
+
+    private fun take(now: Long, other: Long?, record: (Long) -> Unit): Boolean {
+        if (other != null && now - other in 0 until WINDOW_MILLIS) return false
+        record(now)
+        return true
+    }
+
+    companion object {
+        const val WINDOW_MILLIS = 1_500L
+
+        /** Shared by the wheel key service and the CarPlay window, which run in the same process. */
+        val shared = VoiceKeyPair()
+    }
+}
+
 /** Settings for the wheel's dashboard map zoom, CarPlay joystick and Siri key. */
 object WheelZoomSettings {
     private const val PREFS = "diplay_wheel_map_zoom"
@@ -862,6 +894,7 @@ object WheelZoomSettings {
     private const val KEY_JOYSTICK = "joystick"
     private const val KEY_JOYSTICK_AUTO_OFF = "joystick_auto_off"
     private const val KEY_SIRI = "siri_key"
+    private const val KEY_SIRI_LONG_ONLY = "siri_long_press_only"
     private const val BYD_KEYS = "simulate-keys"
     const val TIMED_MODE_MILLIS = 5_000L
     const val JOYSTICK_IDLE_MILLIS = 15_000L
@@ -914,6 +947,13 @@ object WheelZoomSettings {
     }
 
     fun siriKey(context: Context): Boolean = prefs(context).getBoolean(KEY_SIRI, false)
+
+    /** With this on, only the wheel's long press opens Siri; a short press of the voice key does nothing. */
+    fun siriLongPressOnly(context: Context): Boolean = prefs(context).getBoolean(KEY_SIRI_LONG_ONLY, false)
+
+    fun setSiriLongPressOnly(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_SIRI_LONG_ONLY, enabled).apply()
+    }
 
     fun setSiriKey(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean(KEY_SIRI, enabled).apply()

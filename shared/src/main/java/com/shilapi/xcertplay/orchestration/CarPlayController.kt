@@ -330,7 +330,8 @@ class CarPlayController(
             if (btPrefs.getBoolean("bt_suspend_during_carplay", false)) {
                 // close() marks [closed], and a closing session marks itself before onSessionEnded
                 // clears it, ahead of each resume; the pause checks all three under resume's lock.
-                BydBluetoothSuspend.suspend(appContext, this@CarPlayController, btSuspendDelayMs(btPrefs)) {
+                BydBluetoothSuspend.suspend(appContext, this@CarPlayController, btSuspendDelayMs(btPrefs),
+                    log = { debugLog(it) }) {
                     !closed && activeSession === session && !session.isClosed
                 }
             }
@@ -347,7 +348,7 @@ class CarPlayController(
                 activeSession = null
                 synchronized(albumReplayLock) { initialArtworkReplay = null }
                 BydNavigationOutputs.endNow(preserveTurnOverlay = !closed && config.transport == CarPlayTransport.WIRELESS)
-                BydBluetoothSuspend.resume(appContext, this@CarPlayController)
+                BydBluetoothSuspend.resume(appContext, this@CarPlayController) { debugLog(it) }
                 com.shilapi.xcertplay.glance.CarPlayGlance.setConnected(false)
                 videoListener?.onVideoSessionEnded()
                 synchronized(playbackStatus) {
@@ -647,7 +648,7 @@ class CarPlayController(
             dashboardMapOutputVisible = false
         }
         firstTcpWatchdog?.terminate()
-        BydBluetoothSuspend.resume(appContext, this)
+        BydBluetoothSuspend.resume(appContext, this) { debugLog(it) }
         startupTimer.shutdownNow()
         (hotspot as? ManualHotspotManager)?.close()
         val teardownStarted = System.nanoTime()
@@ -1257,7 +1258,7 @@ class CarPlayController(
                 adapterPresent = bluetoothAdapter != null,
                 enabled = bluetoothAdapter?.isEnabled == true,
                 pausedByDiPlay = BydBluetoothSuspend.isSuspendedByUs(appContext),
-            )?.let { throw IOException(it) }
+            )?.let { throw BluetoothRadioCheck.failure(it) }
             val hotspotInfo = startWirelessHotspot(generation)
             if (isStaleWirelessRun(generation)) {
                 return
@@ -1337,7 +1338,7 @@ class CarPlayController(
             onStatus(CarPlayStatus.WaitingForPairedIphone)
 
             val adapter = bluetoothAdapter
-                ?: throw IOException(BluetoothRadioCheck.NO_ADAPTER)
+                ?: throw BluetoothRadioCheck.failure(BluetoothRadioCheck.NO_ADAPTER)
             var bluetoothRecoveryComplete = BydBluetoothSuspend.resumeAndWait(appContext, adapter)
             debugLog("wireless Bluetooth before handshake: ${BydBluetoothSuspend.lastRecovery}")
             // A head unit that has just woken brings its radio up well after DiPlay starts. Failing at
@@ -2427,6 +2428,12 @@ class CarPlayController(
     // close, or never taken.
     private fun pauseWifiScans(backend: WirelessHotspotBackend) = synchronized(wirelessResourceLock) {
         if (closed || !WifiScanPause.eligible(backend)) return@synchronized
+        // Settings → Connection lets a driver keep the car's automatic joining, e.g. for the phone's hotspot (#755).
+        if (!appContext.getSharedPreferences("xcertplay_airplay", android.content.Context.MODE_PRIVATE)
+                .getBoolean("wifi_direct_scan_pause", true)) {
+            if (wifiScanPause == null) debugLog("Wi-Fi scan pause off in Settings; the car keeps searching and joining networks")
+            return@synchronized
+        }
         (wifiScanPause ?: WifiScanPause(appContext, ::debugLog).also { wifiScanPause = it }).pause()
     }
 

@@ -67,6 +67,7 @@ import com.shilapi.xcertplay.hud.BydVehicleProbeOutcome
 import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.media.AmbientColorMode
 import com.shilapi.xcertplay.media.AmbientColorSpeed
+import com.shilapi.xcertplay.media.AmbientIdleBehavior
 import com.shilapi.xcertplay.media.AmbientMusicController
 import com.shilapi.xcertplay.media.AmbientColorSource
 import com.shilapi.xcertplay.media.AmbientMusicSettings
@@ -186,10 +187,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var hotspotJoinControls: HotspotJoinControls? = null
     private var setupError: String? = null
     private var status: TextView? = null
+    private var homeCardTitle: TextView? = null
+    private var homeConnectionHint: TextView? = null
     private var connectButton: Button? = null
     private var disconnectButton: Button? = null
     private var lastRunning: Boolean? = null
     private var pendingWireless = false
+    private var bluetoothSettingsVisited = false
     private var initialLaunch = true
     private var notificationTransport = true
     private var exportInProgress = false
@@ -525,6 +529,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             return
         }
         handler.removeCallbacks(tick); handler.post(tick)
+        // Back with the hotspot access now allowed: the start-up attempt that lacked it runs again.
+        if (hotspotStartupResult == CarHotspotTethering.Result.PERMISSION_REQUIRED && CarHotspotTethering.permitted(this)) {
+            hotspotStartupResult = null
+            startupHotspotCancelled = false
+            startCarHotspotOnLaunch()
+        }
         // Back from the car settings: refresh the car hotspot reminder on the home page.
         if (!initialLaunch && !adbSwitchChangePending && !pausedForAdbSwitchChange &&
             (page == "home" || page == "settings" || page == "connection" || page == "setup")) render()
@@ -921,7 +931,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             left.addView(label(getString(R.string.your_maps_music_and_conversations_carplay_right_here_on_yo), 19, MUTED))
         }
         val card = card()
-        card.addView(label(getString(R.string.wireless_carplay), 12, ACCENT, true).apply { letterSpacing = .12f })
+        homeCardTitle = label(getString(R.string.wireless_carplay), 12, ACCENT, true).apply { letterSpacing = .12f }
+        card.addView(homeCardTitle)
         status = label(getString(R.string.ready_when_you_are), 24, TEXT, true).apply { setPadding(0, dp(10), 0, dp(16)) }
         card.addView(status)
         connectButton = homeButton(getString(R.string.connect_phone), true) {
@@ -935,15 +946,23 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             WirelessHotspotMode.LOCAL_ONLY_HOTSPOT -> getString(R.string.hotspot_hint_local)
             else -> getString(R.string.hotspot_hint_p2p)
         }
-        if (!compact) card.addView(label(connectionHint, 15, MUTED).apply { setPadding(0, dp(14), 0, 0) })
+        homeConnectionHint = if (compact) null else label(connectionHint, 15, MUTED).apply { setPadding(0, dp(14), 0, 0) }
+        homeConnectionHint?.let(card::addView)
         val startupProblem = hotspotStartupResult?.takeIf {
             it != CarHotspotTethering.Result.READY && it != CarHotspotTethering.Result.CANCELLED &&
                 CarHotspotSettings.shouldEnable(this, true, AirPlayPersistence.loadWirelessHotspotMode(this)) &&
                 com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this) != true
         }
         if (startupProblem != null) {
-            card.addView(label(hotspotResultText(startupProblem), 15, WARNING))
-            if (!compact) card.addView(homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() }, matchButton(CONTROL_GAP_DP, 56))
+            // Off BYD units the access is allowed on Android's "Modify system settings" screen; ADB plays no part.
+            val allowOnSystemScreen = startupProblem == CarHotspotTethering.Result.PERMISSION_REQUIRED &&
+                !CarHotspotSetup.isBydHeadUnit(this) && CarHotspotTethering.appStartSupported()
+            card.addView(label(if (allowOnSystemScreen) getString(R.string.settings_write_settings_missing)
+                else hotspotResultText(startupProblem), 15, WARNING))
+            if (!compact) card.addView(
+                if (allowOnSystemScreen) homeButton(getString(R.string.settings_write_settings_allow), false) { openWriteSettingsAccess() }
+                else homeButton(getString(R.string.open_car_hotspot_settings), false) { openCarWifiSettings() },
+                matchButton(CONTROL_GAP_DP, 56))
         } else if (carHotspotOff()) {
             // No name is saved before Connection setup, and the sentence that quotes it would show “”.
             val name = AirPlayPersistence.loadManualHotspotSsid(this)
@@ -1836,7 +1855,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
             card.addView(button(getString(R.string.boot_start_repair), false) { repairBootStart() }, matchButton(6, 56))
             card.addView(label(getString(R.string.boot_start_repair_desc), 14, MUTED).apply { setPadding(0, dp(8), 0, dp(6)) })
-            card.addView(button("${getString(R.string.choose_iphone_prefix)}${DiPlayPreferences.phoneName(this)}", false) { choosePhone() }, matchButton(12, 60))
+            card.addView(button(chooseIphoneTitle(), false) { choosePhone() }, matchButton(12, 60))
         }
         filteredSection(content, SettingsSection.USB_CONNECTION,
             getString(R.string.settings_usb_connection), R.drawable.ic_dp_connection) { card ->
@@ -2085,11 +2104,28 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             getString(R.string.audio_routing), R.drawable.ic_dp_audio) { card ->
             mediaChannelControl(card)
             navigationChannelControl(card)
-            val bufferPresets = com.shilapi.xcertplay.media.MediaAudioBuffer.presets
-            choice(card, getString(R.string.music_buffer), listOf(getString(R.string.s_300_ms_default), getString(R.string.s_500_ms), getString(R.string.s_1000_ms_most_stable)),
-                bufferPresets.indexOf(AirPlayPersistence.loadMediaBufferMillis(this)).coerceAtLeast(0)) {
-                AirPlayPersistence.saveMediaBufferMillis(this, bufferPresets[it])
+            val gainSlider = overlaySliderRow(
+                getString(R.string.settings_navigation_attenuation),
+                (com.shilapi.xcertplay.media.NavigationAudioGain.MIN_DB..
+                    com.shilapi.xcertplay.media.NavigationAudioGain.MAX_DB).toList(),
+                AirPlayPersistence.loadNavigationAudioAttenuationDb(this),
+            ) { db -> getString(R.string.settings_navigation_attenuation_value, db) }
+            val gainTitle = getString(R.string.settings_navigation_attenuation)
+            gainSlider.slider.contentDescription = gainTitle + ": " +
+                getString(R.string.settings_navigation_attenuation_value,
+                    AirPlayPersistence.loadNavigationAudioAttenuationDb(this))
+            gainSlider.onSave = { db ->
+                AirPlayPersistence.saveNavigationAudioAttenuationDb(this, db)
+                CarPlayBackgroundSession.snapshot()?.sink?.setNavigationAttenuationDb(db)
+                gainSlider.slider.contentDescription = gainTitle + ": " +
+                    getString(R.string.settings_navigation_attenuation_value, db)
             }
+            card.addView(gainSlider)
+            card.addView(label(getString(R.string.settings_navigation_attenuation_description), 14, MUTED).apply {
+                setPadding(0, dp(SETTINGS_BLOCK_GAP_DP), 0, 0)
+            })
+            musicBufferChoice(card, wireless = true)
+            musicBufferChoice(card, wireless = false)
             toggle(card, getString(R.string.settings_call_speakerphone), getString(R.string.settings_call_speakerphone_description),
                 AirPlayPersistence.loadCallSpeakerphone(this)) { AirPlayPersistence.saveCallSpeakerphone(this, it) }
         }
@@ -2780,10 +2816,42 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(this) == false &&
             !(CarHotspotSettings.enabled(this) && CarHotspotTethering.permitted(this))
 
+    /**
+     * Other head units: starting the hotspot needs only Android's "Modify system settings" access
+     * (WRITE_SETTINGS), which the driver allows on the system screen. No ADB is involved.
+     */
+    private fun systemHotspotSettings(parent: LinearLayout) {
+        section(parent, getString(R.string.settings_car_hotspot_control), R.drawable.ic_dp_permissions) { card ->
+            toggle(card, getString(R.string.auto_car_hotspot_title),
+                getString(R.string.settings_auto_car_hotspot_system_description), CarHotspotSettings.enabled(this)) { enabled ->
+                CarHotspotSettings.setEnabled(this, enabled)
+                if (!enabled) startupHotspotCancelled = true
+                else if (!CarHotspotTethering.permitted(this)) openWriteSettingsAccess()
+            }
+            val permitted = CarHotspotTethering.permitted(this)
+            card.addView(label(getString(if (permitted) R.string.settings_write_settings_granted
+                else R.string.settings_write_settings_missing), 14, if (permitted) READY else MUTED).apply {
+                setPadding(0, dp(6), 0, dp(4))
+            })
+            if (!permitted) {
+                card.addView(button(getString(R.string.settings_write_settings_allow), false) { openWriteSettingsAccess() },
+                    matchButton(8, 54))
+            }
+        }
+    }
+
+    private fun openWriteSettingsAccess() =
+        openSystem(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:$packageName")))
+
     private fun bydAdbSettings(parent: LinearLayout) {
         if (AirPlayPersistence.loadWirelessHotspotMode(this) != WirelessHotspotMode.MANUAL) return
         if (!CarHotspotSetup.isBydHeadUnit(this)) {
-            Log.i("DiPlay-Hotspot", "settings hidden: BYD head unit not detected")
+            if (CarHotspotTethering.appStartSupported()) {
+                Log.i("DiPlay-Hotspot", "BYD head unit not detected: hotspot control through system settings access")
+                systemHotspotSettings(parent)
+            } else {
+                Log.i("DiPlay-Hotspot", "settings hidden: BYD head unit not detected; Android ${Build.VERSION.SDK_INT} does not let an app start tethering")
+            }
             return
         }
         if (searchIndexSink != null) {
@@ -3099,13 +3167,18 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         content.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(SETTINGS_BLOCK_GAP_DP) })
     }
 
+    /** "Choose iPhone · <name>" once an iPhone is chosen. Before that there is no name to show, only "Choose iPhone". */
+    private fun chooseIphoneTitle(): String =
+        if (DiPlayPreferences.phoneAddress(this) == null) getString(R.string.choose_iphone)
+        else "${getString(R.string.choose_iphone_prefix)}${DiPlayPreferences.phoneName(this)}"
+
     private fun setupIphoneStep(content: LinearLayout) {
         setupTitle(content, R.string.setup_iphone_title, getString(R.string.keep_bluetooth_and_wi_fi_on_your_iphone_pair_with_the_car))
         val card = card()
         val chosen = DiPlayPreferences.phoneAddress(this) != null
         card.addView(label(if (chosen) DiPlayPreferences.phoneName(this) else getString(R.string.setup_iphone_none), 22,
             if (chosen) READY else TEXT, true))
-        card.addView(button("${getString(R.string.choose_iphone_prefix)}${DiPlayPreferences.phoneName(this)}", !chosen) {
+        card.addView(button(chooseIphoneTitle(), !chosen) {
             choosePhone()
         }, matchButton(16, 60))
         card.addView(button(getString(R.string.review_app_permissions), false) {
@@ -3212,7 +3285,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         section(content, getString(R.string.s_1_choose_your_connection)) { card -> wirelessLinkControls(card) }
         section(content, getString(R.string.s_2_pair_your_iphone)) { card ->
             card.addView(label(getString(R.string.keep_bluetooth_and_wi_fi_on_your_iphone_pair_with_the_car), 16, MUTED))
-            card.addView(button("${getString(R.string.choose_iphone_prefix)}${DiPlayPreferences.phoneName(this)}", false) { choosePhone() }, matchButton(12, 60))
+            card.addView(button(chooseIphoneTitle(), false) { choosePhone() }, matchButton(12, 60))
             card.addView(button(getString(R.string.review_app_permissions), false) {
                 openSystem(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
             }, matchButton(12, 60))
@@ -3292,6 +3365,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         } else {
             parent.addView(label(getString(R.string.turn_the_car_s_wi_fi_switch_on_allow_location_nearby_devic), 16, MUTED))
             wifiDirectChannelControl(parent)
+            // #755: the pause also stops the car joining a known network, such as the phone's hotspot, by itself.
+            toggle(parent, getString(R.string.settings_wifi_direct_scan_pause),
+                getString(R.string.settings_wifi_direct_scan_pause_description),
+                AirPlayPersistence.loadWifiDirectScanPause(this)) {
+                AirPlayPersistence.saveWifiDirectScanPause(this, it)
+                markReconnectNeeded()
+            }
             parent.addView(button(getString(R.string.open_car_wi_fi_settings), false) { openCarClientWifiSettings() }, matchButton(12, 60))
         }
     }
@@ -4184,6 +4264,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             (zoomAvailable && WheelZoomSettings.enabled(this))
         if (WheelZoomSettings.siriKey(this) || vehicleKeysOn) wheelKeyServiceControls(card)
         siriKeyControls(card)
+        toggle(card, getString(R.string.wheel_siri_long_press_only), getString(R.string.wheel_siri_long_press_only_description),
+            WheelZoomSettings.siriLongPressOnly(this)) { WheelZoomSettings.setSiriLongPressOnly(this, it) }
         // Any head unit: a paired keyboard, remote or rotary controller works alongside touch.
         toggle(card, getString(R.string.settings_external_controller), getString(R.string.settings_external_controller_description),
             AirPlayPersistence.loadExternalController(this)) { AirPlayPersistence.saveExternalController(this, it) }
@@ -4797,6 +4879,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     vehicleProbeOutcome = null
                 }
                 render()
+                // A check the driver asked for also says its result where they look: the status line
+                // above the button changed so quietly that the button seemed to do nothing (#724).
+                if (mayAsk) toast(status?.state?.let(::adbLinkStatusText) ?: getString(R.string.adb_check_failed))
                 // Unreadable data keeps the current connection; the page shows what is missing.
                 if (!legacy && vehicleDataReconnectPending && status?.state == BydAdbAccess.State.READY &&
                     enabledVehicleDataReadable(null, status)) {
@@ -5819,10 +5904,23 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT); return
         }
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: BluetoothAdapter.getDefaultAdapter()
-        if (adapter == null || !adapter.isEnabled) {
+        if (adapter == null) {
+            // Android here has no Bluetooth for apps at all, so there is no switch to send the driver to.
+            pendingWireless = false
+            appDialogBuilder().setTitle(getString(R.string.wireless_carplay_2))
+                .setMessage(getString(R.string.bluetooth_cannot_open_connections))
+                .setPositiveButton(getString(R.string.got_it), null).show(); return
+        }
+        if (!adapter.isEnabled) {
+            // Back from Bluetooth settings and still off: on some head units the switch will not stay on.
+            val message = getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first) +
+                if (bluetoothSettingsVisited) "\n\n" + getString(R.string.bluetooth_will_not_stay_on_hint) else ""
             appDialogBuilder().setTitle(getString(R.string.turn_on_bluetooth))
-                .setMessage(getString(R.string.enable_the_car_s_bluetooth_and_pair_your_iphone_first))
-                .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ -> openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+                .setMessage(message)
+                .setPositiveButton(getString(R.string.open_bluetooth)) { _, _ ->
+                    bluetoothSettingsVisited = true
+                    openSystem(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                }
                 .setNegativeButton(getString(R.string.later), null).show(); return
         }
         val devices = runCatching { adapter.bondedDevices.sortedBy { it.name ?: "" } }.getOrDefault(emptyList())
@@ -5902,6 +6000,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun refreshStatus() {
         val running = CarPlayBackgroundSession.hasSession()
+        // A USB session shares this card's status and Disconnect, but not its wireless title or Wi-Fi hint (#742).
+        val wired = HomeCardTransport.wired(running, AirPlayPersistence.loadWirelessEnabled(this))
+        homeCardTitle?.text = getString(if (wired) R.string.home_usb_carplay else R.string.wireless_carplay)
+        homeConnectionHint?.visibility = if (wired) View.GONE else View.VISIBLE
         status?.text = when {
             setupError != null -> getString(R.string.setup_needs_attention)
             CarPlayBackgroundSession.active -> getString(R.string.carplay_connected)
@@ -6078,6 +6180,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             appendLine(StartupDiagnosticSnapshot.verdict(appContext))
             appendLine("Startup settings: openAfterBoot=${AirPlayPersistence.loadAutoStartOnBoot(appContext)} " +
                 "connectWhenOpened=${DiPlayPreferences.autoConnect(appContext)}")
+            appendLine("Car hotspot control: autoEnable=${CarHotspotSettings.enabled(appContext)} " +
+                "writeSettings=${CarHotspotTethering.permitted(appContext)} " +
+                "bydHeadUnit=${runCatching { CarHotspotSetup.isBydHeadUnit(appContext) }.getOrNull()} " +
+                "hotspotOn=${runCatching { com.shilapi.xcertplay.network.CarHotspotStatus.isEnabled(appContext) }.getOrNull()}")
         }
         reportSection("Head-unit map destination (experimental)") {
             HeadUnitMapDestination.report().lineSequence().forEach { line ->
@@ -6447,57 +6553,117 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         return getString(R.string.settings_ambient_configuration) + " · " + getString(R.string.settings_ambient_summary, getString(if (value.enabled) R.string.settings_ambient_enabled else R.string.settings_ambient_disabled), mode, speed, value.selectedColors.size, value.brightness)
     }
 
+    private fun ambientModeDescription(mode: AmbientColorMode): String = getString(when (mode) {
+        AmbientColorMode.ENERGY -> R.string.settings_ambient_mode_energy_desc
+        AmbientColorMode.BEAT -> R.string.settings_ambient_mode_beat_desc
+        AmbientColorMode.TEMPO -> R.string.settings_ambient_mode_tempo_desc
+        AmbientColorMode.BASS -> R.string.settings_ambient_mode_bass_desc
+        AmbientColorMode.SMART -> R.string.settings_ambient_mode_smart_desc
+    })
+
+    private fun ambientBrightnessText(level: Int): String =
+        if (level <= 0) getString(R.string.settings_ambient_minimum) else getString(R.string.settings_ambient_brightness_value, level)
+
     private fun showAmbientConfiguration() {
         var draft = AmbientMusicSettings.load(this)
         val body = column().apply { setPadding(dp(24), dp(12), dp(24), dp(12)) }
         body.addView(label(getString(R.string.settings_ambient_parked_notice), 14, MUTED))
+        body.addView(space(12))
+        body.addView(label(getString(R.string.settings_ambient_behavior_title), 16, ACCENT, bold = true))
+        val behavior = label("", 14, MUTED)
+        body.addView(behavior)
+        body.addView(space(12))
+        lateinit var colorGrid: AmbientSwatchGrid
+        lateinit var colorHint: TextView
+        lateinit var musicOptions: LinearLayout
+        fun refreshAmbient() {
+            behavior.text = AmbientBehaviorText.lines(this, draft).joinToString("\n") { "• $it" }
+            musicOptions.visibility = if (draft.music) View.VISIBLE else View.GONE
+            val album = draft.colorSource == AmbientColorSource.ALBUM
+            colorGrid.single = !draft.music
+            colorGrid.setInteractive(!album)
+            colorHint.text = getString(when {
+                album -> R.string.settings_ambient_colors_hint_album
+                draft.music -> R.string.settings_ambient_colors_hint_follow
+                else -> R.string.settings_ambient_colors_hint_fixed
+            })
+        }
         toggle(body, getString(R.string.settings_ambient_enable), getString(R.string.settings_ambient_enable_description), draft.enabled) {
             draft = draft.copy(enabled = it)
+            refreshAmbient()
         }
         toggle(body, getString(R.string.settings_ambient_music), getString(R.string.settings_ambient_music_description), draft.music) {
             draft = draft.copy(music = it)
+            if (!it) {
+                // Fixed mode shows a single color, the first of the selection, as the lamps do.
+                val only = draft.selectedColors.first()
+                draft = draft.copy(selectedColors = listOf(only), color = only)
+                colorGrid.setSelection(setOf(only))
+            }
+            refreshAmbient()
+        }
+        musicOptions = column()
+        val modeNote = label(ambientModeDescription(draft.colorMode), 13, MUTED)
+        choice(musicOptions, getString(R.string.settings_ambient_color_mode), listOf(getString(R.string.settings_ambient_energy), getString(R.string.settings_ambient_beat), getString(R.string.settings_ambient_tempo), getString(R.string.settings_ambient_bass), getString(R.string.settings_ambient_smart)), draft.colorMode.ordinal, reconnects = false) {
+            draft = draft.copy(colorMode = AmbientColorMode.entries[it])
+            modeNote.text = ambientModeDescription(draft.colorMode)
+        }
+        musicOptions.addView(modeNote)
+        musicOptions.addView(space(12))
+        choice(musicOptions, getString(R.string.settings_ambient_speed), listOf(getString(R.string.settings_ambient_slow), getString(R.string.settings_ambient_standard), getString(R.string.settings_ambient_fast)), draft.speed.ordinal, reconnects = false) {
+            draft = draft.copy(speed = AmbientColorSpeed.entries[it])
+        }
+        body.addView(musicOptions)
+        choice(body, getString(R.string.settings_ambient_idle), listOf(getString(R.string.settings_ambient_idle_steady), getString(R.string.settings_ambient_idle_car), getString(R.string.settings_ambient_idle_off)), draft.idle.ordinal, reconnects = false) {
+            draft = draft.copy(idle = AmbientIdleBehavior.entries[it])
+            refreshAmbient()
         }
         toggle(body, getString(R.string.settings_ambient_album), getString(R.string.settings_ambient_album_description), draft.colorSource == AmbientColorSource.ALBUM) {
             draft = draft.copy(colorSource = if (it) AmbientColorSource.ALBUM else AmbientColorSource.SELECTED)
+            refreshAmbient()
         }
-        choice(body, getString(R.string.settings_ambient_color_mode), listOf(getString(R.string.settings_ambient_energy), getString(R.string.settings_ambient_beat), getString(R.string.settings_ambient_tempo), getString(R.string.settings_ambient_bass), getString(R.string.settings_ambient_smart)), draft.colorMode.ordinal, reconnects = false) {
-            draft = draft.copy(colorMode = AmbientColorMode.entries[it])
-        }
-        choice(body, getString(R.string.settings_ambient_speed), listOf(getString(R.string.settings_ambient_slow), getString(R.string.settings_ambient_standard), getString(R.string.settings_ambient_fast)), draft.speed.ordinal, reconnects = false) {
-            draft = draft.copy(speed = AmbientColorSpeed.entries[it])
-        }
-        val paletteButton = button(getString(R.string.settings_ambient_palette_summary, draft.selectedColors.size), false) {}
-        paletteButton.setOnClickListener {
-            val checked = BooleanArray(31) { it + 1 in draft.selectedColors }
-            val paletteDialog = AlertDialog.Builder(this).setTitle(getString(R.string.settings_ambient_palette))
-                .setMultiChoiceItems((1..31).map { it.toString() }.toTypedArray(), checked) { _, index, selected -> checked[index] = selected }
-                .setNeutralButton(getString(R.string.settings_ambient_select_all), null)
-                .setPositiveButton(getString(R.string.save), null)
-                .setNegativeButton(getString(R.string.cancel), null).create()
-            paletteDialog.setOnShowListener {
-                paletteDialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                    checked.fill(true)
-                    for (index in checked.indices) paletteDialog.listView.setItemChecked(index, true)
+        body.addView(space(12))
+        body.addView(label(getString(R.string.settings_ambient_colors_title), 16, ACCENT, bold = true))
+        colorHint = label("", 13, MUTED)
+        body.addView(colorHint)
+        body.addView(space(8))
+        colorGrid = AmbientSwatchGrid(
+            this, ACCENT,
+            initial = if (draft.music) draft.selectedColors.toSet() else setOf(draft.selectedColors.first()),
+            single = !draft.music,
+            onChanged = { colors ->
+                val sorted = colors.sorted()
+                draft = draft.copy(selectedColors = sorted, color = sorted.first())
+            },
+            onLastDeselected = { toast(getString(R.string.settings_ambient_select_one)) },
+        )
+        body.addView(colorGrid)
+        body.addView(space(12))
+        body.addView(label(getString(R.string.settings_ambient_brightness), 16, ACCENT, bold = true))
+        val brightnessValue = label(ambientBrightnessText(draft.brightness), 14, MUTED)
+        body.addView(brightnessValue)
+        body.addView(SeekBar(this).apply {
+            max = 6
+            progress = draft.brightness
+            contentDescription = getString(R.string.settings_ambient_brightness)
+            progressTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+            thumbTintList = android.content.res.ColorStateList.valueOf(ACCENT)
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar, level: Int, fromUser: Boolean) {
+                    draft = draft.copy(brightness = level)
+                    brightnessValue.text = ambientBrightnessText(level)
+                    refreshAmbient()
                 }
-                paletteDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                    val selected = checked.indices.filter { checked[it] }.map { it + 1 }
-                    if (selected.isEmpty()) toast(getString(R.string.settings_ambient_select_one))
-                    else {
-                        draft = draft.copy(selectedColors = selected, color = selected.first())
-                        paletteButton.text = getString(R.string.settings_ambient_palette_summary, selected.size)
-                        paletteDialog.dismiss()
-                    }
-                }
-            }
-            paletteDialog.show()
-        }
-        body.addView(paletteButton, matchButton(0, 60)); body.addView(space(12))
-        choice(body, getString(R.string.settings_ambient_brightness), (0..6).map { if (it == 0) getString(R.string.settings_ambient_minimum) else it.toString() }, draft.brightness, reconnects = false) {
-            draft = draft.copy(brightness = it)
-        }
+                override fun onStartTrackingTouch(bar: SeekBar) = Unit
+                override fun onStopTrackingTouch(bar: SeekBar) = Unit
+            })
+        }, LinearLayout.LayoutParams(-1, dp(48)))
+        body.addView(space(12))
         choice(body, getString(R.string.settings_ambient_area), listOf(getString(R.string.settings_ambient_front), getString(R.string.settings_ambient_rear), getString(R.string.settings_ambient_all)), draft.area - 1, reconnects = false) {
             draft = draft.copy(area = it + 1)
+            refreshAmbient()
         }
+        refreshAmbient()
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.settings_ambient_configuration))
             .setView(ScrollView(this).apply { addView(body) })
             .setPositiveButton(getString(R.string.save), null)
@@ -6528,6 +6694,26 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
         }
         dialog.show()
+    }
+
+    /** Music buffer for one transport. A change reconnects only a running session of that transport. */
+    private fun musicBufferChoice(card: LinearLayout, wireless: Boolean) {
+        val buffer = com.shilapi.xcertplay.media.MediaAudioBuffer
+        val presets = if (wireless) buffer.wirelessPresets else buffer.wiredPresets
+        val labels = presets.map { millis ->
+            when (millis) {
+                buffer.DEFAULT_MILLIS -> getString(R.string.s_300_ms_default)
+                buffer.MOST_STABLE_MILLIS -> getString(R.string.s_1000_ms_most_stable)
+                else -> getString(R.string.settings_music_buffer_ms, millis)
+            }
+        }
+        val title = getString(if (wireless) R.string.settings_music_buffer_wireless else R.string.settings_music_buffer_wired)
+        val sessionTransport = AirPlayPersistence.loadWirelessEnabled(this) == wireless
+        choice(card, title, labels,
+            presets.indexOf(AirPlayPersistence.loadMediaBufferMillis(this, wireless)).coerceAtLeast(0),
+            reconnects = sessionTransport) {
+            AirPlayPersistence.saveMediaBufferMillis(this, wireless, presets[it])
+        }
     }
 
     // [announcesReconnect] labels a choice whose [save] reconnects by itself.

@@ -107,6 +107,19 @@ class WirelessStartupRecoveryTest {
         assertEquals(View.VISIBLE, retry.visibility)
     }
 
+    // A head unit whose Android has no Bluetooth adapter: nothing to turn on and nothing to wait for.
+    @Test fun aHeadUnitWithoutABluetoothAdapterSaysSoAndDoesNotRetry() {
+        val stage = TextView(activity)
+        ReflectionHelpers.setField(activity, "stageStatusView", stage)
+        val failure = BluetoothRadioCheck.failure(BluetoothRadioCheck.NO_ADAPTER) as WirelessStartupException
+        report(status = CarPlayStatus.Failed(failure.message!!, startupFailure = failure.reason))
+        assertEquals(activity.getString(R.string.bluetooth_cannot_open_connections), stage.text.toString())
+        assertEquals(0, budget().retries)
+        assertFalse(ReflectionHelpers.getField(activity, "reconnectScheduled"))
+        assertTrue(ReflectionHelpers.getField(activity, "startupRetryStopped"))
+        assertEquals(View.VISIBLE, retry.visibility)
+    }
+
     // The driver can switch Bluetooth on, so the screen asks for it and the attempts go on.
     @Test fun bluetoothThatIsOffAsksForItAndKeepsRetrying() {
         val stage = TextView(activity)
