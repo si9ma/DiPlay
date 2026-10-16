@@ -39,3 +39,6 @@ release-signing.properties
 *.key
 *.apk
 *.aab
+keystore.env
+runtime-assets/
+tmp/
