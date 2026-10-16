@@ -144,6 +144,9 @@ class CarPlayMediaFocusForwardingTest {
     private fun start(controller: CarPlayController, sink: AndroidMediaSink,
         clearInitialGrant: Boolean = true): AudioManager.OnAudioFocusChangeListener {
         `when`(controller.nowPlayingSnapshot()).thenReturn(CarPlayNowPlaying())
+        val token = Any()
+        `when`(controller.mediaAttachmentToken()).thenReturn(token)
+        `when`(controller.mediaControlSessionToken()).thenReturn(token)
         CarPlayBackgroundSession.store(controller, sink, 800, 480, Any(),
             CarPlaySessionDisplay(800, 480, Surface.ROTATION_0, false, false, 800, 480)) {}
         CarPlayMediaKeys.attach(app, controller)

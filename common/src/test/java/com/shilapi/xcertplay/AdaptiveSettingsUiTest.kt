@@ -706,6 +706,15 @@ class AdaptiveSettingsUiTest {
         val navigation = visibleIn(R.string.settings_navigation)
         val advanced = visibleIn(R.string.settings_advanced)
         val connection = visibleIn(R.string.connection)
+        val overview = texts(screen).map { it.text }.toList()
+        assertTrue(text(R.string.check_adb_access) in overview)
+        listOf(display, audio, vehicle, navigation, advanced, connection).forEach {
+            assertFalse(text(R.string.check_adb_access) in it)
+        }
+        assertTrue(display.any { it.startsWith(text(R.string.settings_usage_access) + " · ") })
+        listOf(overview, audio, vehicle, navigation, advanced, connection).forEach { category ->
+            assertFalse(category.any { it.startsWith(text(R.string.settings_usage_access) + " · ") })
+        }
 
         assertTrue(display.any { it.startsWith(text(R.string.carplay_dock)) })
         assertFalse(vehicle.any { it.startsWith(text(R.string.carplay_dock)) })
@@ -732,6 +741,10 @@ class AdaptiveSettingsUiTest {
         assertTrue(text(R.string.settings_map_destination_title) in navigation)
         listOf(display, audio, vehicle, advanced).forEach {
             assertFalse(text(R.string.settings_map_destination_title) in it)
+        }
+        assertTrue(text(R.string.settings_auto_playback) in advanced)
+        listOf(display, audio, vehicle, navigation, connection).forEach {
+            assertFalse(text(R.string.settings_auto_playback) in it)
         }
         assertTrue(text(R.string.settings_ambient_title) in advanced)
         assertFalse(text(R.string.settings_ambient_title) in audio)

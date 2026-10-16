@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_usage_adb_grant">Autorizar por ADB de red</string>
+    <string name="settings_usage_adb_explanation">Solo se solicitará Acceso de uso (GET_USAGE_STATS). Activa ADB de red en el coche y autoriza a DiPlay si aparece el aviso de depuración. No se cambiarán los permisos de accesibilidad ni de superposición. Cancelar detiene el trabajo pendiente, pero no revoca permisos ya concedidos.</string>
+    <string name="settings_usage_adb_failed">No se verificó el Acceso de uso. Comprueba ADB de red y su autorización; después reintenta o usa el comando manual.</string>
+    <string name="settings_usage_adb_busy">Hay otra operación ADB en curso. Espera a que termine y reintenta.</string>
+    <string name="settings_adb_access">Comprobar acceso ADB</string>
+    <string name="settings_usage_access">Acceso de uso (GET_USAGE_STATS)</string>
+    <string name="settings_usage_access_description">Necesario para identificar las apps en primer plano y la pantalla dividida. Toca el estado del permiso para comprobarlo de nuevo. Conceder acceso no cambia las opciones de visualización ni requiere reconectar CarPlay.</string>
+    <string name="settings_usage_access_manual">Este coche no tiene una pantalla de acceso de uso disponible. Permite el acceso a DiPlay en los ajustes del sistema, o conecta un ordenador con ADB y ejecuta:\n\n%1$s\n\nDespués vuelve aquí y toca el estado del permiso para comprobarlo de nuevo.</string>
+    <string name="settings_auto_playback">Reproducir al conectar (experimental)</string>
+    <string name="settings_auto_playback_description">Solicita la reproducción una vez tras conectar CarPlay. Omite llamadas y reproducción en curso. Al activarlo se aplica en la próxima conexión; al desactivarlo cancela el intento pendiente.</string>
+    <string name="settings_auto_playback_url">URL de la app de música del iPhone</string>
+    <string name="settings_auto_playback_resume">Reanudar el reproductor actual</string>
+    <string name="settings_auto_playback_custom">URL personalizada</string>
+    <string name="settings_auto_playback_url_hint">Déjalo vacío para reanudar el reproductor actual. Una URL solicita abrir una app y luego envía Reproducir; iOS puede ignorarla o reproducir otra app. No se ha verificado una URL de Qishui. Se usa en la próxima conexión o prueba y se incluye en las copias de ajustes; no introduzcas información sensible.</string>
+    <string name="settings_auto_playback_url_error">Introduce una URL de app válida con esquema, o déjalo vacío.</string>
+    <string name="settings_auto_playback_test">Probar reproducción una vez</string>
+    <string name="settings_auto_playback_scheduled">Prueba programada. No se garantiza que se abra la app ni que empiece la reproducción.</string>
+    <string name="settings_auto_playback_unavailable">No se puede probar ahora. Conecta CarPlay, termina las llamadas, pausa la reproducción y comprueba la URL.</string>
     <string name="existing_wifi_title">Wi-Fi existente / Misma LAN</string>
     <string name="existing_wifi_description">Usa un router o Wi-Fi portátil existente. Mantén el iPhone y el coche en la misma red con acceso a Internet.</string>
     <string name="existing_wifi_hint">Wi-Fi existente · Mantén ambos dispositivos en la misma Wi-Fi y el Bluetooth activado. No necesitas el punto de acceso del coche.</string>

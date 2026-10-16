@@ -23,6 +23,7 @@ internal object WheelKeyLog {
     }
 
     private val entries = ArrayDeque<Entry>()
+    private val routes = ArrayDeque<Entry>()
     private var boundAtMillis: Long? = null
     private var presses = 0
     private var kept = 0
@@ -84,6 +85,38 @@ internal object WheelKeyLog {
         }).mapNotNull(DiagnosticRedactor::redact)
     }
 
+    @Synchronized
+    fun route(message: String) {
+        val text = DiagnosticRedactor.redact(message.take(800)) ?: return
+        val now = System.currentTimeMillis()
+        routes.lastOrNull()?.takeIf { it.text == text }?.let {
+            it.times++
+            it.lastMillis = now
+            return
+        }
+        if (routes.size == 120) routes.removeFirst()
+        routes.addLast(Entry(now, text))
+    }
+
+    fun input(source: String, event: KeyEvent, detail: () -> String) {
+        if (event.action != KeyEvent.ACTION_UP &&
+            (event.action != KeyEvent.ACTION_DOWN || event.repeatCount != 0)) return
+        runCatching {
+            if (writesText(event.keyCode) || event.isPrintingKey) return
+            route("input source=$source code=${event.keyCode} scan=${event.scanCode} device=${event.deviceId} " +
+                "action=${if (event.action == KeyEvent.ACTION_DOWN) "down" else "up"} ${detail()}")
+        }
+    }
+
+    fun routingReport(): List<String> {
+        val seen = synchronized(this) { routes.map { it.copy() } }
+        val time = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+        return if (seen.isEmpty()) listOf("Wheel routing: no events recorded") else seen.map {
+            "Wheel routing: ${time.format(Date(it.atMillis))}  ${it.text}" +
+                if (it.times > 1) " x${it.times}, last ${time.format(Date(it.lastMillis))}" else ""
+        }
+    }
+
     /** A keyboard's typing area: characters, and the keys that edit or modify them. */
     fun writesText(code: Int): Boolean =
         code in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_POUND ||
@@ -98,6 +131,7 @@ internal object WheelKeyLog {
     @Synchronized
     internal fun reset() {
         entries.clear()
+        routes.clear()
         boundAtMillis = null
         presses = 0
         kept = 0

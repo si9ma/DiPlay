@@ -33,12 +33,15 @@ internal object CarPlayCallKeys {
             val app = context.applicationContext
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
-                    if (!BydOutputSettings.carPlayCallControls(context)) return
                     val keyCode = intent.getIntExtra(CarPlayCallKeyPolicy.EXTRA_KEYCODE, -1)
+                    val enabled = BydOutputSettings.carPlayCallControls(context)
                     val controller = currentController()
-                    val action = CarPlayCallKeyPolicy.onHangUpBroadcast(
-                        keyCode, BydNavigationOutputs.carPlayCall(), controller.hasSession(),
-                    )
+                    val call = BydNavigationOutputs.carPlayCall()
+                    val action = if (enabled) CarPlayCallKeyPolicy.onHangUpBroadcast(
+                        keyCode, call, controller.hasSession(),
+                    ) else CarPlayCallKeyPolicy.Action.PASS
+                    WheelKeyLog.route("call broadcast key=$keyCode enabled=$enabled session=${controller.hasSession()} " +
+                        "phase=${call?.phase ?: "none"} action=${if (action == CarPlayCallKeyPolicy.Action.PASS) "leave" else action.name}")
                     if (action == CarPlayCallKeyPolicy.Action.END) {
                         val sent = controller?.endCall() == true
                         Log.i(TAG, "hang-up key $keyCode: end CarPlay call sent=$sent")
@@ -54,15 +57,29 @@ internal object CarPlayCallKeys {
                 } else {
                     app.registerReceiver(receiver, filter, android.Manifest.permission.DUMP, null)
                 }
-            }.onFailure { Log.w(TAG, "hang-up broadcast unavailable", it) }
+            }.onSuccess {
+                WheelKeyLog.route("call broadcast receiver registered")
+            }.onFailure {
+                WheelKeyLog.route("call broadcast receiver failed=${it.javaClass.simpleName}")
+                Log.w(TAG, "hang-up broadcast unavailable", it)
+            }
             installed = true
         }
     }
 
     /** Returns true when the key belongs to a CarPlay call and must not reach the car. */
     fun onKey(context: Context, keyCode: Int, down: Boolean, controller: CarPlayController? = currentController()): Boolean {
-        if (!BydOutputSettings.carPlayCallControls(context)) return false
-        val action = CarPlayCallKeyPolicy.onKey(keyCode, down, BydNavigationOutputs.carPlayCall(), controller.hasSession())
+        val enabled = BydOutputSettings.carPlayCallControls(context)
+        val call = BydNavigationOutputs.carPlayCall()
+        val hasSession = enabled && controller.hasSession()
+        val action = if (enabled) CarPlayCallKeyPolicy.onKey(keyCode, down, call, hasSession)
+            else CarPlayCallKeyPolicy.Action.PASS
+        if (!down && (CarPlayCallKeyPolicy.isAnswerKey(keyCode) || CarPlayCallKeyPolicy.isEndKey(keyCode) ||
+                (call != null && keyCode in 87..88))) {
+            WheelKeyLog.route("call key=$keyCode enabled=$enabled session=$hasSession phase=${call?.phase ?: "none"} " +
+                "action=${if (action == CarPlayCallKeyPolicy.Action.PASS) "leave" else action.name} " +
+                "reason=${if (!enabled) "setting_off" else if (!hasSession) "no_session" else if (call == null) "no_call_state" else "policy"}")
+        }
         when (action) {
             CarPlayCallKeyPolicy.Action.PASS -> return false
             CarPlayCallKeyPolicy.Action.CONSUME -> Unit

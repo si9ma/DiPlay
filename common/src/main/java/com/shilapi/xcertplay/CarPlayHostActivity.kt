@@ -1527,6 +1527,10 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // Hardware navigation belongs to the iPhone-rendered CarPlay UI, not Android View focus.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        WheelKeyLog.input("carplay-window", event) {
+            "windowSession=${activeAirPlaySession != null} menu=$menuOpen " +
+                "assignedSiri=${WheelZoomSettings.isSiriKey(this, WheelKey.of(event))} " + WheelKeyService.routingState(this)
+        }
         val physicalKey = Triple(event.deviceId, event.keyCode, event.scanCode)
         val downOrUp = event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP
         if (downOrUp && physicalKey in legacySiriPresses) {
@@ -1607,8 +1611,10 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun requestLegacySiri(keyCode: Int) {
-        val sent = VoiceKeyPair.shared.allowGenericKey(android.os.SystemClock.uptimeMillis()) && controller?.requestSiri() == true
-        appendLog("Siri: voice key $keyCode sent=$sent")
+        val allowed = VoiceKeyPair.shared.allowGenericKey(android.os.SystemClock.uptimeMillis())
+        val sent = allowed && controller?.requestSiri() == true
+        WheelKeyLog.route("siri source=carplay-window key=$keyCode duplicate=${!allowed} queued=$sent")
+        appendLog("Siri: voice key $keyCode queued=$sent")
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -5322,8 +5328,10 @@ class CarPlayHostActivity : ComponentActivity() {
         val pairings = AirPlayPersistence.loadPairings(this) { id, key ->
             AirPlayPersistence.savePairing(this, id, key)
         }
+        val playbackContext = applicationContext
         val next = CarPlayController(
             context = this,
+            autoPlaybackOptions = { AirPlayPersistence.loadAutoPlayback(playbackContext) },
             config = config,
             airPlayConfig = airPlayConfig,
             identity = airPlayIdentity,
@@ -5768,6 +5776,7 @@ class CarPlayHostActivity : ComponentActivity() {
         updateCallPopupGuard()
         val oldController = controller
         val oldSink = sink
+        oldController?.stopAutoPlayback()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController, keepOwner = true)
         controller = null
@@ -5972,6 +5981,7 @@ class CarPlayHostActivity : ComponentActivity() {
         mainHandler.removeCallbacks(applyDisplaySize)
         val oldController = controller
         val oldSink = sink
+        oldController?.stopAutoPlayback()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController)
         controller = null

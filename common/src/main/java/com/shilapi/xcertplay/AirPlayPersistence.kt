@@ -74,6 +74,8 @@ object AirPlayPersistence {
     private const val KEY_MEDIA_BUFFER_MS = "media_buffer_ms" // wireless; was shared by both transports
     private const val KEY_WIRED_MEDIA_BUFFER_MS = "wired_media_buffer_ms"
     private const val KEY_MAIN_BUFFERED_AUDIO = "main_buffered_audio"
+    private const val KEY_AUTO_PLAYBACK = "auto_playback"
+    private const val KEY_AUTO_PLAYBACK_URL = "auto_playback_url"
     private const val KEY_SPEECH_WITHOUT_8_16_KHZ = "speech_without_8_16_khz"
     private const val KEY_CAR_BLUETOOTH_AUDIO = "car_bluetooth_audio"
     private const val KEY_CALL_ECHO_CANCELLATION = "call_echo_cancellation"
@@ -977,6 +979,23 @@ object AirPlayPersistence {
                 .putInt(KEY_WIRED_MEDIA_BUFFER_MS, com.shilapi.xcertplay.media.MediaAudioBuffer.sanitizeWired(millis))
                 .apply()
         }
+    }
+
+    fun loadAutoPlayback(context: Context): com.shilapi.xcertplay.orchestration.AutoPlaybackOptions {
+        val values = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all
+        return com.shilapi.xcertplay.orchestration.AutoPlaybackOptions(
+            enabled = values[KEY_AUTO_PLAYBACK] as? Boolean ?: false,
+            appUrl = values[KEY_AUTO_PLAYBACK_URL]?.let { it as? String ?: "invalid" } ?: "",
+        )
+    }
+
+    fun saveAutoPlayback(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_AUTO_PLAYBACK, enabled).apply()
+    }
+
+    fun saveAutoPlaybackUrl(context: Context, url: String) {
+        val validated = requireNotNull(com.shilapi.xcertplay.orchestration.AutoPlaybackOptions.validatedUrl(url))
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_AUTO_PLAYBACK_URL, validated).apply()
     }
 
     /** DiPlay's own experimental echo canceller on CarPlay call audio; opt-in, applies at reconnect. */

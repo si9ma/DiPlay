@@ -290,6 +290,10 @@ class CarPlayVpnService : VpnService() {
                                 if (current.listenerIdentity == null || !internalPeer) current.listener.onSessionActive(session)
                             }
 
+                            override fun onEventChannelChanged(session: AirPlaySession) {
+                                if (current.listenerIdentity == null || !internalPeer) current.listener.onEventChannelChanged(session)
+                            }
+
                             override fun onRemoteControlMessage(
                                 session: AirPlaySession,
                                 streamId: Long,

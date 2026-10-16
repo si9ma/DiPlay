@@ -27,6 +27,7 @@ data class AirPlayDeviceInfo(
 interface AirPlaySessionListener {
     fun onTcpAccepted(event: AirPlayTcpAccepted) {}
     fun onSessionActive(session: AirPlaySession) {}
+    fun onEventChannelChanged(session: AirPlaySession) {}
     fun onSessionEnded(session: AirPlaySession) {}
     fun onVideoFrameRendered(session: AirPlaySession) {}
     fun onTransportError(message: String) {}
@@ -93,6 +94,8 @@ class AirPlaySession(
     private var eventServer: ServerSocket? = null
     private var eventSocket: Socket? = null
     private var eventCipher: ControlCipher? = null
+    @Volatile private var eventReady = false
+    internal fun isEventReady(): Boolean = eventReady && !closed.get()
     private var eventCseq = 0
     private var pendingNightMode: Boolean? = null
     private val firstTouchSendLogged = AtomicBoolean(false)
@@ -366,19 +369,22 @@ class AirPlaySession(
     fun sendKnobSelect(down: Boolean) =
         sendHidReport(AirPlayHid.KNOB_HID_UID, AirPlayHid.knobReport(AirPlayKnobState(select = down)))
 
-    fun sendMedia(index: Int) {
-        sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(index))
-        sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(0))
+    fun sendMedia(index: Int): Boolean {
+        val pressed = sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(index))
+        val released = sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(0))
+        return pressed && released
     }
 
-    fun sendTelephony(index: Int) {
-        sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(index))
-        sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(0))
+    fun sendTelephony(index: Int): Boolean {
+        val pressed = sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(index))
+        val released = sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(0))
+        return pressed && released
     }
 
-    fun invokeSiri() {
-        sendCommand(linkedMapOf("type" to "requestSiri", "params" to linkedMapOf("siriAction" to 2)))
-        sendCommand(linkedMapOf("type" to "requestSiri", "params" to linkedMapOf("siriAction" to 3)))
+    fun invokeSiri(): Boolean {
+        val pressed = sendCommand(linkedMapOf("type" to "requestSiri", "params" to linkedMapOf("siriAction" to 2)))
+        val released = sendCommand(linkedMapOf("type" to "requestSiri", "params" to linkedMapOf("siriAction" to 3)))
+        return pressed && released
     }
 
     fun sendIapMessage(data: ByteArray, timeoutMillis: Long = 0L): Boolean {
@@ -823,7 +829,13 @@ class AirPlaySession(
         return server.localPort
     }
 
+    private fun updateEventReady(ready: Boolean) {
+        eventReady = ready && !closed.get()
+        listener.onEventChannelChanged(this)
+    }
+
     private fun teardown() {
+        updateEventReady(false)
         videoPlaybackAvailability.setEventReady(false)
         videoPlaybackAvailability.setFeatureEnabled(false)
         ntp.close()
@@ -869,6 +881,7 @@ class AirPlaySession(
                 32,
             )
             eventCipher = ControlCipher(readKey, writeKey)
+            updateEventReady(true)
             synchronized(eventWriteLock) {
                 sendPendingNightModeLocked()
             }
@@ -927,6 +940,7 @@ class AirPlaySession(
             if (!closed.get()) Log.e(TAG, "airplay event read failed", error)
         } finally {
             debugLog("airplay event connection closed")
+            updateEventReady(false)
             videoPlaybackAvailability.setEventReady(false)
             if (eventSocket === socket) eventSocket = null
             eventCipher = null

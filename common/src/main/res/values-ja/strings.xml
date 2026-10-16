@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_usage_adb_grant">ネットワーク ADB で許可</string>
+    <string name="settings_usage_adb_explanation">使用状況へのアクセス（GET_USAGE_STATS）のみを要求します。車のネットワーク ADB を有効にし、デバッグ確認が表示されたら DiPlay を許可してください。ユーザー補助やオーバーレイの権限は変更しません。キャンセルは保留中の操作を停止しますが、許可済みの権限は取り消しません。</string>
+    <string name="settings_usage_adb_failed">使用状況へのアクセスを確認できませんでした。ネットワーク ADB とデバッグの許可を確認して再試行するか、手動コマンドを使用してください。</string>
+    <string name="settings_usage_adb_busy">別の ADB 操作が実行中です。完了後に再試行してください。</string>
+    <string name="settings_adb_access">ADB 接続の確認</string>
+    <string name="settings_usage_access">使用状況へのアクセス（GET_USAGE_STATS）</string>
+    <string name="settings_usage_access_description">前面のアプリと分割画面の状態を識別するために必要です。権限の状態をタップすると再確認できます。許可しても表示設定は変わらず、CarPlay の再接続も不要です。</string>
+    <string name="settings_usage_access_manual">この車では使用状況へのアクセス設定画面を開けません。システム設定で DiPlay に許可するか、ADB をインストールしたパソコンを接続して次を実行してください：\n\n%1$s\n\n完了後、この画面に戻り権限の状態をタップして再確認してください。</string>
+    <string name="settings_auto_playback">接続時に自動再生（実験的機能）</string>
+    <string name="settings_auto_playback_description">CarPlay 接続後に一度だけ再生を要求します。通話中や再生中はスキップします。有効化は次回接続時に適用され、無効化すると待機中の自動再生を取り消します。</string>
+    <string name="settings_auto_playback_url">iPhone 音楽アプリの URL</string>
+    <string name="settings_auto_playback_resume">現在のプレーヤーを再開</string>
+    <string name="settings_auto_playback_custom">カスタム URL</string>
+    <string name="settings_auto_playback_url_hint">空欄の場合は現在のプレーヤーを再開します。URL を指定するとアプリの起動を要求してから再生キーを送りますが、iOS が無視したり別のアプリを再生したりする場合があります。汽水音楽の URL は未検証です。保存後は次回接続またはテスト時に使用します。URL は設定バックアップにも含まれるため、機密情報を入力しないでください。</string>
+    <string name="settings_auto_playback_url_error">スキームを含む有効なアプリ URL を入力するか、空欄にしてください。</string>
+    <string name="settings_auto_playback_test">一度だけ再生を試す</string>
+    <string name="settings_auto_playback_scheduled">再生テストを予約しました。アプリの起動や再生開始は保証されません。</string>
+    <string name="settings_auto_playback_unavailable">今はテストできません。CarPlay に接続し、通話を終了して再生を一時停止し、アプリ URL を確認してください。</string>
     <string name="app_name">DiPlay</string>
     <string name="language_section_title">言語</string>
     <string name="language_app_language">アプリの言語</string>

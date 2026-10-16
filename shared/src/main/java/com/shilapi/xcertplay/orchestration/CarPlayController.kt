@@ -170,6 +170,7 @@ class CarPlayController(
     private val clearPairRecord: () -> Unit = {},
     private val locationProvider: Iap2LocationProvider? = null,
     private val vehicleStatusProvider: com.shilapi.xcertplay.transport.VehicleStatusProvider? = null,
+    private val autoPlaybackOptions: () -> AutoPlaybackOptions = { AutoPlaybackOptions() },
 ) : Closeable {
     init {
         require(!config.locationReportingEnabled || locationProvider != null) {
@@ -257,6 +258,18 @@ class CarPlayController(
     /** Told when an iAP2 Now Playing artwork transfer completes; may run on the link worker. */
     @Volatile var artworkListener: ((Int, ByteArray) -> Unit)? = null
 
+    /** Invalidation only: consumers re-read the current token, including after registering. */
+    @Volatile var mediaControlListener: (() -> Unit)? = null
+
+    /** Command kind and transport outcome only; never phone numbers, names or protocol bodies. */
+    @Volatile var keyCommandListener: ((String) -> Unit)? = null
+
+    fun mediaAttachmentToken(): Any? =
+        activeSession?.takeIf { !closed && !it.isClosed && activeSession === it }
+
+    fun mediaControlSessionToken(): Any? =
+        activeSession?.takeIf { !closed && it.isEventReady() && activeSession === it }
+
     /** Video in car; set before [start] to offer it to the iPhone (with AirPlayConfig.videoInCar). */
     @Volatile var videoListener: CarPlayVideoListener? = null
     @Volatile private var videoGate: VideoInCarGate? = null
@@ -278,6 +291,44 @@ class CarPlayController(
     private val startupTimer = java.util.concurrent.ScheduledThreadPoolExecutor(1) { task ->
         Thread(task, "diplay-first-tcp-timeout").apply { isDaemon = true }
     }.apply { removeOnCancelPolicy = true }
+    @Volatile private var autoPlaybackStopped = false
+    private val autoPlayback = ConnectionAutoPlayback<AirPlaySession>(
+        options = autoPlaybackOptions,
+        state = ::autoPlaybackState,
+        schedule = { delay, action ->
+            val future = startupTimer.schedule({ action() }, delay, TimeUnit.MILLISECONDS)
+            Closeable { future.cancel(false) }
+        },
+        execute = { action -> touchExecutor.execute { action() } },
+        now = android.os.SystemClock::elapsedRealtime,
+        openApp = { session, url -> session.requestUi(url) },
+        play = { session -> session.sendMedia(com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY) },
+        log = { debugLog("auto playback: $it") },
+    )
+
+    private fun autoPlaybackState(session: AirPlaySession): ConnectionAutoPlayback.State? {
+        if (closed || autoPlaybackStopped || activeSession !== session || session.isClosed) return null
+        val mode = appContext.getSystemService(android.media.AudioManager::class.java)?.mode
+        return ConnectionAutoPlayback.State(
+            stream = session.mainScreenSessionToken(),
+            ready = session.isEventReady(),
+            playing = nowPlayingSnapshot().playing,
+            inCall = BydNavigationOutputs.carPlayCall() != null ||
+                (mode != null && mode != android.media.AudioManager.MODE_NORMAL),
+        )
+    }
+
+    /** Accepted means scheduled, not that iOS opened the URL or started playback. */
+    fun tryAutoPlayback(): Boolean = activeSession?.let(autoPlayback::tryOnce) ?: false
+
+    fun cancelAutoPlayback() = autoPlayback.cancel()
+
+    /** Called before asynchronous teardown, so a queued command cannot outlive Disconnect. */
+    fun stopAutoPlayback() {
+        autoPlaybackStopped = true
+        autoPlayback.cancel()
+    }
+
     @Volatile private var wirelessDiagnostics: WirelessStartupDiagnostics? = null
     @Volatile private var bluetoothSocket: BluetoothSocket? = null
     @Volatile private var bluetoothStream: BluetoothRfcommDuplexStream? = null
@@ -326,6 +377,8 @@ class CarPlayController(
                 }
             }
             activeSession = session
+            mediaControlListener?.invoke()
+            autoPlayback.onSessionActive(session)
             val btPrefs = appContext.getSharedPreferences("xcertplay_airplay", android.content.Context.MODE_PRIVATE)
             if (btPrefs.getBoolean("bt_suspend_during_carplay", false)) {
                 // close() marks [closed], and a closing session marks itself before onSessionEnded
@@ -343,9 +396,15 @@ class CarPlayController(
             uiListener?.onSessionActive(session)
         }
 
+        override fun onEventChannelChanged(session: AirPlaySession) {
+            if (activeSession === session) mediaControlListener?.invoke()
+        }
+
         override fun onSessionEnded(session: AirPlaySession) {
             if (activeSession === session) {
                 activeSession = null
+                mediaControlListener?.invoke()
+                autoPlayback.cancel()
                 synchronized(albumReplayLock) { initialArtworkReplay = null }
                 BydNavigationOutputs.endNow(preserveTurnOverlay = !closed && config.transport == CarPlayTransport.WIRELESS)
                 BydBluetoothSuspend.resume(appContext, this@CarPlayController) { debugLog(it) }
@@ -587,6 +646,7 @@ class CarPlayController(
     fun requestUi(url: String): Boolean {
         if (closed) return false
         val session = activeSession ?: return false
+        autoPlayback.cancel()
         return try {
             touchExecutor.execute {
                 if (!closed && activeSession === session) {
@@ -601,14 +661,8 @@ class CarPlayController(
 
     /** Opens Siri on the iPhone, as the car's voice button does in CarPlay. */
     fun requestSiri(): Boolean {
-        if (closed) return false
-        val session = activeSession ?: return false
-        return try {
-            touchExecutor.execute { session.invokeSiri() }
-            true
-        } catch (_: Exception) {
-            false
-        }
+        autoPlayback.cancel()
+        return enqueueKeyCommand("siri") { it.invokeSiri() }
     }
 
     /** Answers the ringing call on the iPhone (telephony Hook Switch), as the wheel's call button does. */
@@ -617,26 +671,44 @@ class CarPlayController(
     /** Ends the current call or declines the ringing one (telephony Drop). */
     fun endCall(): Boolean = sendTelephony(TELEPHONY_DROP)
 
-    private fun sendTelephony(index: Int): Boolean {
-        if (closed) return false
-        val session = activeSession ?: return false
+    private fun sendTelephony(index: Int): Boolean =
+        enqueueKeyCommand("telephony:$index") { it.sendTelephony(index) }
+
+    fun sendMediaButton(index: Int): Boolean {
+        autoPlayback.cancel()
+        return enqueueKeyCommand("media:$index") { it.sendMedia(index) }
+    }
+
+    private fun enqueueKeyCommand(kind: String, send: (AirPlaySession) -> Boolean): Boolean {
+        val session = activeSession
+        if (closed || session == null) {
+            keyCommandDiagnostic("command=$kind rejected=${if (closed) "controller_closed" else "no_session"}")
+            return false
+        }
         return try {
-            touchExecutor.execute { session.sendTelephony(index) }
+            touchExecutor.execute {
+                if (closed || activeSession !== session || session.isClosed) {
+                    keyCommandDiagnostic("command=$kind dropped=stale_session")
+                } else if (!session.isEventReady()) {
+                    keyCommandDiagnostic("command=$kind written=false reason=event_not_ready")
+                } else {
+                    try {
+                        keyCommandDiagnostic("command=$kind written=${send(session)}")
+                    } catch (error: Exception) {
+                        keyCommandDiagnostic("command=$kind written=false error=${error.javaClass.simpleName}")
+                    }
+                }
+            }
             true
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            keyCommandDiagnostic("command=$kind queued=false error=${error.javaClass.simpleName}")
             false
         }
     }
 
-    fun sendMediaButton(index: Int): Boolean {
-        if (closed) return false
-        val session = activeSession ?: return false
-        return try {
-            touchExecutor.execute { session.sendMedia(index) }
-            true
-        } catch (_: Exception) {
-            false
-        }
+    private fun keyCommandDiagnostic(message: String) {
+        debugLog("key control: $message")
+        runCatching { keyCommandListener?.invoke(message) }
     }
 
     override fun close() {
@@ -647,6 +719,8 @@ class CarPlayController(
             wirelessGeneration.incrementAndGet()
             dashboardMapOutputVisible = false
         }
+        mediaControlListener?.invoke()
+        stopAutoPlayback()
         firstTcpWatchdog?.terminate()
         BydBluetoothSuspend.resume(appContext, this) { debugLog(it) }
         startupTimer.shutdownNow()
@@ -804,6 +878,7 @@ class CarPlayController(
             nowPlayingListener?.invoke(update)
             if (playingChanged) playbackListener?.invoke(update.playing)
         }
+        if (BydNavigationOutputs.carPlayCall() != null || nowPlayingSnapshot().playing) autoPlayback.cancel()
     }
 
     enum class InitialAlbumRefreshResult { SENT, FAILED, CLOSED, INACTIVE_SESSION, CANCELLED, CHANNEL_UNAVAILABLE }
@@ -1700,6 +1775,11 @@ class CarPlayController(
                 // Keep wirelessActiveReported false until maybeCompleteWirelessHandoff() closes
                 // the Bluetooth bootstrap after the tunneled iAP2 channel is ready.
                 sessionListener.onSessionActive(session)
+            }
+
+            override fun onEventChannelChanged(session: AirPlaySession) {
+                if (isStaleWirelessRun(generation)) return
+                sessionListener.onEventChannelChanged(session)
             }
 
             override fun onSessionEnded(session: AirPlaySession) {

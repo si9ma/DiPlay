@@ -1176,6 +1176,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun settingsOverview(content: LinearLayout) {
         settingsPageTitle(content, getString(R.string.settings_overview), getString(R.string.settings_overview_subtitle))
+        section(content, getString(R.string.settings_adb_access), R.drawable.ic_dp_advanced) { card ->
+            card.addView(label(adbAccessStatusText(), 14,
+                if (adbAccessState == BydAdbAccess.State.READY && !adbCheckFailed) MUTED else WARNING))
+            card.addView(button(getString(R.string.check_adb_access), false) {
+                checkAdbState(mayAsk = true)
+            }.apply { isEnabled = !adbSwitchChangePending && !vehicleAdbWorkInProgress() })
+        }
         val readiness = card().apply {
             setPadding(dp(20), dp(16), dp(20), dp(16))
         }
@@ -2007,6 +2014,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Opt-in controls that can cost sound or video on some head units.
         filteredSection(content, SettingsSection.ADVANCED_MEDIA,
             getString(R.string.settings_advanced_media), R.drawable.ic_dp_advanced) { card ->
+            autoPlaybackControls(card)
             if (Build.VERSION.SDK_INT == 32) {
                 toggle(card, getString(R.string.settings_hide_byd_call_popup),
                     getString(R.string.settings_hide_byd_call_popup_description),
@@ -2967,7 +2975,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 updateAdbSwitches()
                 toast(getString(message))
                 runPendingAutomaticVehicleValidation()
-                // Re-enable the vehicle controls disabled while this authorization was outstanding.
+                // Preserve the hotspot page while returning from its authorization dialog.
                 if (page == "settings" && bydVehicleAdvancedExpanded) render()
             }
         }, "diplay-adb-switch").start()
@@ -3812,13 +3820,31 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         dialog?.dismiss()
     }
 
-    private fun autoApplyPermissions() {
+    private fun autoApplyPermissions() = applyPermissions(usageOnly = false)
+
+    private fun grantPageUsageAccess() {
+        if (UsbPermissionSetup.Permission.USAGE.granted(this)) {
+            render()
+            toast(getString(R.string.permission_enabled_ready))
+            return
+        }
+        if (usbPermissionOperation != null || adbSwitchChangePending || vehicleAdbWorkInProgress() ||
+            automaticVehicleValidationInProgress) {
+            toast(getString(R.string.settings_usage_adb_busy))
+            return
+        }
+        applyPermissions(usageOnly = true)
+    }
+
+    private fun applyPermissions(usageOnly: Boolean) {
         if (usbPermissionOperation != null || isFinishing || isDestroyed) return
         val operation = usbPermissionOperationFactory(applicationContext)
+        val permissions = if (usageOnly) setOf(UsbPermissionSetup.Permission.USAGE)
+            else UsbPermissionSetup.Permission.entries.toSet()
         usbPermissionOperation = operation
         val progress = appDialogBuilder()
-            .setTitle(R.string.auto_grant_title)
-            .setMessage(R.string.auto_grant_msg)
+            .setTitle(if (usageOnly) R.string.settings_usage_adb_grant else R.string.auto_grant_title)
+            .setMessage(if (usageOnly) R.string.settings_usage_adb_explanation else R.string.auto_grant_msg)
             .setNegativeButton(R.string.cancel) { _, _ -> cancelUsbPermissionSetup() }
             .create()
         usbPermissionDialog = progress
@@ -3828,7 +3854,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         progress.show()
         Thread({
-            val result = operation.run()
+            val result = operation.run(permissions)
             handler.post {
                 if (usbPermissionOperation !== operation || operation.isCancelled || isFinishing || isDestroyed) {
                     return@post
@@ -3837,6 +3863,19 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 usbPermissionDialog = null
                 progress.dismiss()
                 render()
+                if (usageOnly) {
+                    if (result.complete) toast(getString(R.string.permission_enabled_ready))
+                    else {
+                        val reason = getString(when (result.access) {
+                            LocalAdb.Access.NOT_APPROVED -> R.string.adb_not_approved
+                            LocalAdb.Access.UNREACHABLE -> R.string.adb_off
+                            LocalAdb.Access.UNSUPPORTED -> R.string.adb_pairing_only
+                            else -> R.string.settings_usage_adb_failed
+                        })
+                        showPageUsageAccessSetup(reason)
+                    }
+                    return@post
+                }
                 if (result.complete) {
                     appDialogBuilder()
                         .setTitle(R.string.auto_grant_success_title)
@@ -4611,22 +4650,21 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
     }
 
+    private fun adbAccessStatusText(): String = when {
+        vehicleProbeAuthorizationInProgress -> getString(R.string.adb_checking_may_ask)
+        adbCheckInProgress -> getString(if (adbCheckMayAsk) R.string.adb_checking_may_ask else R.string.adb_checking)
+        vehicleProbeInProgress || automaticVehicleValidationInProgress -> getString(R.string.probing_vehicle_data)
+        adbCheckFailed -> getString(R.string.adb_check_failed)
+        adbAccessState == null -> getString(R.string.adb_not_checked)
+        else -> adbLinkStatusText(requireNotNull(adbAccessState))
+    }
+
     private fun defaultVehicleData(card: LinearLayout) {
-        val adbText = when {
-            vehicleProbeAuthorizationInProgress -> getString(R.string.adb_checking_may_ask)
-            adbCheckInProgress -> getString(if (adbCheckMayAsk)
-                R.string.adb_checking_may_ask else R.string.adb_checking)
-            vehicleProbeInProgress -> getString(R.string.probing_vehicle_data)
-            adbCheckFailed -> getString(R.string.adb_check_failed)
-            adbAccessState == null -> getString(R.string.adb_not_checked)
-            else -> adbLinkStatusText(requireNotNull(adbAccessState))
-        }
         val healthy = !adbCheckFailed && vehicleProbeOutcome?.error == null &&
             (adbAccessState == null || adbAccessState == BydAdbAccess.State.READY)
-        card.addView(label(adbText, 14, if (healthy) MUTED else WARNING)
+        card.addView(label(adbAccessStatusText(), 14, if (healthy) MUTED else WARNING)
             .apply { setPadding(0, dp(12), 0, 0) })
-        val busy = vehicleProbeAuthorizationInProgress || adbCheckInProgress || vehicleProbeInProgress
-        if (!busy && adbAccessState == BydAdbAccess.State.READY) {
+        if (!vehicleAdbWorkInProgress() && adbAccessState == BydAdbAccess.State.READY) {
             defaultVehicleStatus?.let { showDefaultVehicleReadings(card, it) }
         }
         vehicleProbeOutcome?.error?.let {
@@ -4634,11 +4672,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 .apply { setPadding(0, dp(10), 0, 0) })
         }
         showVehicleDataSettings(card, capabilities = null)
-        if (!busy) {
-            card.addView(button(getString(R.string.check_adb_access), false) {
-                checkAdbState(mayAsk = true)
-            }.apply { isEnabled = !adbSwitchChangePending }, matchButton(10, 56))
-        }
     }
 
     /** The last default-mode reads; a value an enabled switch needs is a warning when missing. */
@@ -5038,7 +5071,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         automaticVehicleValidationInProgress = true
         val generation = ++vehicleValidationGeneration
         Log.i(BYD_VEHICLE_TAG, "automatic vehicle validation starting savedFirmware=${saved.firmwareKey}")
-        if (page == "settings" && bydVehicleAdvancedExpanded) render()
+        if (page == "settings" && (settingsCategory == SettingsCategory.OVERVIEW || bydVehicleAdvancedExpanded)) render()
         val backend = BydVehicleSettingsBackendProvider.current
         backend.execute("diplay-byd13-auto-validate") {
             val app = applicationContext
@@ -5149,7 +5182,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                             "error=${result.outcome?.error ?: "none"}",
                     )
                 }
-                if (page == "settings" && bydVehicleAdvancedExpanded) {
+                if (page == "settings" && (settingsCategory == SettingsCategory.OVERVIEW || bydVehicleAdvancedExpanded)) {
                     render()
                 }
                 runPendingAutomaticVehicleValidation()
@@ -5346,6 +5379,49 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         AirPlayPersistence.saveWirelessHotspotMode(this, mode)
         render()
         toast(getString(R.string.saved_for_your_next_connection))
+    }
+
+    private fun autoPlaybackControls(parent: LinearLayout) {
+        toggle(parent, getString(R.string.settings_auto_playback),
+            getString(R.string.settings_auto_playback_description), AirPlayPersistence.loadAutoPlayback(this).enabled) {
+            AirPlayPersistence.saveAutoPlayback(this, it)
+            CarPlayBackgroundSession.snapshot()?.controller?.cancelAutoPlayback()
+            if (it) markReconnectNeeded()
+        }
+        fun summary(): String = getString(R.string.settings_auto_playback_url) + " · " + getString(
+            if (AirPlayPersistence.loadAutoPlayback(this).appUrl.isEmpty()) R.string.settings_auto_playback_resume
+            else R.string.settings_auto_playback_custom)
+        val urlButton = button(summary(), false) {}
+        urlButton.setOnClickListener {
+            val input = EditText(appDialogContext()).apply {
+                setSingleLine()
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+                setText(AirPlayPersistence.loadAutoPlayback(this@DiPlayActivity).appUrl)
+            }
+            val dialog = appDialogBuilder().setTitle(R.string.settings_auto_playback_url)
+                .setMessage(R.string.settings_auto_playback_url_hint).setView(input)
+                .setPositiveButton(R.string.save, null).setNegativeButton(R.string.cancel, null).create()
+            dialog.setOnShowListener {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                    val value = com.shilapi.xcertplay.orchestration.AutoPlaybackOptions.validatedUrl(input.text.toString())
+                    if (value == null) {
+                        input.error = getString(R.string.settings_auto_playback_url_error)
+                    } else {
+                        AirPlayPersistence.saveAutoPlaybackUrl(this, value)
+                        CarPlayBackgroundSession.snapshot()?.controller?.cancelAutoPlayback()
+                        if (AirPlayPersistence.loadAutoPlayback(this).enabled) markReconnectNeeded()
+                        urlButton.text = summary()
+                        dialog.dismiss()
+                    }
+                }
+            }
+            dialog.show()
+        }
+        parent.addView(urlButton)
+        parent.addView(button(getString(R.string.settings_auto_playback_test), false) {
+            val accepted = CarPlayBackgroundSession.snapshot()?.controller?.tryAutoPlayback() == true
+            toast(getString(if (accepted) R.string.settings_auto_playback_scheduled else R.string.settings_auto_playback_unavailable))
+        })
     }
 
     private fun textInput(title: String, current: String, secret: Boolean, save: (String) -> Unit) {
@@ -5652,10 +5728,70 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         })
     }
 
+    private fun usageAccessControls(parent: LinearLayout) {
+        fun status() = getString(if (runCatching { HomeScreenMonitor.hasAccess(this) }.getOrDefault(false))
+            R.string.permission_enabled_ready else R.string.permission_not_enabled)
+        val title = getString(R.string.settings_usage_access)
+        searchIndexSink?.add(title)
+        val check = label("$title · ${status()}", 16, TEXT).apply {
+            minimumHeight = dp(CONTROL_HEIGHT_DP)
+            isFocusable = true
+            foreground = buttonFocusRing()
+        }
+        check.setOnClickListener {
+            val value = status()
+            check.text = "$title · $value"
+            toast(value)
+        }
+        parent.addView(check)
+        parent.addView(label(getString(R.string.settings_usage_access_description), 14, MUTED))
+        parent.addView(button(getString(R.string.cluster_small_window_grant_access), false) {
+            openPageUsageAccess()
+        })
+    }
+
+    private fun openPageUsageAccess() {
+        val intents = listOf(
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:$packageName")),
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+        )
+        for (intent in intents) {
+            if (runCatching { startActivity(intent) }.isSuccess) return
+        }
+        showPageUsageAccessSetup()
+    }
+
+    private fun showPageUsageAccessSetup(reason: String? = null) {
+        val command = "adb shell ${com.shilapi.xcertplay.adb.AdbUser.appopsSet(this)} $packageName GET_USAGE_STATS allow"
+        val body = column().apply {
+            val inset = dp(SETTINGS_BLOCK_GAP_DP)
+            setPadding(inset, inset, inset, inset)
+        }
+        reason?.let { body.addView(label(it, 15, WARNING)) }
+        body.addView(label(getString(R.string.settings_usage_adb_explanation), 15, MUTED))
+        lateinit var dialog: AlertDialog
+        body.addView(button(getString(R.string.settings_usage_adb_grant), false) {
+            dialog.dismiss()
+            grantPageUsageAccess()
+        })
+        body.addView(label(getString(R.string.settings_usage_access_manual, command), 14, TEXT).apply {
+            setTextIsSelectable(true)
+        })
+        normalizeSpacing(body)
+        dialog = appDialogBuilder().setTitle(R.string.settings_usage_access)
+            .setView(ScrollView(appDialogContext()).apply { addView(body) })
+            .setPositiveButton(R.string.copy_command) { _, _ ->
+                getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(
+                    android.content.ClipData.newPlainText(getString(R.string.clipboard_usage_access), command))
+                toast(getString(R.string.copied_to_the_car_clipboard_run_the_command_on_your_comput))
+            }
+            .setNegativeButton(R.string.close, null).create()
+        dialog.show()
+    }
+
     private fun onlyOnPagesControl(parent: LinearLayout) {
-        toggle(parent, getString(R.string.carplay_only_on),
-            if (HomeScreenMonitor.hasAccess(this)) getString(R.string.carplay_only_on_description)
-            else getString(R.string.carplay_pages_usage_missing, packageName),
+        usageAccessControls(parent)
+        toggle(parent, getString(R.string.carplay_only_on), getString(R.string.carplay_only_on_description),
             AirPlayPersistence.loadCarPlayOnlyOn(this)) { AirPlayPersistence.saveCarPlayOnlyOn(this, it) }
         toggle(parent, getString(R.string.carplay_require_split), getString(R.string.carplay_require_split_description),
             AirPlayPersistence.loadCarPlayRequireSplit(this)) { AirPlayPersistence.saveCarPlayRequireSplit(this, it) }
@@ -6194,6 +6330,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             appendLine(WheelKeyService.report(appContext))
             WheelKeyLog.report(WheelKeyService.connected()).forEach { appendLine(it) }
             WheelKeyService.revertReport().forEach { appendLine(it) }
+        }
+        reportSection("Wheel key routing") {
+            appendLine(WheelKeyService.routingState(appContext))
+            appendLine(CarPlayMediaKeys.report())
+            WheelKeyLog.routingReport().forEach { appendLine(it) }
         }
         reportSection("Update availability") {
             appendLine(UpdateAvailability.report(appContext, System.currentTimeMillis()))

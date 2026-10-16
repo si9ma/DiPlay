@@ -68,7 +68,7 @@ class BydAdbSettingsUiTest {
             R.string.video_while_parked, R.string.auto_car_hotspot_title)) {
             assertEquals(1, switches(page).count { it.contentDescription == activity.getString(id) })
         }
-        assertEquals(1, labels(page).count { it == activity.getString(R.string.check_adb_access) })
+        assertFalse(labels(page).contains(activity.getString(R.string.check_adb_access)))
         assertTrue(labels(advanced).any { it.contains(activity.getString(R.string.vehicle_data_mode_default)) })
     }
 
@@ -77,7 +77,7 @@ class BydAdbSettingsUiTest {
         assertEquals(View.VISIBLE, controls.visibility)
         assertTrue(labels(controls).contains(activity.getString(R.string.adb_not_approved)))
         assertEquals(1, switches(controls).size)
-        assertTrue(labels(advancedVehicleData()).contains(activity.getString(R.string.check_adb_access)))
+        assertFalse(labels(advancedVehicleData()).contains(activity.getString(R.string.check_adb_access)))
     }
 
     @Test fun changingHotspotModeHidesOnlyHotspotControlsAndPreservesTheSavedChoice() {

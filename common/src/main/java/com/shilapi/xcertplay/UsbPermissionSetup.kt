@@ -44,9 +44,10 @@ internal object UsbPermissionSetup {
         val access: LocalAdb.Access,
         val verified: Map<Permission, Boolean>,
         val commandsFailed: Set<Permission> = emptySet(),
+        val requested: Set<Permission> = Permission.entries.toSet(),
     ) {
         val complete: Boolean get() = access == LocalAdb.Access.READY && commandsFailed.isEmpty() &&
-            verified.size == Permission.entries.size && verified.values.all { it }
+            requested.isNotEmpty() && verified.keys == requested && verified.values.all { it }
     }
 
     class Operation(
@@ -65,10 +66,12 @@ internal object UsbPermissionSetup {
             synchronized(lock) { client }?.cancel()
         }
 
-        fun run(): Result {
+        fun run(permissions: Set<Permission> = Permission.entries.toSet()): Result {
+            val requested = permissions.toSet()
+            require(requested.isNotEmpty())
             var access = LocalAdb.Access.UNREACHABLE
             val failed = mutableSetOf<Permission>()
-            if (isCancelled) return Result(access, emptyMap())
+            if (isCancelled) return Result(access, emptyMap(), requested = requested)
             runCatching {
                 factory().use { adb ->
                     synchronized(lock) {
@@ -78,7 +81,7 @@ internal object UsbPermissionSetup {
                     if (isCancelled) return@use
                     access = adb.connect()
                     if (access != LocalAdb.Access.READY || isCancelled) return@use
-                    for (permission in Permission.entries) {
+                    for (permission in requested) {
                         if (isCancelled) break
                         if (granted(permission)) continue
                         val command = command(permission, context.packageName, com.shilapi.xcertplay.adb.AdbUser.id(context))
@@ -88,12 +91,12 @@ internal object UsbPermissionSetup {
                         if (output?.lineSequence()?.lastOrNull() != "$EXIT_MARKER:0") failed += permission
                     }
                 }
-            }.onFailure { failed += Permission.entries }
+            }.onFailure { failed += requested }
             synchronized(lock) { client = null }
-            val verified = if (isCancelled) emptyMap() else Permission.entries.associateWith {
+            val verified = if (isCancelled) emptyMap() else requested.associateWith {
                 runCatching { granted(it) }.getOrDefault(false)
             }
-            return Result(access, verified, failed)
+            return Result(access, verified, failed, requested)
         }
     }
 

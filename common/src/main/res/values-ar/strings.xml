@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_usage_adb_grant">السماح عبر ADB الشبكي</string>
+    <string name="settings_usage_adb_explanation">سيُطلب الوصول إلى بيانات الاستخدام (GET_USAGE_STATS) فقط. فعّل ADB الشبكي في السيارة واسمح لتطبيق DiPlay عند ظهور طلب تصحيح الأخطاء. لن تتغير أذونات تسهيل الاستخدام أو النوافذ العائمة. الإلغاء يوقف العمل المعلّق ولا يسحب إذناً مُنح بالفعل.</string>
+    <string name="settings_usage_adb_failed">لم يتم التحقق من إذن الوصول إلى بيانات الاستخدام. تحقق من ADB الشبكي والموافقة عليه، ثم أعد المحاولة أو استخدم الأمر اليدوي.</string>
+    <string name="settings_usage_adb_busy">عملية ADB أخرى قيد التنفيذ. انتظر اكتمالها ثم أعد المحاولة.</string>
+    <string name="settings_adb_access">التحقق من اتصال ADB</string>
+    <string name="settings_usage_access">الوصول إلى بيانات الاستخدام (GET_USAGE_STATS)</string>
+    <string name="settings_usage_access_description">مطلوب لتحديد التطبيقات الأمامية وحالة تقسيم الشاشة. اضغط على حالة الإذن للتحقق مجدداً. منح الإذن لا يغيّر خيارات العرض ولا يتطلب إعادة اتصال CarPlay.</string>
+    <string name="settings_usage_access_manual">لا تتوفر شاشة إعدادات الوصول إلى بيانات الاستخدام في هذه السيارة. اسمح لتطبيق DiPlay بالوصول من إعدادات النظام، أو وصّل حاسوباً مثبتاً عليه ADB ونفّذ:\n\n%1$s\n\nثم ارجع إلى هذه الصفحة واضغط على حالة الإذن للتحقق مجدداً.</string>
+    <string name="settings_auto_playback">التشغيل عند الاتصال (تجريبي)</string>
+    <string name="settings_auto_playback_description">يطلب التشغيل مرة واحدة بعد اتصال CarPlay. يتخطى المكالمات والتشغيل الجاري. يسري التفعيل عند الاتصال التالي، ويُلغي التعطيل المحاولة المنتظرة.</string>
+    <string name="settings_auto_playback_url">رابط تطبيق الموسيقى على iPhone</string>
+    <string name="settings_auto_playback_resume">استئناف المشغّل الحالي</string>
+    <string name="settings_auto_playback_custom">رابط مخصص</string>
+    <string name="settings_auto_playback_url_hint">اتركه فارغاً لاستئناف المشغّل الحالي. يطلب الرابط المخصص فتح التطبيق ثم يرسل أمر التشغيل؛ قد يتجاهله iOS أو يشغّل تطبيقاً آخر. لم يتم التحقق من رابط Qishui. يُستخدم بعد الحفظ عند الاتصال التالي أو الاختبار ويُضمّن في نسخ الإعدادات الاحتياطية؛ لا تدخل معلومات حساسة.</string>
+    <string name="settings_auto_playback_url_error">أدخل رابط تطبيق صالحاً يتضمن اسم البروتوكول، أو اتركه فارغاً.</string>
+    <string name="settings_auto_playback_test">اختبار التشغيل مرة واحدة</string>
+    <string name="settings_auto_playback_scheduled">تمت جدولة الاختبار. فتح التطبيق وبدء التشغيل غير مضمونين.</string>
+    <string name="settings_auto_playback_unavailable">لا يمكن الاختبار الآن. وصّل CarPlay وأنهِ المكالمات وأوقف التشغيل مؤقتاً وتحقق من الرابط.</string>
     <string name="existing_wifi_title">شبكة Wi-Fi موجودة / نفس الشبكة المحلية</string>
     <string name="existing_wifi_description">استخدم جهاز توجيه أو Wi-Fi محمولاً موجوداً. أبقِ iPhone والسيارة على الشبكة نفسها مع اتصال بالإنترنت.</string>
     <string name="existing_wifi_hint">Wi-Fi موجودة · أبقِ الجهازين على شبكة Wi-Fi نفسها والبلوتوث قيد التشغيل. لا تحتاج إلى نقطة اتصال السيارة.</string>

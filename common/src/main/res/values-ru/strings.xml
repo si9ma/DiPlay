@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_usage_adb_grant">Разрешить через сетевой ADB</string>
+    <string name="settings_usage_adb_explanation">Будет запрошен только доступ к статистике использования (GET_USAGE_STATS). Включите сетевой ADB в автомобиле и разрешите отладку для DiPlay, если появится запрос. Разрешения специальных возможностей и наложения окон не изменятся. Отмена останавливает ожидающие операции, но не отзывает уже выданные разрешения.</string>
+    <string name="settings_usage_adb_failed">Доступ к статистике использования не подтверждён. Проверьте сетевой ADB и разрешение отладки, затем повторите попытку или используйте ручную команду.</string>
+    <string name="settings_usage_adb_busy">Выполняется другая операция ADB. Дождитесь её завершения и повторите попытку.</string>
+    <string name="settings_adb_access">Проверка доступа ADB</string>
+    <string name="settings_usage_access">Доступ к статистике использования (GET_USAGE_STATS)</string>
+    <string name="settings_usage_access_description">Нужен для определения активных приложений и разделения экрана. Нажмите на состояние разрешения для повторной проверки. Доступ не меняет настройки отображения и не требует переподключения CarPlay.</string>
+    <string name="settings_usage_access_manual">В этом автомобиле недоступен экран настройки доступа к статистике использования. Разрешите доступ для DiPlay в системных настройках или подключите компьютер с ADB и выполните:\n\n%1$s\n\nЗатем вернитесь сюда и нажмите на состояние разрешения для повторной проверки.</string>
+    <string name="settings_auto_playback">Воспроизведение при подключении (экспериментально)</string>
+    <string name="settings_auto_playback_description">Один запрос воспроизведения после подключения CarPlay. Пропускается во время звонков и текущего воспроизведения. Включение действует со следующего подключения; выключение отменяет ожидающую попытку.</string>
+    <string name="settings_auto_playback_url">URL музыкального приложения iPhone</string>
+    <string name="settings_auto_playback_resume">Продолжить текущий плеер</string>
+    <string name="settings_auto_playback_custom">Свой URL</string>
+    <string name="settings_auto_playback_url_hint">Оставьте пустым для продолжения текущего плеера. URL запрашивает открытие приложения, затем отправляется команда воспроизведения. iOS может проигнорировать запрос или включить другое приложение. URL Qishui не проверен. Настройка используется при следующем подключении или проверке и входит в резервные копии; не вводите секретные данные.</string>
+    <string name="settings_auto_playback_url_error">Введите допустимый URL приложения со схемой или оставьте поле пустым.</string>
+    <string name="settings_auto_playback_test">Проверить воспроизведение один раз</string>
+    <string name="settings_auto_playback_scheduled">Проверка запланирована. Открытие приложения и начало воспроизведения не гарантируются.</string>
+    <string name="settings_auto_playback_unavailable">Проверка недоступна. Подключите CarPlay, завершите звонки, приостановите воспроизведение и проверьте URL.</string>
     <string name="existing_wifi_title">Существующая Wi-Fi / Одна LAN</string>
     <string name="existing_wifi_description">Используйте существующий роутер или мобильную точку Wi-Fi. iPhone и автомобиль остаются в одной сети с доступом в Интернет.</string>
     <string name="existing_wifi_hint">Существующая Wi-Fi · Подключите оба устройства к одной Wi-Fi и включите Bluetooth. Точка доступа автомобиля не нужна.</string>

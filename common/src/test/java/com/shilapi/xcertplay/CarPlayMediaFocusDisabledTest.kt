@@ -87,6 +87,9 @@ class CarPlayMediaFocusDisabledTest {
 
     private fun start(controller: CarPlayController): MediaSession {
         `when`(controller.nowPlayingSnapshot()).thenReturn(CarPlayNowPlaying())
+        val token = Any()
+        `when`(controller.mediaAttachmentToken()).thenReturn(token)
+        `when`(controller.mediaControlSessionToken()).thenReturn(token)
         CarPlayMediaKeys.attach(app, controller)
         CarPlayMediaKeys.onMediaAudioChanged(true)
         shadowOf(Looper.getMainLooper()).idle()

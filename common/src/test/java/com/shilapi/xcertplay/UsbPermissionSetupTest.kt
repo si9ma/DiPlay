@@ -85,6 +85,52 @@ class UsbPermissionSetupTest {
         assertEquals(3, client.commands.size)
     }
 
+    @Test fun usageOnlyGrantsAndVerifiesOnlyTheRequestedPermission() {
+        val usage = UsbPermissionSetup.Permission.USAGE
+        var allowed = false
+        val checked = mutableSetOf<UsbPermissionSetup.Permission>()
+        val client = FakeClient().apply { onCommand = { allowed = true } }
+        context.applicationInfo.uid = 1_012_345
+        val result = operation(client) { checked += it; it == usage && allowed }.run(setOf(usage))
+        assertTrue(result.complete)
+        assertEquals(setOf(usage), result.requested)
+        assertEquals(mapOf(usage to true), result.verified)
+        assertEquals(setOf(usage), checked)
+        assertEquals(1, client.commands.size)
+        assertTrue(client.commands.single().contains("appops set --user 10 '${context.packageName}' GET_USAGE_STATS allow"))
+        assertFalse(client.commands.single().contains("SYSTEM_ALERT_WINDOW"))
+        assertFalse(client.commands.single().contains("accessibility"))
+        assertTrue(client.closed)
+    }
+
+    @Test fun usageOnlyRequiresRuntimeVerificationAndSuccessfulTransport() {
+        val usage = setOf(UsbPermissionSetup.Permission.USAGE)
+        assertFalse(operation(FakeClient()).run(usage).complete)
+        val broken = FakeClient().apply { onCommand = { throw IllegalStateException("disconnected") } }
+        val failed = operation(broken).run(usage)
+        assertEquals(usage, failed.commandsFailed)
+        assertFalse(failed.complete)
+        assertTrue(broken.closed)
+        val denied = FakeClient().apply { access = LocalAdb.Access.NOT_APPROVED }
+        assertFalse(operation(denied).run(usage).complete)
+        assertTrue(denied.commands.isEmpty())
+    }
+
+    @Test fun usageOnlySkipsExistingGrantAndCancellationNeverClaimsSuccess() {
+        val usage = setOf(UsbPermissionSetup.Permission.USAGE)
+        val existing = FakeClient()
+        assertTrue(operation(existing) { it in usage }.run(usage).complete)
+        assertTrue(existing.commands.isEmpty())
+        val client = FakeClient()
+        val operation = operation(client)
+        client.onConnect = operation::cancel
+        val result = operation.run(usage)
+        assertFalse(result.complete)
+        assertTrue(result.verified.isEmpty())
+        assertTrue(client.commands.isEmpty())
+        assertTrue(client.cancelled)
+    }
+
     @Test fun cancelBeforeClientCreationDoesNoWork() {
         var created = false
         val operation = UsbPermissionSetup.Operation(context, { created = true; FakeClient() }) { false }
@@ -154,12 +200,30 @@ class UsbPermissionSetupTest {
 
     private fun cancelledUiAttempt(cancel: (AlertDialog) -> Unit) = cancelledUiAttempt { dialog, _ -> cancel(dialog) }
 
-    private fun cancelledUiAttempt(cancel: (AlertDialog, DiPlayActivity) -> Unit) {
+    @Test fun usageProgressCancelSuppressesLateResults() = cancelledUiAttempt("grantPageUsageAccess") { dialog, _ ->
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+    }
+
+    @Test fun usageActivityStopSuppressesLateResults() = cancelledUiAttempt("grantPageUsageAccess") { _, activity ->
+        DiPlayActivity::class.java.getDeclaredMethod("onStop").apply { isAccessible = true }.invoke(activity)
+    }
+
+    @Test fun usageActivityDestroySuppressesLateResults() = cancelledUiAttempt("grantPageUsageAccess") { _, activity ->
+        DiPlayActivity::class.java.getDeclaredMethod("onDestroy").apply { isAccessible = true }.invoke(activity)
+    }
+
+    private fun cancelledUiAttempt(cancel: (AlertDialog, DiPlayActivity) -> Unit) =
+        cancelledUiAttempt("autoApplyPermissions", cancel)
+
+    private fun cancelledUiAttempt(method: String, cancel: (AlertDialog, DiPlayActivity) -> Unit) {
         val activity = Robolectric.buildActivity(DiPlayActivity::class.java).get()
         activity.setTheme(android.R.style.Theme_Material_NoActionBar)
+        shadowOf(activity.getSystemService(android.app.AppOpsManager::class.java)).setMode(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), activity.packageName,
+            android.app.AppOpsManager.MODE_IGNORED)
         val client = FakeClient().apply { block = true }
         activity.usbPermissionOperationFactory = { operation(client) }
-        DiPlayActivity::class.java.getDeclaredMethod("autoApplyPermissions").apply { isAccessible = true }.invoke(activity)
+        DiPlayActivity::class.java.getDeclaredMethod(method).apply { isAccessible = true }.invoke(activity)
         val progress = ShadowAlertDialog.getLatestAlertDialog()
         try {
             assertTrue(client.entered.await(3, TimeUnit.SECONDS))

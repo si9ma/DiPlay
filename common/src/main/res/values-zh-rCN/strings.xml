@@ -1,4 +1,22 @@
 <resources>
+    <string name="settings_usage_adb_grant">网络 ADB 授权</string>
+    <string name="settings_usage_adb_explanation">仅申请使用情况访问权限（GET_USAGE_STATS）。请开启车机网络 ADB，如出现调试授权提示，请允许 DiPlay。不会修改无障碍或悬浮窗权限。取消会停止等待中的操作，但不会撤销已授予的权限。</string>
+    <string name="settings_usage_adb_failed">尚未确认使用情况访问权限生效。请检查网络 ADB 和调试授权后重试，或使用手动命令。</string>
+    <string name="settings_usage_adb_busy">其他 ADB 操作正在进行，请等待完成后重试。</string>
+    <string name="settings_adb_access">ADB 连接检查</string>
+    <string name="settings_usage_access">使用情况访问（GET_USAGE_STATS）</string>
+    <string name="settings_usage_access_description">用于识别前台应用和分屏状态。点击权限状态可重新检查。授权不会修改显示选项，也无需重连 CarPlay。</string>
+    <string name="settings_usage_access_manual">此车机没有可打开的使用情况访问授权页面。请在系统设置中允许 DiPlay 访问使用情况，或连接已安装 ADB 的电脑执行：\n\n%1$s\n\n完成后返回此页，点击权限状态重新检查。</string>
+    <string name="settings_auto_playback">连接后自动播放（实验性）</string>
+    <string name="settings_auto_playback_description">CarPlay 连接后请求播放一次。通话中或已在播放时跳过。开启后下次连接生效；关闭会取消等待中的自动播放。</string>
+    <string name="settings_auto_playback_url">iPhone 音乐 App URL</string>
+    <string name="settings_auto_playback_resume">继续当前播放器</string>
+    <string name="settings_auto_playback_custom">自定义 URL</string>
+    <string name="settings_auto_playback_url_hint">留空则续播当前播放器。自定义 URL 会先请求打开 App，再发送播放键；iOS 可能忽略请求或播放其他 App。尚未验证汽水音乐 URL。保存后在下次连接或试播时使用；URL 会包含在设置备份中，请勿填写敏感信息。</string>
+    <string name="settings_auto_playback_url_error">请输入带协议名的有效 App URL，或留空。</string>
+    <string name="settings_auto_playback_test">试播一次</string>
+    <string name="settings_auto_playback_scheduled">已安排试播，不保证能打开指定 App 或开始播放。</string>
+    <string name="settings_auto_playback_unavailable">暂时无法试播：请连接 CarPlay、结束通话、暂停播放，并检查 App URL。</string>
     <string name="existing_wifi_title">现有 Wi-Fi / 同一局域网</string>
     <string name="existing_wifi_description">使用已有路由器或随身 Wi-Fi。让 iPhone 和车机保持连接同一网络，并通过它上网。</string>
     <string name="existing_wifi_hint">现有 Wi-Fi · 两台设备保持连接同一 Wi-Fi，蓝牙保持开启，无需开启车机热点。</string>

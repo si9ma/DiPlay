@@ -1,4 +1,22 @@
 <resources>
+    <string name="settings_usage_adb_grant">Grant via network ADB</string>
+    <string name="settings_usage_adb_explanation">Only Usage Access (GET_USAGE_STATS) will be requested. Enable network ADB on this car and approve the debugging prompt if shown. Accessibility and overlay permissions will not change. Cancel stops pending work, but does not revoke access already granted.</string>
+    <string name="settings_usage_adb_failed">Usage Access was not verified. Check network ADB and its approval, then retry or use the manual command.</string>
+    <string name="settings_usage_adb_busy">Another ADB operation is running. Wait for it to finish, then retry.</string>
+    <string name="settings_adb_access">ADB access</string>
+    <string name="settings_usage_access">Usage Access (GET_USAGE_STATS)</string>
+    <string name="settings_usage_access_description">Needed to identify foreground apps and split-screen state. Tap the status to check again. Granting access does not change your display choices or require reconnecting CarPlay.</string>
+    <string name="settings_usage_access_manual">This car has no available Usage Access settings screen. Enable access for DiPlay in system settings, or connect a computer with ADB and run:\n\n%1$s\n\nThen return here and tap the permission status to check again.</string>
+    <string name="settings_auto_playback">Play on connection (experimental)</string>
+    <string name="settings_auto_playback_description">Request playback once after CarPlay connects. Skips calls and existing playback. Enabling applies at the next connection; disabling cancels a pending attempt.</string>
+    <string name="settings_auto_playback_url">iPhone music app URL</string>
+    <string name="settings_auto_playback_resume">Resume current player</string>
+    <string name="settings_auto_playback_custom">Custom URL</string>
+    <string name="settings_auto_playback_url_hint">Leave empty to resume the current player. A custom URL requests an app, then sends Play; iOS may ignore it or play another app. No Qishui URL is verified. Saved URLs apply at the next connection or test and are included in settings backups; do not enter secrets.</string>
+    <string name="settings_auto_playback_url_error">Enter a valid app URL with a scheme, or leave empty.</string>
+    <string name="settings_auto_playback_test">Try playback once</string>
+    <string name="settings_auto_playback_scheduled">Playback test scheduled. Opening the app and starting playback are not guaranteed.</string>
+    <string name="settings_auto_playback_unavailable">Cannot test now. Connect CarPlay, end calls, pause playback and check the app URL.</string>
     <string name="existing_wifi_title">Existing Wi-Fi / Same LAN</string>
     <string name="existing_wifi_description">Use an existing router or portable Wi-Fi. Keep the iPhone and car on the same network with Internet access.</string>
     <string name="existing_wifi_hint">Existing Wi-Fi · Keep both devices on the same Wi-Fi and Bluetooth on. No car hotspot is needed.</string>

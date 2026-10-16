@@ -135,6 +135,13 @@ class WheelKeyService : AccessibilityService() {
         val kept = handleKey(event)
         // A held key repeats many times a second; its first press is the evidence.
         if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) recordPress(event, kept)
+        WheelKeyLog.input("accessibility", event) {
+            val assigned = WheelZoomSettings.key(this, WheelZoomSettings.Role.SIRI)
+            val physical = WheelKey.of(event)
+            "kept=$kept siriCodeMatch=${assigned?.code == physical.code} " +
+                "siriScanMatch=${assigned?.scan == physical.scan} siriDeviceMatch=${assigned?.device == physical.device} " +
+                routingState(this)
+        }
         return kept
     }
 
@@ -173,9 +180,11 @@ class WheelKeyService : AccessibilityService() {
             CarPlayMediaButton.opensSiriWhileCarPlay(event.keyCode) && session() != null) {
             if (!down) {
                 val shortPressIgnored = WheelZoomSettings.siriLongPressOnly(this) && CarPlayMediaButton.isShortVoiceKey(event.keyCode)
-                val sent = !shortPressIgnored && VoiceKeyPair.shared.allowCarPlayKey(event.eventTime) &&
-                    CarPlayBackgroundSession.snapshot()?.controller?.requestSiri() == true
-                note("CarPlay voice key ${event.keyCode}: Siri sent=$sent")
+                val allowed = !shortPressIgnored && VoiceKeyPair.shared.allowCarPlayKey(event.eventTime)
+                val sent = allowed && CarPlayBackgroundSession.snapshot()?.controller?.requestSiri() == true
+                WheelKeyLog.route("siri source=accessibility key=${event.keyCode} shortIgnored=$shortPressIgnored " +
+                    "duplicate=${!shortPressIgnored && !allowed} queued=$sent")
+                note("CarPlay voice key ${event.keyCode}: Siri queued=$sent")
             }
             return true
         }
@@ -285,8 +294,18 @@ class WheelKeyService : AccessibilityService() {
 
     // Without a CarPlay session, or in a call, the key keeps the car's own action.
     private fun siriPress(role: WheelZoomSettings.Role?, calling: Boolean, eventTime: Long): WheelZoomKeys.Action? {
-        if (role != WheelZoomSettings.Role.SIRI || calling || session() == null) return null
-        if (siriKey.opens(eventTime)) note("Siri key sent=${requestSiri()}")
+        if (role != WheelZoomSettings.Role.SIRI) return null
+        if (calling || session() == null) {
+            WheelKeyLog.route("siri source=accessibility blocked=${if (calling) "call_or_audio_mode" else "no_session"}")
+            return null
+        }
+        if (siriKey.opens(eventTime)) {
+            val queued = requestSiri()
+            WheelKeyLog.route("siri source=accessibility assigned=true queued=$queued")
+            note("Siri key sent=$queued")
+        } else {
+            WheelKeyLog.route("siri source=accessibility blocked=repeat")
+        }
         return WheelZoomKeys.Action.CONSUME
     }
 
@@ -448,8 +467,12 @@ class WheelKeyService : AccessibilityService() {
 
         fun enableOverAdb(context: Context, mayAsk: Boolean = true): EnableResult = LocalAdb(AdbKeys.load(context)).use { adb ->
             val access = adb.connect(mayAsk)
+            WheelKeyLog.route("a11y adb mayAsk=$mayAsk access=$access user=${AdbUser.id(context)} bound=${connected()}")
             if (access != LocalAdb.Access.READY) return@use EnableResult(access, false)
-            if (!mayAsk && !needsRestore(context)) return@use EnableResult(access, connected())
+            if (!mayAsk && !needsRestore(context)) {
+                WheelKeyLog.route("a11y restore skipped wanted=${wanted(context)} bound=${connected()}")
+                return@use EnableResult(access, connected())
+            }
             val allowed = applyServiceSettings(context, adb::shell) {
                 mayAsk || wanted(context)
             }
@@ -662,6 +685,20 @@ class WheelKeyService : AccessibilityService() {
                     "ageMs=${System.currentTimeMillis() - at} step=\"${prefs.getString("step", null) ?: "unrecorded"}\""
             return "Wheel key service: wanted=${wanted(context)} allowedInSettings=${enabledInSettings(context)} " +
                 "bound=${connected()} user=${AdbUser.id(context)} lastRestore=$last lastManual=\"$lastApplyStep\""
+        }
+
+        fun routingState(context: Context): String {
+            val controller = CarPlayBackgroundSession.snapshot()?.controller
+            val info = running?.serviceInfo
+            val assigned = WheelZoomSettings.key(context, WheelZoomSettings.Role.SIRI)
+            val audioMode = (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.mode
+            return "bound=${connected()} callControls=${BydOutputSettings.carPlayCallControls(context)} " +
+                "siriEnabled=${WheelZoomSettings.siriKey(context)} siriBinding=${assigned?.let { "${it.code}/${it.scan}" } ?: "none"} " +
+                "longOnly=${WheelZoomSettings.siriLongPressOnly(context)} learning=${isLearning()} " +
+                "session=${controller?.activeAirPlaySessionToken() != null} controlReady=${controller?.mediaControlSessionToken() != null} " +
+                "callPhase=${BydNavigationOutputs.carPlayCall()?.phase ?: "none"} audioMode=$audioMode " +
+                "filterRequested=${info?.let { it.flags and android.accessibilityservice.AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS != 0 }} " +
+                "filterCapable=${info?.let { it.capabilities and android.accessibilityservice.AccessibilityServiceInfo.CAPABILITY_CAN_REQUEST_FILTER_KEY_EVENTS != 0 }}"
         }
 
         /** What the car's own accessibility code logged right after a write that did not stick. */

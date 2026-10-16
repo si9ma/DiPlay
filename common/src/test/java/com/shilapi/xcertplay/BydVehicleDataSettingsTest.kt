@@ -80,21 +80,60 @@ class BydVehicleDataSettingsTest {
 
         assertTrue(texts().any { it.text == activity.getString(R.string.advanced_vehicle_data_description) })
         assertTrue(texts().any { it.text.toString().contains(activity.getString(R.string.vehicle_data_mode_default)) })
-        assertTrue(texts().any { it.text == activity.getString(R.string.check_adb_access) })
+        assertFalse(texts().any { it.text == activity.getString(R.string.check_adb_access) })
         assertTrue(switches().any { it.contentDescription == activity.getString(R.string.car_battery_for_the_iphone) })
         assertTrue(switches().any { it.contentDescription == activity.getString(R.string.wheel_speed_for_tunnels) })
         assertTrue(switches().any { it.contentDescription == activity.getString(R.string.video_while_parked) })
     }
 
     @Test fun aTappedAdbCheckShowsItsResult() {
-        // #724: on a head unit without network ADB only the status line changed, so the button seemed dead.
         openSettings()
-        texts().single { it.text == activity.getString(R.string.advanced_vehicle_data) }.performClick()
+        activity.onBackPressedDispatcher.onBackPressed()
         backend.checkResult = BydAdbAccess.Status(BydAdbAccess.State.ADB_OFF)
         texts().single { it.text == activity.getString(R.string.check_adb_access) }.performClick()
+        assertTrue(texts().any { it.text == activity.getString(R.string.adb_checking_may_ask) })
+        assertFalse(texts().single { it.text == activity.getString(R.string.check_adb_access) }.isEnabled)
         backend.run("diplay-adb-state")
-        shadowOf(android.os.Looper.getMainLooper()).idle()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(texts().any { it.text == activity.getString(R.string.adb_off) })
+        assertTrue(texts().single { it.text == activity.getString(R.string.check_adb_access) }.isEnabled)
         assertEquals(activity.getString(R.string.adb_off), org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test fun overviewAdbCheckIsFirstAndSearchDoesNotStartAdbWork() {
+        openSettings()
+        activity.onBackPressedDispatcher.onBackPressed()
+        val check = texts().single { it.text == activity.getString(R.string.check_adb_access) }
+        val card = check.parent as ViewGroup
+        val content = card.parent as ViewGroup
+        val readiness = ReflectionHelpers.getField<View>(activity, "readinessCard")
+        assertEquals(content.indexOfChild(card) + 1, content.indexOfChild(readiness))
+        assertEquals(activity.getString(R.string.settings_overview_subtitle),
+            (content.getChildAt(content.indexOfChild(card) - 1) as TextView).text)
+        val index = ReflectionHelpers.callInstanceMethod<List<DiPlayActivity.SettingsSearchResult>>(activity, "buildSettingsSearchIndex")
+        assertEquals(SettingsCategory.OVERVIEW, index.single {
+            it.title == activity.getString(R.string.check_adb_access)
+        }.category)
+        assertEquals(SettingsCategory.DISPLAY, index.single {
+            it.title == activity.getString(R.string.settings_usage_access)
+        }.category)
+        assertTrue(backend.tasks.none { it.first == "diplay-adb-state" })
+        assertEquals(0, backend.checkCalls)
+    }
+
+    @Test fun automaticValidationRefreshesOverviewWithVehicleDetailsCollapsed() {
+        BydVehicleFieldStore.save(context, supportedCapabilities(BydVehicleFieldStore.firmwareKey()))
+        BydOutputSettings.setLegacyVehicleProbe(context, true)
+        backend.checkResult = readableStatus()
+        controller = Robolectric.buildActivity(DiPlayActivity::class.java,
+            Intent(context, DiPlayActivity::class.java).putExtra("page", "settings")).setup()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(ReflectionHelpers.getField<Boolean>(activity, "bydVehicleAdvancedExpanded"))
+        assertTrue(texts().any { it.text == activity.getString(R.string.probing_vehicle_data) })
+        backend.run("diplay-byd13-auto-validate")
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(texts().any { it.text == activity.getString(R.string.adb_access_ready) })
+        assertFalse(texts().any { it.text == activity.getString(R.string.probing_vehicle_data) })
     }
 
     @Test fun successfulLiveProbeRevealsOnlySupportedSettings() {
@@ -593,13 +632,13 @@ class BydVehicleDataSettingsTest {
 
         // Approval or a fix on the car later: the next check applies the waiting switch once.
         backend.checkResult = readableStatus()
-        texts().single { it.text == activity.getString(R.string.check_adb_access) }.performClick()
+        checkAdbFromOverview()
         backend.run("diplay-adb-state")
 
         assertTrue(texts().any { it.text == activity.getString(R.string.adb_battery_reading, 75, 450) })
         assertEquals(1, reconnects)
 
-        texts().single { it.text == activity.getString(R.string.check_adb_access) }.performClick()
+        checkAdbFromOverview()
         backend.run("diplay-adb-state")
         assertEquals(1, reconnects)
     }
@@ -629,7 +668,7 @@ class BydVehicleDataSettingsTest {
         openSettings()
         texts().single { it.text == activity.getString(R.string.advanced_vehicle_data) }.performClick()
 
-        texts().single { it.text == activity.getString(R.string.check_adb_access) }.performClick()
+        checkAdbFromOverview()
         assertFalse(modeChoice().isEnabled)
 
         backend.run("diplay-adb-state")
@@ -732,6 +771,12 @@ class BydVehicleDataSettingsTest {
             DiPlayActivity::class.java,
             Intent(context, DiPlayActivity::class.java).putExtra("page", "settings"),
         ).setup()
+        openCategory(R.string.settings_advanced)
+    }
+
+    private fun checkAdbFromOverview() {
+        activity.onBackPressedDispatcher.onBackPressed()
+        texts().single { it.text == activity.getString(R.string.check_adb_access) }.performClick()
         openCategory(R.string.settings_advanced)
     }
 
