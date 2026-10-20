@@ -8,7 +8,11 @@ object AmbientMusicSettings {
         val colorMode: AmbientColorMode = AmbientColorMode.BEAT,
         val speed: AmbientColorSpeed = AmbientColorSpeed.STANDARD, val selectedColors: List<Int> = listOf(1), val colorCycle: Boolean = false, val color: Int = 1, val brightness: Int = 0, val area: Int = 3,
         val colorSource: AmbientColorSource = AmbientColorSource.SELECTED,
-        val idle: AmbientIdleBehavior = AmbientIdleBehavior.STEADY)
+        val idle: AmbientIdleBehavior = AmbientIdleBehavior.STEADY,
+        // The car's own music rhythm while CarPlay music plays; DiPlay then leaves the lamps to the car.
+        val carRhythm: Boolean = false,
+        // Sends the played music's spectrum to the car for that rhythm, where the car makes none of its own.
+        val carRhythmFeed: Boolean = false)
 
     /** Color codes are kept in the range of this head unit's palette (see [AmbientColorProfile]). */
     fun load(context: Context): Values = load(context, AmbientColorProfile.current(context))
@@ -33,6 +37,8 @@ object AmbientMusicSettings {
             area = integer("area", 3).coerceIn(1, 3),
             colorSource = runCatching { AmbientColorSource.valueOf(text("colorSource", "SELECTED")) }.getOrDefault(AmbientColorSource.SELECTED),
                         idle = runCatching { AmbientIdleBehavior.valueOf(text("idle", "STEADY")) }.getOrDefault(AmbientIdleBehavior.STEADY),
+            carRhythm = boolean("carRhythm", false),
+            carRhythmFeed = boolean("carRhythmFeed", false),
                     )
     }
 
@@ -46,7 +52,8 @@ object AmbientMusicSettings {
             .putStringSet("selectedColors", normalizeAmbientPalette(values.selectedColors, values.color, range).map { it.toString() }.toSet())
             .putInt("color", values.color.coerceIn(range.first, range.last))
             .putInt("brightness", values.brightness.coerceIn(0, 6))
-            .putInt("area", values.area.coerceIn(1, 3)).apply()
+            .putInt("area", values.area.coerceIn(1, 3)).putBoolean("carRhythm", values.carRhythm)
+            .putBoolean("carRhythmFeed", values.carRhythmFeed).apply()
         AmbientMusicController.settingsChanged(context)
     }
 }
