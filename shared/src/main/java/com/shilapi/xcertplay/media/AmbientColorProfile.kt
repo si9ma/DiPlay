@@ -8,7 +8,7 @@ import kotlin.math.abs
 enum class AmbientPalette(val colors: IntRange) {
     /** The verified 31-color cars. */
     LEGACY31(BydAmbientLightPolicy.LEGACY_COLORS),
-    /** The observed OEM 127-color firmware, verified by a parked write, read-back and restore test. */
+    /** OEM 127-color software palette. Identification alone never grants write permission. */
     OEM127(BydAmbientLightPolicy.OEM127_COLORS);
 
     val size: Int get() = colors.last
@@ -76,9 +76,6 @@ object AmbientColorProfile {
             AmbientPalette.OEM127 else AmbientPalette.LEGACY31
         return save(context, fingerprint, palette)
     }
-
-    /** A parked write test may only begin on the observed 127 profile, so its begin confirms it. */
-    fun recordOem127(context: Context): Boolean = save(context, android.os.Build.FINGERPRINT, AmbientPalette.OEM127)
 
     private fun save(context: Context, fingerprint: String?, palette: AmbientPalette): Boolean {
         if (fingerprint.isNullOrEmpty()) return false

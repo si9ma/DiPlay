@@ -36,9 +36,11 @@ internal class BydAmbientLightClient(context: Context, private val diagnostic: (
     fun read(): CompletableFuture<State> = submit {
         val ticket = generation.get()
         ensure(ticket)
-        log("stage=read result=start expectedSupport=1 expectedColor=1..31 expectedBrightness=1..6 expectedArea=1..3")
+        log("stage=read result=start expectedSupport=1 expectedBrightness=1..6 expectedArea=1..3")
         val result = parseState(exchange("read")?.takeIf { it.startsWith("state=") }?.removePrefix("state=") ?: error("worker-read-failed"),
             requireRestorable = false)
+        val verified = exchange("verify-status")
+        check(verified == "verified" || verified == "verification-required") { "worker-verification-failed" }
         check(ticket == generation.get()) { "stale-generation" }
         result
     }
@@ -201,7 +203,7 @@ internal class BydAmbientLightClient(context: Context, private val diagnostic: (
         token = next
         val apk = "'" + app.applicationInfo.sourceDir.replace("'", "'\\''") + "'"
         log("stage=worker-launch result=start")
-        stream = client.openShell("CLASSPATH=$apk app_process /system/bin ${BydAmbientLightTool::class.java.name} --stdin $next")
+        stream = client.openShell("CLASSPATH=$apk app_process /system/bin ${BydAmbientLightTool::class.java.name} --stdin $next ${AmbientInstallation.id(app)}")
         log("stage=worker-launch result=${if (stream != null) "ok" else "failed"}")
         check(stream != null) { "worker-launch-failed" }
         check(exchange("ping", 10000) == "ready") { "worker-not-ready" }

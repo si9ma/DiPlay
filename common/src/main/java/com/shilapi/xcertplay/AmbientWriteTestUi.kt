@@ -10,11 +10,12 @@ import com.shilapi.xcertplay.media.AmbientDiagnostics
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
-/** Parked, confirmed, one-shot lamp write test. Its result is diagnostic only and never enables control. */
+/** Parked verification and explicit observation confirmation. Never turns on lighting control. */
 internal object AmbientWriteTestUi {
     fun render(activity: Activity, parent: LinearLayout,
         button: (String, () -> Unit) -> View, label: (String) -> TextView,
-        run: ((String) -> Unit) -> CompletableFuture<BydAmbientWriteTest.Outcome>) {
+        run: ((String) -> Unit) -> CompletableFuture<BydAmbientWriteTest.Outcome>,
+        confirm: (BydAmbientWriteTest.Outcome) -> CompletableFuture<Boolean> = { BydAmbientWriteTest.confirm(activity.applicationContext, it) }) {
         parent.addView(label(activity.getString(R.string.settings_ambient_write_test_hint)))
         val status = label("").apply { tag = "ambient_write_test_status"; visibility = View.GONE; setTextIsSelectable(true) }
         lateinit var start: View
@@ -40,6 +41,18 @@ internal object AmbientWriteTestUi {
                         status.text = summary(activity, result)
                         if (result.result == BydAmbientWriteTest.Result.PASSED) askWhatWasSeen(activity, result, status) { seen ->
                             AmbientDiagnostics.record(app, "stage=write-test-confirm result=ok seen=$seen testColor=${result.color}", id)
+                            if (seen == "yes") {
+                                start.isEnabled = false
+                                status.setText(R.string.settings_ambient_verify_committing)
+                                val committed = runCatching { confirm(result) }.getOrElse { CompletableFuture.completedFuture(false) }
+                                committed.whenComplete { accepted, error -> activity.runOnUiThread {
+                                    if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                                    start.isEnabled = true
+                                    status.setText(if (accepted == true && error == null) R.string.settings_ambient_verify_authorised
+                                        else R.string.settings_ambient_verify_commit_failed)
+                                    AmbientDiagnostics.record(app, "stage=verification result=${if (accepted == true && error == null) "ok" else "failed"}", id)
+                                } }
+                            }
                         }
                     } }
                 }.show()
@@ -49,11 +62,10 @@ internal object AmbientWriteTestUi {
     }
 
     private fun askWhatWasSeen(activity: Activity, outcome: BydAmbientWriteTest.Outcome, status: TextView, record: (String) -> Unit) {
-        val colorName = activity.getString(if (outcome.color == 20) R.string.settings_ambient_write_test_blue
-            else R.string.settings_ambient_write_test_green)
+        val colorName = activity.getString(R.string.settings_ambient_verify_color_code, outcome.color ?: 0)
         fun answer(seen: String, text: Int) {
-            record(seen)
             status.text = summary(activity, outcome) + "\n" + activity.getString(text)
+            record(seen)
         }
         activity.appDialogBuilder().setTitle(R.string.settings_ambient_write_test)
             .setMessage(activity.getString(R.string.settings_ambient_write_test_question, colorName))
@@ -69,7 +81,7 @@ internal object AmbientWriteTestUi {
             outcome.lastRead?.let { "lastRead=$it" }, outcome.restored?.let { "restored=$it" }).joinToString(" ")
         val text = when (outcome.result) {
             BydAmbientWriteTest.Result.PASSED -> activity.getString(R.string.settings_ambient_write_test_passed)
-            BydAmbientWriteTest.Result.RESTORE_FAILED ->
+            BydAmbientWriteTest.Result.RESTORE_FAILED, BydAmbientWriteTest.Result.RECOVERY_REQUIRED ->
                 activity.getString(R.string.settings_ambient_write_test_restore_failed, outcome.original ?: "?")
             BydAmbientWriteTest.Result.BUSY -> activity.getString(R.string.settings_ambient_write_test_busy)
             BydAmbientWriteTest.Result.NOT_127_PROFILE -> activity.getString(R.string.settings_ambient_write_test_not_127)

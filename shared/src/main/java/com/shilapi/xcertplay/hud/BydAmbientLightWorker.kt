@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference
 internal object BydAmbientLightWorkerProtocol {
     private const val MAX_LINE_BYTES = 512
     private val tokenPattern = Regex("[0-9a-f]{32}")
-    data class Request(val op: String, val args: List<Int> = emptyList())
+    data class Request(val op: String, val args: List<Int> = emptyList(), val confirmation: String? = null)
     fun validToken(token: String) = tokenPattern.matches(token)
 
     /**
@@ -25,7 +25,7 @@ internal object BydAmbientLightWorkerProtocol {
 
     private const val DIAGNOSTIC_PREFIX = "ambient-diag "
     private val diagnosticStages = setOf("worker-lock", "system-context", "shell-context", "manager-class",
-        "manager-instance", "method-getInt", "method-setIntArray", "method-setInt", "init", "lamp-support", "lamp-state") +
+        "manager-instance", "method-getInt", "method-setIntArray", "method-setInt", "init", "lamp-support", "lamp-state", "verification") +
         (BydAmbientLightPolicy.getNames + BydAmbientLightPolicy.setNames).map { "feature-$it" } +
         BydAmbientLightPolicy.getNames.map { "read-$it" }
     private val diagnosticPattern = Regex("stage=([A-Za-z0-9_-]+) result=(ok|failed|busy|invalid)( value=-?[0-9]{1,11})?( error=[A-Za-z0-9_$>]{1,240})?( semantics=unknown)?( reason=(color|brightness|area)-unverified)?")
@@ -77,7 +77,9 @@ internal object BydAmbientLightWorkerProtocol {
         if (!validToken(token) || line.toByteArray(Charsets.UTF_8).size > MAX_LINE_BYTES) return null
         val f = line.split(' ')
         if (f.firstOrNull() != token) return null
-        if (f.size == 2 && f[1] in setOf("ping", "read", "begin", "stop", "minimum-stop", "close", "test-begin", "test-apply")) return Request(f[1])
+        if (f.size == 2 && f[1] in setOf("ping", "read", "begin", "stop", "minimum-stop", "close", "test-begin", "verify-status")) return Request(f[1])
+        if (f.size == 3 && f[1] == "verify-confirm" && validToken(f[2])) return Request(f[1], confirmation = f[2])
+        if (f.size == 3 && f[1] == "test-apply" && f[2].toIntOrNull() in 1..3) return Request(f[1], listOf(f[2].toInt()))
         // Syntactic bounds only; each session then enforces its own head unit's range.
         if (f.size == 7 && f[1] == "begin") {
             val a = f.drop(2).map { it.toIntOrNull() ?: return null }
@@ -118,8 +120,9 @@ internal object BydAmbientLightWorkerProtocol {
 /** Called by app_process under the authorized shell identity, not from the app's restricted UID. */
 object BydAmbientLightTool {
     @JvmStatic fun main(args: Array<String>) {
-        if (args.size != 2 || args[0] != "--stdin") return
+        if (args.size != 3 || args[0] != "--stdin" || android.os.Process.myUid() != 2000) return
         val token = args[1].takeIf(BydAmbientLightWorkerProtocol::validToken) ?: return
+        val owner = args[2].takeIf(BydAmbientLightWorkerProtocol::validToken) ?: return
         // A blocked old Binder/restore must exclude new writes even beyond its 15-second lease.
         val lockResult = runCatching { AmbientWorkerOwnerLock.tryAcquire(File("/data/local/tmp/diplay-ambient-worker.lock")) }
         val ownership = lockResult.getOrNull()
@@ -129,18 +132,29 @@ object BydAmbientLightTool {
             println("error worker-busy"); println("done"); System.out.flush()
             return // Do not initialize the SDK before acquiring ownership.
         }
-        try { runOwned(token) } finally { ownership.close() }
+        try { runOwned(token, owner) } finally { ownership.close() }
     }
 
-    private fun runOwned(token: String) {
+    private fun runOwned(token: String, owner: String) {
         val lease = java.util.concurrent.atomic.AtomicLong(System.nanoTime())
         val snapshotRef = AtomicReference<BydAmbientLightPolicy.Snapshot?>(null)
         // Set once per session from this head unit's fingerprint and COLOR_CONFIG; every restore path honours it.
         val sessionColors = AtomicReference(BydAmbientLightPolicy.LEGACY_COLORS)
         var testSession = false
-        var testApplied = false
+        val testAreas = linkedSetOf<Int>()
+        val verification = AmbientVerificationStore(File("/data/local/tmp/diplay-ambient-verification"), owner)
+        var sessionEnvironment: String? = null
+        var sessionVerified = false
+        fun validateEnvironment(device: AmbientDevice) {
+            sessionEnvironment?.let { check(device.environment() == it) { "verification-environment-changed" } }
+        }
+        fun finishRestore(device: AmbientDevice, snapshot: BydAmbientLightPolicy.Snapshot, keepVerified: Boolean = false) {
+            validateEnvironment(device)
+            restore(device, snapshot, sessionColors.get())
+            sessionEnvironment?.let { verification.settled(it, snapshot.encode(), keepVerified, false) }
+        }
         val watchdog = Executors.newSingleThreadScheduledExecutor()
-        val device = runCatching { AmbientDevice() }.onFailure {
+        val device = runCatching { AmbientDevice(owner) }.onFailure {
             println(BydAmbientLightWorkerProtocol.diagnostic("init", "failed", error = it))
         }.getOrNull()
         val restoreLock = Any()
@@ -151,7 +165,7 @@ object BydAmbientLightTool {
                         val saved = snapshotRef.get()
                         if (saved == null) System.exit(0)
                         if (saved != null && device != null) {
-                            val ok = runCatching { restore(device, saved, sessionColors.get()); true }.getOrDefault(false)
+                            val ok = runCatching { finishRestore(device, saved); true }.getOrDefault(false)
                             if (ok) {
                                 snapshotRef.compareAndSet(saved, null)
                                 System.exit(0)
@@ -173,13 +187,35 @@ object BydAmbientLightTool {
                 lease.set(System.nanoTime())
                 val out = synchronized(restoreLock) { try {
                     when (req.op) {
-                        "ping" -> { device.readCapabilities(); "ready" }
+                        "ping" -> { validateEnvironment(device); device.readCapabilities(); "ready" }
+                        "verify-status" -> {
+                            val candidate = device.sessionColors() == BydAmbientLightPolicy.OEM127_COLORS
+                            val authorised = if (!candidate) true else if (snapshotRef.get() != null && !testSession)
+                                sessionVerified && device.environment() == sessionEnvironment else verification.status(device.environment())
+                            println(BydAmbientLightWorkerProtocol.diagnostic("verification", "ok", value = if (authorised) 1 else 0))
+                            if (authorised) "verified" else "verification-required"
+                        }
+                        "verify-confirm" -> {
+                            check(snapshotRef.get() == null && device.sessionColors() == BydAmbientLightPolicy.OEM127_COLORS)
+                            check(verification.confirm(device.environment(), requireNotNull(req.confirmation), device.read().encode())) { "verification-confirm-rejected" }
+                            "verified"
+                        }
                         "read" -> "state=${device.read(diagnostics = true).encode()}"
                         "begin" -> {
                             if (snapshotRef.get() != null) "error already-begun"
                             else {
                                 val colors = device.sessionColors()
-                                val s = BydAmbientLightWorkerProtocol.snapshotForBegin(req, colors, device::read)
+                                if (File("/data/local/tmp/diplay-ambient-verification").exists())
+                                    check(verification.read()?.dirty != true) { "verification-recovery-required" }
+                                if (colors == BydAmbientLightPolicy.OEM127_COLORS) {
+                                    val env = device.environment()
+                                    check(verification.status(env)) { "verification-required" }
+                                    sessionEnvironment = env; sessionVerified = true; device.pinEnvironment(env)
+                                }
+                                val current = device.read()
+                                check(BydAmbientLightPolicy.canRestore(current, colors)) { "unsupported-state" }
+                                val s = BydAmbientLightWorkerProtocol.snapshotForBegin(req, colors) { current }
+                                sessionEnvironment?.let { verification.begin(it, s.encode(), true) }
                                 sessionColors.set(colors)
                                 snapshotRef.compareAndSet(null, s); "begun=${s.encode()}"
                             }
@@ -193,6 +229,7 @@ object BydAmbientLightTool {
                             if (!BydAmbientLightPolicy.canRestore(s, colors)) throw IllegalStateException("unsupported-state")
                             val wait = TimeUnit.NANOSECONDS.toMillis(200_000_000L - (System.nanoTime() - lastSetNanos)).coerceAtLeast(0)
                             if (wait > 0) Thread.sleep(wait)
+                            validateEnvironment(device)
                             val result = device.set(color, bright, area, colors)
                             lastSetNanos = System.nanoTime()
                             if (result != 0) throw IllegalStateException("set-result-$result")
@@ -206,8 +243,14 @@ object BydAmbientLightTool {
                         "test-begin" -> {
                             check(snapshotRef.get() == null) { "already-begun" }
                             device.requireWriteTestProfile()
+                            val env = device.environment()
                             val s = device.read()
                             BydAmbientLightPolicy.restorationFailure(s, BydAmbientLightPolicy.OEM127_COLORS)?.let { throw IllegalStateException(it) }
+                            val old = verification.read()
+                            check(old?.dirty != true || old.original == s.encode()) { "verification-recovery-required:${old?.original}" }
+                            verification.revoke(env)
+                            verification.begin(env, s.encode(), false)
+                            sessionEnvironment = env; sessionVerified = false; device.pinEnvironment(env)
                             sessionColors.set(BydAmbientLightPolicy.OEM127_COLORS)
                             testSession = true
                             snapshotRef.set(s)
@@ -216,20 +259,29 @@ object BydAmbientLightTool {
                         "test-apply" -> {
                             val s = snapshotRef.get() ?: throw IllegalStateException("begin-required")
                             check(testSession) { "test-session-required" }
-                            check(!testApplied) { "test-already-applied" }
-                            testApplied = true
-                            // One write of one color to the front row; brightness and area stay as saved.
+                            val area = req.args.single()
+                            check(area == testAreas.size + 1 && area !in testAreas) { "test-already-applied" }
+                            validateEnvironment(device)
+                            val before = device.read()
                             val color = BydAmbientLightPolicy.writeTestColor(s)
-                            val result = device.set(color, s.frontBrightness, 1, BydAmbientLightPolicy.OEM127_COLORS)
+                            val bright = if (area == 2) s.backBrightness else s.frontBrightness
+                            val result = device.set(color, bright, area, BydAmbientLightPolicy.OEM127_COLORS)
                             lastSetNanos = System.nanoTime()
                             if (result != 0) throw IllegalStateException("set-result-$result")
-                            val read = awaitReadback(device) { r -> r.frontColor == color && r.frontBrightness == s.frontBrightness }
+                            val read = awaitReadback(device) { r -> r.area == area && when (area) {
+                                1 -> r.frontColor == color && r.frontBrightness == bright && r.backColor == before.backColor && r.backBrightness == before.backBrightness
+                                2 -> r.backColor == color && r.backBrightness == bright && r.frontColor == before.frontColor && r.frontBrightness == before.frontBrightness
+                                else -> r.frontColor == color && r.backColor == color && r.frontBrightness == bright && r.backBrightness == bright
+                            } }
+                            testAreas.add(area)
                             "test-applied=$color:${read.encode()}"
                         }
                         "minimum-stop" -> {
                             check(snapshotRef.get() != null) { "begin-required" }
                             check(!testSession) { "test-session" }
+                            validateEnvironment(device)
                             val minimum = holdAtMinimum(device, sessionColors.get())
+                            sessionEnvironment?.let { verification.settled(it, minimum.encode(), sessionVerified, false) }
                             // Commit only after both zones and the original current area read back.
                             snapshotRef.set(null)
                             stop = true
@@ -237,15 +289,20 @@ object BydAmbientLightTool {
                         }
                         "stop" -> {
                             val s = snapshotRef.get()
-                            val restored = if (s == null) "no-snapshot" else { restore(device, s, sessionColors.get()); "restored=${device.read().encode()}" }
+                            val restored = if (s == null) "no-snapshot" else {
+                                finishRestore(device, s, sessionVerified && !testSession)
+                                val challenge = if (testSession && testAreas == setOf(1, 2, 3)) verification.settled(
+                                    requireNotNull(sessionEnvironment), s.encode(), false, true) else null
+                                "restored=${s.encode()}" + (challenge?.let { ":$it" } ?: "")
+                            }
                             snapshotRef.set(null); stop = true; restored
                         }
-                        "close" -> { snapshotRef.get()?.let { restore(device, it, sessionColors.get()) }; snapshotRef.set(null); stop = true; "closed-restored" }
+                        "close" -> { snapshotRef.get()?.let { finishRestore(device, it) }; snapshotRef.set(null); stop = true; "closed-restored" }
                         else -> throw IllegalArgumentException("operation")
                     }
                 } catch (t: Throwable) {
                     val s = snapshotRef.get()
-                    val restored = s == null || runCatching { restore(device, s, sessionColors.get()); true }.getOrDefault(false)
+                    val restored = s == null || runCatching { finishRestore(device, s); true }.getOrDefault(false)
                     if (restored) snapshotRef.set(null)
                     stop = true
                     "error=${safeError(t)}" + if (restored) "" else " restore-failed"
@@ -256,7 +313,7 @@ object BydAmbientLightTool {
             // The finally path attempts the one saved restoration on stream failure/EOF.
         } finally {
             synchronized(restoreLock) { snapshotRef.get()?.let { s ->
-                val ok = runCatching { device?.let { restore(it, s, sessionColors.get()) }; true }.getOrDefault(false)
+                val ok = runCatching { finishRestore(requireNotNull(device), s); true }.getOrDefault(false)
                 if (ok) snapshotRef.compareAndSet(s, null)
                 else System.err.println("ambient restore failed; retry did not confirm readback")
             } }
@@ -339,12 +396,17 @@ private fun <T> ambientDiagnosticStep(stage: String, enabled: Boolean = true, bl
 }
 
 @SuppressLint("PrivateApi")
-private class AmbientDevice {
+private class AmbientDevice(private val installation: String) {
     private val manager: Any
     private val getInt: java.lang.reflect.Method
     private val setIntArray: java.lang.reflect.Method
     private val setInt: java.lang.reflect.Method
     private val ids: Map<String, Int>
+    private var pinnedEnvironment: String? = null
+    fun pinEnvironment(value: String) { pinnedEnvironment = value }
+    private fun validatePinnedEnvironment() {
+        pinnedEnvironment?.let { check(environment() == it) { "verification-environment-changed" } }
+    }
 
     init {
         runCatching { android.os.Looper.prepareMainLooper() }
@@ -381,9 +443,14 @@ private class AmbientDevice {
     private fun get(name: String): Int = (getInt.invoke(manager, BydAmbientLightPolicy.TYPE, ids.getValue(name)) as Number).toInt()
     fun read(): BydAmbientLightPolicy.Snapshot = read(diagnostics = false)
 
-    /** This head unit's verified range; an unreadable COLOR_CONFIG keeps the 31-color range. */
-    fun sessionColors(): IntRange = BydAmbientLightPolicy.sessionColors(android.os.Build.FINGERPRINT,
-        runCatching { get("SET_IAL_COLOR_CONFIG") }.getOrNull())
+    /** Candidate numbering only; normal begin independently requires worker-owned verification. */
+    fun sessionColors(): IntRange = if (BydAmbientLightPolicy.observedColorProfile(android.os.Build.FINGERPRINT,
+        runCatching { get("SET_IAL_COLOR_CONFIG") }.getOrNull()) != null) BydAmbientLightPolicy.OEM127_COLORS else BydAmbientLightPolicy.LEGACY_COLORS
+
+    fun environment(): String = AmbientVerificationStore.environment(android.os.Build.FINGERPRINT,
+        BydAmbientLightPolicy.configNames.sorted().map(::get),
+        listOf(installation, getInt.toGenericString(), setIntArray.toGenericString(), setInt.toGenericString(),
+            ids.toSortedMap().entries.joinToString { "${it.key}=${it.value}" }).joinToString("|"))
 
     fun requireWriteTestProfile() {
         val config = runCatching { get("SET_IAL_COLOR_CONFIG") }.getOrNull()
@@ -412,6 +479,7 @@ private class AmbientDevice {
     }
     fun set(color: Int, brightness: Int, area: Int, colors: IntRange = BydAmbientLightPolicy.LEGACY_COLORS): Int {
         require(area in 1..3 && color in colors && brightness in 1..6)
+        validatePinnedEnvironment()
         val method = setIntArray
         return (method.invoke(manager, BydAmbientLightPolicy.TYPE,
             intArrayOf(ids.getValue("SET_INTERIOR_ATMOSPHERE_LAMP_COLOR_SET"), ids.getValue("SET_INTERIOR_ATMOSPHERE_LAMP_BRIGHTNESS_SET"), ids.getValue("SET_INTERIOR_ATMOSPHERE_LAMP_AREA_SET")),
@@ -419,6 +487,7 @@ private class AmbientDevice {
     }
     fun setArea(area: Int): Int {
         require(area in 1..3)
+        validatePinnedEnvironment()
         return (setInt.invoke(manager, BydAmbientLightPolicy.TYPE, ids.getValue("SET_INTERIOR_ATMOSPHERE_LAMP_AREA_SET"), area) as Number).toInt()
     }
 }

@@ -181,8 +181,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private val endWindowLearning = Runnable { cancelKeyLearning() }
     private var page = "home"
     internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
-    internal var ambientSdkCheck: (Context) -> java.util.concurrent.CompletableFuture<com.shilapi.xcertplay.hud.BydAmbientSdkProbe.Outcome> =
-        com.shilapi.xcertplay.hud.BydAmbientSdkProbe::check
     internal var ambientWriteTest: (Context, (String) -> Unit) -> java.util.concurrent.CompletableFuture<com.shilapi.xcertplay.hud.BydAmbientWriteTest.Outcome> =
         com.shilapi.xcertplay.hud.BydAmbientWriteTest::run
     internal var rawMapFrameSave: (Context, (Result<DiagnosticExportStore.SavedReport>) -> Unit) -> Boolean = RawMapFrameExport::save
@@ -1834,8 +1832,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.settings_report_on_phone), false) { openBackup(SettingsCategory.DIAGNOSTICS) }, matchButton(10, 60))
             card.addView(button(getString(R.string.adb_diagnostics_run), false) { runAdbDiagnostics() }, matchButton(10, 60))
             mediaDiagnosticControls(card)
-            AmbientSdkDiagnosticsUi.render(this, card, { text, click -> button(text, false, click) },
-                { text -> label(text, 14, MUTED) }, { ambientSdkCheck(applicationContext) })
             val destination = getString(R.string.reports_save_to_downloads_diplay)
             card.addView(label(destination + getString(R.string.nothing_is_sent_automatically_protocol_payloads_and_creden), 14, MUTED).apply { setPadding(0, dp(12), 0, 0) })
             toggle(card, getString(R.string.settings_fps_counter), getString(R.string.settings_fps_counter_description),
@@ -3674,18 +3670,18 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun customClusterControls(card: LinearLayout) {
         val config = ClusterWindowSettings.load(this)
-        card.addView(label(getString(R.string.settings_cluster_windows_description), 14, WARNING))
-        toggle(card, getString(R.string.settings_cluster_window_music), getString(R.string.settings_cluster_window_music_description), config.music) {
-            ClusterWindowSettings.save(this, "music", it); markReconnectNeeded(); render()
-        }
-        toggle(card, getString(R.string.settings_cluster_window_map), getString(R.string.settings_cluster_window_map_description), config.map) {
-            ClusterWindowSettings.save(this, "map", it); markReconnectNeeded(); render()
-        }
-        card.addView(button(getString(R.string.settings_cluster_windows_stop), false) {
-            ClusterWindowSettings.disable(this); markReconnectNeeded(); render()
-        })
         val displays = ClusterTransparencyProbe.displays(this)
         val display = CustomClusterWindows.findDisplay(this, config)
+        val size = display?.let(ClusterMapPresentation::sizeOf) ?: android.graphics.Point(1920, 720)
+        val preview = ClusterWindowLayoutView(this, size.x.toFloat() / size.y.coerceAtLeast(1)).apply { onMoved = { render() } }
+        fun number(key: String, title: String, current: Int, options: List<Int>, reconnect: Boolean = false) {
+            searchIndexSink?.add(title)
+            card.addView(overlaySliderRow(title, options, current) { "$it%" }.also { row ->
+                row.onSave = { ClusterWindowSettings.save(this, key, it); preview.invalidate(); if (reconnect) markReconnectNeeded() }
+            })
+        }
+        card.addView(label(getString(R.string.settings_cluster_windows_description), 14, WARNING))
+        card.addView(label(getString(R.string.settings_cluster_group_common), 16, TEXT, true))
         card.addView(button(getString(R.string.cluster_display) + " · " + (display?.name ?: getString(R.string.cluster_display_automatic)), false) {
             appDialogBuilder().setTitle(R.string.cluster_display).setItems(displays.map { "${it.displayId}: ${it.name}" }.toTypedArray()) { _, i ->
                 ClusterWindowSettings.save(this, "display", displays[i].name); markReconnectNeeded(); render()
@@ -3701,55 +3697,15 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }.setNegativeButton(R.string.cancel) { _, _ -> render() }.show()
             else { ClusterWindowSettings.save(this, "elevated", false); render() }
         }
-        val size = display?.let(ClusterMapPresentation::sizeOf) ?: android.graphics.Point(1920, 720)
-        val preview = ClusterWindowLayoutView(this, size.x.toFloat() / size.y.coerceAtLeast(1)).apply { onMoved = { render() } }
+        card.addView(button(getString(R.string.settings_cluster_windows_stop), false) {
+            ClusterWindowSettings.disable(this); markReconnectNeeded(); render()
+        })
         card.addView(label(getString(R.string.settings_cluster_window_drag), 14, MUTED))
         card.addView(preview, LinearLayout.LayoutParams(-1, -2))
-        val canvases = ClusterMapCanvas.entries
-        fun canvasLabel(canvas: ClusterMapCanvas) = if (canvas.independent) "${canvas.width} × ${canvas.height}"
-            else getString(if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP)
-                R.string.settings_cluster_canvas_panel_auto else R.string.settings_cluster_canvas_window)
-        card.addView(button(getString(R.string.settings_cluster_canvas) + " · " + canvasLabel(config.mapCanvas), false) {
-            appDialogBuilder().setTitle(R.string.settings_cluster_canvas)
-                .setSingleChoiceItems(canvases.map(::canvasLabel).toTypedArray(), canvases.indexOf(config.mapCanvas)) { _, _ -> }
-                .setPositiveButton(R.string.save) { dialog, _ ->
-                    val index = (dialog as AlertDialog).listView.checkedItemPosition
-                    val selected = canvases.getOrNull(index) ?: return@setPositiveButton
-                    if (selected != config.mapCanvas) {
-                        ClusterWindowSettings.save(this, "map_canvas", selected.name)
-                        markReconnectNeeded()
-                        render()
-                    }
-                }.setNegativeButton(R.string.cancel, null).show()
-        })
-        card.addView(label(getString(R.string.settings_cluster_canvas_request_hint), 14, MUTED))
-        fun number(key: String, title: String, current: Int, options: List<Int>, reconnect: Boolean = false) {
-            searchIndexSink?.add(title)
-            card.addView(overlaySliderRow(title, options, current) { "$it%" }.also { row ->
-                row.onSave = { ClusterWindowSettings.save(this, key, it); preview.invalidate(); if (reconnect) markReconnectNeeded() }
-            })
-        }
-        val displayModes = ClusterMapDisplayMode.entries
-        fun modeLabel(mode: ClusterMapDisplayMode) = getString(if (mode == ClusterMapDisplayMode.PANEL_CROP)
-            R.string.settings_cluster_display_panel_crop else R.string.settings_cluster_display_fit)
-        card.addView(button(getString(R.string.settings_cluster_display_mode) + " · " + modeLabel(config.mapDisplayMode), false) {
-            appDialogBuilder().setTitle(R.string.settings_cluster_display_mode)
-                .setSingleChoiceItems(displayModes.map(::modeLabel).toTypedArray(), displayModes.indexOf(config.mapDisplayMode)) { _, _ -> }
-                .setPositiveButton(R.string.save) { dialog, _ ->
-                    val mode = displayModes.getOrNull((dialog as AlertDialog).listView.checkedItemPosition) ?: return@setPositiveButton
-                    if (mode != config.mapDisplayMode) {
-                        ClusterWindowSettings.save(this, "map_display_mode", mode.name)
-                        val currentCanvas = CarPlayBackgroundSession.snapshot()?.controller?.configuredClusterSize()
-                        val selectedCanvas = config.mapCanvas.width to config.mapCanvas.height
-                        if (!config.mapCanvas.independent || currentCanvas != selectedCanvas) markReconnectNeeded()
-                        render()
-                    }
-                }.setNegativeButton(R.string.cancel, null).show()
-        })
-        if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP) {
-            card.addView(label(getString(R.string.settings_cluster_display_panel_hint, size.x, size.y), 14, MUTED))
-            number("map_center_x", getString(R.string.settings_cluster_viewport_x), config.mapCenterX, (0..100).toList())
-            number("map_center_y", getString(R.string.settings_cluster_viewport_y), config.mapCenterY, (0..100).toList())
+
+        card.addView(label(getString(R.string.settings_cluster_group_music), 16, TEXT, true))
+        toggle(card, getString(R.string.settings_cluster_window_music), getString(R.string.settings_cluster_window_music_description), config.music) {
+            ClusterWindowSettings.save(this, "music", it); markReconnectNeeded(); render()
         }
         val musicModes = ClusterMusicMode.entries
         fun musicModeLabel(mode: ClusterMusicMode) = getString(if (mode == ClusterMusicMode.MINI)
@@ -3761,25 +3717,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }.setNegativeButton(R.string.cancel, null).show()
         })
         card.addView(label(getString(R.string.settings_cluster_music_layout_hint), 14, MUTED))
-        for ((role, bounds, title) in listOf(Triple(config.musicRectKey, config.activeMusicRect, R.string.settings_cluster_window_music), Triple("map", config.mapRect, R.string.settings_cluster_window_map))) {
-            card.addView(label(getString(title), 16, TEXT, true))
-            number("${role}_x", "X", bounds.x, (0..100).toList())
-            number("${role}_y", "Y", bounds.y, (0..100).toList())
-            val needsCanvas = role == "map" && !config.mapCanvas.independent && config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW
-            number("${role}_width", getString(R.string.settings_cluster_window_width), bounds.width, (10..95).toList(), needsCanvas)
-            number("${role}_height", getString(R.string.settings_cluster_window_height), bounds.height, (10..95).toList(), needsCanvas)
-        }
-        card.addView(label(getString(R.string.settings_cluster_safe_area), 16, TEXT, true))
-        card.addView(label(getString(R.string.settings_cluster_safe_area_description), 14, MUTED))
-        for ((key, title, value) in listOf(
-            Triple("safe_top", R.string.settings_cluster_safe_top, config.safeArea.top),
-            Triple("safe_bottom", R.string.settings_cluster_safe_bottom, config.safeArea.bottom),
-            Triple("safe_left", R.string.settings_cluster_safe_left, config.safeArea.left),
-            Triple("safe_right", R.string.settings_cluster_safe_right, config.safeArea.right),
-        )) number(key, getString(title), value, ClusterWindowSettings.SAFE_AREA_RANGE.toList(), reconnect = true)
-        card.addView(button(getString(R.string.settings_cluster_safe_reset), false) {
-            ClusterWindowSettings.resetSafeArea(this); markReconnectNeeded(); render()
-        })
+        val musicBounds = config.activeMusicRect
+        number("${config.musicRectKey}_x", "X", musicBounds.x, (0..100).toList())
+        number("${config.musicRectKey}_y", "Y", musicBounds.y, (0..100).toList())
+        number("${config.musicRectKey}_width", getString(R.string.settings_cluster_window_width), musicBounds.width, (10..95).toList())
+        number("${config.musicRectKey}_height", getString(R.string.settings_cluster_window_height), musicBounds.height, (10..95).toList())
         toggle(card, getString(R.string.settings_cluster_window_cover), "", config.cover) { ClusterWindowSettings.save(this, "cover", it) }
         val coverSides = ClusterCoverSide.entries
         fun coverLabel(side: ClusterCoverSide) = getString(if (side == ClusterCoverSide.LEFT) R.string.settings_cluster_cover_left else R.string.settings_cluster_cover_right)
@@ -3804,6 +3746,67 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         number("opacity", getString(R.string.settings_cluster_window_opacity), config.opacity, (0..100 step 5).toList())
         card.addView(label(getString(R.string.settings_cluster_night_background), 14, MUTED))
         card.addView(label(getString(R.string.settings_cluster_window_alpha_hint), 14, MUTED))
+
+        card.addView(label(getString(R.string.settings_cluster_group_map), 16, TEXT, true))
+        toggle(card, getString(R.string.settings_cluster_window_map), getString(R.string.settings_cluster_window_map_description), config.map) {
+            ClusterWindowSettings.save(this, "map", it); markReconnectNeeded(); render()
+        }
+        number("map_x", "X", config.mapRect.x, (0..100).toList())
+        number("map_y", "Y", config.mapRect.y, (0..100).toList())
+        val needsCanvas = !config.mapCanvas.independent && config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW
+        number("map_width", getString(R.string.settings_cluster_window_width), config.mapRect.width, (10..95).toList(), needsCanvas)
+        number("map_height", getString(R.string.settings_cluster_window_height), config.mapRect.height, (10..95).toList(), needsCanvas)
+        val canvases = ClusterMapCanvas.entries
+        fun canvasLabel(canvas: ClusterMapCanvas) = if (canvas.independent) "${canvas.width} × ${canvas.height}"
+            else getString(if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP)
+                R.string.settings_cluster_canvas_panel_auto else R.string.settings_cluster_canvas_window)
+        card.addView(button(getString(R.string.settings_cluster_canvas) + " · " + canvasLabel(config.mapCanvas), false) {
+            appDialogBuilder().setTitle(R.string.settings_cluster_canvas)
+                .setSingleChoiceItems(canvases.map(::canvasLabel).toTypedArray(), canvases.indexOf(config.mapCanvas)) { _, _ -> }
+                .setPositiveButton(R.string.save) { dialog, _ ->
+                    val index = (dialog as AlertDialog).listView.checkedItemPosition
+                    val selected = canvases.getOrNull(index) ?: return@setPositiveButton
+                    if (selected != config.mapCanvas) {
+                        ClusterWindowSettings.save(this, "map_canvas", selected.name)
+                        markReconnectNeeded()
+                        render()
+                    }
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        card.addView(label(getString(R.string.settings_cluster_canvas_request_hint), 14, MUTED))
+        val displayModes = ClusterMapDisplayMode.entries
+        fun modeLabel(mode: ClusterMapDisplayMode) = getString(if (mode == ClusterMapDisplayMode.PANEL_CROP)
+            R.string.settings_cluster_display_panel_crop else R.string.settings_cluster_display_fit)
+        card.addView(button(getString(R.string.settings_cluster_display_mode) + " · " + modeLabel(config.mapDisplayMode), false) {
+            appDialogBuilder().setTitle(R.string.settings_cluster_display_mode)
+                .setSingleChoiceItems(displayModes.map(::modeLabel).toTypedArray(), displayModes.indexOf(config.mapDisplayMode)) { _, _ -> }
+                .setPositiveButton(R.string.save) { dialog, _ ->
+                    val mode = displayModes.getOrNull((dialog as AlertDialog).listView.checkedItemPosition) ?: return@setPositiveButton
+                    if (mode != config.mapDisplayMode) {
+                        ClusterWindowSettings.save(this, "map_display_mode", mode.name)
+                        val currentCanvas = CarPlayBackgroundSession.snapshot()?.controller?.configuredClusterSize()
+                        val selectedCanvas = config.mapCanvas.width to config.mapCanvas.height
+                        if (!config.mapCanvas.independent || currentCanvas != selectedCanvas) markReconnectNeeded()
+                        render()
+                    }
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP) {
+            card.addView(label(getString(R.string.settings_cluster_display_panel_hint, size.x, size.y), 14, MUTED))
+            number("map_center_x", getString(R.string.settings_cluster_viewport_x), config.mapCenterX, (0..100).toList())
+            number("map_center_y", getString(R.string.settings_cluster_viewport_y), config.mapCenterY, (0..100).toList())
+        }
+        card.addView(label(getString(R.string.settings_cluster_safe_area), 16, TEXT, true))
+        card.addView(label(getString(R.string.settings_cluster_safe_area_description), 14, MUTED))
+        for ((key, title, value) in listOf(
+            Triple("safe_top", R.string.settings_cluster_safe_top, config.safeArea.top),
+            Triple("safe_bottom", R.string.settings_cluster_safe_bottom, config.safeArea.bottom),
+            Triple("safe_left", R.string.settings_cluster_safe_left, config.safeArea.left),
+            Triple("safe_right", R.string.settings_cluster_safe_right, config.safeArea.right),
+        )) number(key, getString(title), value, ClusterWindowSettings.SAFE_AREA_RANGE.toList(), reconnect = true)
+        card.addView(button(getString(R.string.settings_cluster_safe_reset), false) {
+            ClusterWindowSettings.resetSafeArea(this); markReconnectNeeded(); render()
+        })
         if (config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW) {
             toggle(card, getString(R.string.settings_cluster_window_crop), getString(R.string.settings_cluster_window_crop_description), config.crop) { ClusterWindowSettings.save(this, "crop", it) }
         }
@@ -7122,6 +7125,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             val back = details?.backColor
             val message = if (details?.reason == "color-unverified" && front != null && back != null)
                 getString(R.string.settings_ambient_color_unverified, front, back)
+            else if (details?.reason == "profile-write-unverified") getString(R.string.settings_ambient_verify_required)
             else getString(R.string.settings_ambient_unavailable)
             checkDetails.text = if (details == null) message else
                 message + "\n" + getString(R.string.settings_ambient_check_detail, details.diagnosticSummary())

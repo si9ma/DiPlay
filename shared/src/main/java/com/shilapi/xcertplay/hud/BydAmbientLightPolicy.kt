@@ -6,20 +6,15 @@ internal object BydAmbientLightPolicy {
     const val LEASE_MILLIS = 15_000L
     const val MIN_APPLY_INTERVAL_MILLIS = 200L
     const val READBACK_POLL_MILLIS = 50L
-    const val OBSERVED_127_FINGERPRINT = "FANGCHENGBAO/Di150VCP_IVI/Di150VCP_IVI:14/UQ1A.240205.004/1783387902.853:user/release-keys"
-
-    /**
-     * This exact firmware with COLOR_CONFIG=6 uses OEM preset codes 1..127 on the same feature ids. A parked
-     * write, read-back and restore test (2026-10-19) confirmed codes above 31 there; nothing else widens the range.
-     */
+    /** Software palette identification only; a candidate must complete the separate parked verification. */
     fun observedColorProfile(fingerprint: String?, colorConfig: Int?): String? =
-        if (fingerprint == OBSERVED_127_FINGERPRINT && colorConfig == 6) OEM127_PROFILE else null
+        if (!fingerprint.isNullOrBlank() && colorConfig == 6) OEM127_PROFILE else null
 
     const val OEM127_PROFILE = "oem127"
 
     /** The color range a lamp session on this head unit may write and restore. */
-    fun sessionColors(fingerprint: String?, colorConfig: Int?): IntRange =
-        if (observedColorProfile(fingerprint, colorConfig) != null) OEM127_COLORS else LEGACY_COLORS
+    fun sessionColors(fingerprint: String?, colorConfig: Int?, verified: Boolean = false): IntRange =
+        if (verified && observedColorProfile(fingerprint, colorConfig) != null) OEM127_COLORS else LEGACY_COLORS
 
     val getNames = setOf(
         "SET_HAS_INTERIOR_ATMOSPHERE_LAMP", "SET_IAL_COLOR_CONFIG", "SET_IAL_BRIGHTNESS_CONFIG",
@@ -55,10 +50,10 @@ internal object BydAmbientLightPolicy {
     val LEGACY_COLORS = 1..31
     val OEM127_COLORS = 1..127
 
-    /** Raw code 57 (OEM green), or 20 (blue) when the front row already shows green. */
-    fun writeTestColor(s: Snapshot): Int = if (s.frontColor == 57) 20 else 57
+    /** Every verification write must exercise a code above 31, including an already-green original. */
+    fun writeTestColor(s: Snapshot): Int = listOf(57, 104, 90).first { it != s.frontColor && it != s.backColor }
 
-    /** CONFIG values alone never widen the range; only [sessionColors] for the verified firmware does. */
+    /** The caller supplies its independently authorised range; CONFIG alone never authorises writes. */
     fun canRestore(s: Snapshot, colors: IntRange = LEGACY_COLORS): Boolean = restorationFailure(s, colors) == null
     fun validSnapshot(s: Snapshot): Boolean = canRestore(s)
 

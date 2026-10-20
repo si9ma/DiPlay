@@ -320,7 +320,7 @@ private class AmbientSupportObservations {
         val fields = AmbientDiagnostics.sanitize(message).split(' ').filter { '=' in it }
             .associate { it.substringBefore('=') to it.substringAfter('=') }
         val stage = fields["stage"] ?: return
-        if (stage.startsWith("read-")) {
+        if (stage.startsWith("read-") || stage == "verification") {
             fields["value"]?.toIntOrNull()?.let { values[stage.removePrefix("read-")] = it }
         }
         val optional = BydAmbientLightPolicy.configNames.any { stage == "read-$it" || stage == "feature-$it" }
@@ -334,10 +334,10 @@ private class AmbientSupportObservations {
             "SET_IAL_BACK_BRIGHTNESS", "SET_INTERIOR_ATMOSPHERE_LAMP_AREA")
         val raw = if (names.all { it in values }) names.joinToString(",") { values.getValue(it).toString() } else null
         val profile = BydAmbientLightPolicy.observedColorProfile(fingerprint, values["SET_IAL_COLOR_CONFIG"])
-        val colors = BydAmbientLightPolicy.sessionColors(fingerprint, values["SET_IAL_COLOR_CONFIG"])
+        val colors = if (profile != null) BydAmbientLightPolicy.OEM127_COLORS else BydAmbientLightPolicy.LEGACY_COLORS
         val invalid = raw?.let { BydAmbientLightPolicy.restorationFailure(BydAmbientLightPolicy.parseSnapshot(it), colors) }
         val failure = firstFailure
-        val reason = invalid ?: if (ok) "none" else when {
+        val reason = invalid ?: if (profile != null && values["verification"] != 1) "profile-write-unverified" else if (ok) "none" else when {
             failure?.get("stage") == "lamp-support" -> "lamp-not-supported"
             failure?.get("stage") == "worker-lock" -> "worker-busy"
             failure?.get("result") == "NOT_APPROVED" -> "adb-not-approved"
@@ -422,7 +422,7 @@ object AmbientDiagnostics {
         "cancel", "dismiss", "check-request", "check-complete", "check-complete-dialog-closed", "check", "read", "cleanup",
         "close", "adb-key", "adb-connect", "worker-launch", "exchange", "worker-lock", "system-context", "shell-context",
         "manager-class", "manager-instance", "method-getInt", "method-setIntArray", "method-setInt", "init", "lamp-support", "lamp-state",
-        "write-test", "write-test-confirm") +
+        "write-test", "write-test-confirm", "verification") +
         (BydAmbientLightPolicy.getNames + BydAmbientLightPolicy.setNames).map { "feature-$it" } +
         BydAmbientLightPolicy.getNames.map { "read-$it" }
     private val results = setOf("start", "ok", "failed", "busy", "invalid", "skipped", "changed", "closed", "READY", "NOT_APPROVED", "UNREACHABLE", "UNSUPPORTED")
@@ -460,7 +460,7 @@ object AmbientDiagnostics {
                 if (it is InterruptedException) Thread.currentThread().interrupt()
                 "ambient diagnostics unavailable error=${BydAmbientLightWorkerProtocol.errorTypes(it)}"
             }
-        return "saved $saved\npalette=$palette\n$history\n" + com.shilapi.xcertplay.hud.BydAmbientSdkProbe.report(context)
+        return "saved $saved\npalette=$palette\n$history"
     }
 
     internal fun sanitize(message: String): String = fields.findAll(message.take(2048)).mapNotNull { match ->
