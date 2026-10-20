@@ -10,12 +10,12 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
 import com.shilapi.xcertplay.host.R
-import com.shilapi.xcertplay.media.AmbientAlbumPalette
+import com.shilapi.xcertplay.media.AmbientPalette
 import kotlin.math.roundToInt
 
 /**
- * The car's 31 ambient colors as tappable swatches, drawn with the stock settings' preview colors.
- * [single] picks one color; otherwise any number may be selected, but never none.
+ * The car's ambient colors as tappable swatches, drawn with the stock settings' preview colors: 31 on most cars,
+ * 127 on the OEM 127-color firmware. [single] picks one color; otherwise any number may be selected, but never none.
  */
 internal class AmbientSwatchGrid(
     context: Context,
@@ -24,19 +24,36 @@ internal class AmbientSwatchGrid(
     var single: Boolean,
     private val onChanged: (Set<Int>) -> Unit,
     private val onLastDeselected: () -> Unit,
+    palette: AmbientPalette = AmbientPalette.LEGACY31,
 ) : ViewGroup(context) {
     var selection: Set<Int> = initial
+        private set
+    var palette: AmbientPalette = palette
         private set
     private val swatches = HashMap<Int, FrameLayout>()
     private val density = context.resources.displayMetrics.density
 
     init {
-        for (index in 1..COLORS) {
+        build()
+        refresh()
+    }
+
+    /** Rebuilds the swatches for another palette; codes outside it are dropped from the selection. */
+    fun setPalette(next: AmbientPalette, colors: Set<Int>) {
+        palette = next
+        selection = colors.filter { it in next.colors }.toSet().ifEmpty { setOf(next.colors.first) }
+        removeAllViews()
+        swatches.clear()
+        build()
+        refresh()
+    }
+
+    private fun build() {
+        for (index in palette.colors) {
             val swatch = swatchView(context, index)
             swatches[index] = swatch
             addView(swatch)
         }
-        refresh()
     }
 
     // Swatches wrap onto as many rows as the available width needs.
@@ -102,13 +119,13 @@ internal class AmbientSwatchGrid(
     }
 
     private fun swatchView(context: Context, index: Int): FrameLayout {
-        val size = dp(SWATCH_DP)
+        val size = dp(if (palette == AmbientPalette.OEM127) SMALL_SWATCH_DP else SWATCH_DP)
         val check = TextView(context).apply {
             text = "✓"
-            textSize = 18f
+            textSize = if (palette == AmbientPalette.OEM127) 14f else 18f
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setTextColor(if (isLight(AmbientAlbumPalette.previewRgb(index))) Color.BLACK else Color.WHITE)
+            setTextColor(if (isLight(palette.previewRgb(index))) Color.BLACK else Color.WHITE)
             tag = CHECK
         }
         return FrameLayout(context).apply {
@@ -139,7 +156,7 @@ internal class AmbientSwatchGrid(
             val selected = index in selection
             swatch.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(AmbientAlbumPalette.previewRgb(index))
+                setColor(palette.previewRgb(index))
                 if (selected) setStroke(dp(3), accent) else setStroke(dp(1), UNSELECTED_RING)
             }
             swatch.findViewWithTag<View>(CHECK).visibility = if (selected) VISIBLE else INVISIBLE
@@ -157,6 +174,7 @@ internal class AmbientSwatchGrid(
     internal companion object {
         const val COLORS = 31
         private const val SWATCH_DP = 44
+        private const val SMALL_SWATCH_DP = 34
         private const val MARGIN_DP = 5
         private const val CHECK = "check"
         private const val UNSELECTED_RING = 0x55808080

@@ -142,23 +142,27 @@ internal object DiagnosticExportStore {
     }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    fun saveToDownloads(resolver: ContentResolver, fileName: String, report: String): Uri {
+    fun saveToDownloads(resolver: ContentResolver, fileName: String, report: String): Uri =
+        saveDownload(resolver, fileName, "text/plain") { write(resolver, it, report) }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    internal fun saveDownload(resolver: ContentResolver, fileName: String, mime: String, writeContent: (Uri) -> Unit): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+            put(MediaStore.Downloads.MIME_TYPE, mime)
             put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/DiPlay")
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
             ?: throw IOException("Downloads could not create the report")
         try {
-            write(resolver, uri, report)
+            writeContent(uri)
             val published = resolver.update(uri, ContentValues().apply {
                 put(MediaStore.Downloads.IS_PENDING, 0)
             }, null, null)
             if (published != 1) throw IOException("Downloads could not publish the report")
             return uri
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             // Only remove the entry created by this call; never leave a partial report behind.
             runCatching { resolver.delete(uri, null, null) }
             throw error

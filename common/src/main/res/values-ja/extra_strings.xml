@@ -19,7 +19,7 @@
     <string name="carplay_night_end">夜モードの終了</string>
     <string name="carplay_night_schedule_hint">車載端末の現地時刻を使用します。開始時刻と終了時刻は異なる値にしてください。日付をまたぐ時間帯も指定できます。</string>
     <string name="carplay_night_schedule_same_time">開始時刻と終了時刻は異なる必要があります。</string>
-    <string name="carplay_night_hint">保存してCarPlayに戻ると反映されます。</string>
+    <string name="carplay_night_hint">保存した変更は接続中のCarPlayにすぐ反映されます。再接続は不要です。</string>
     <string name="carplay_night_ambient_hint">下の明るさのしきい値と切り替え時間を使用します。光センサーがない場合はAndroidの設定に従います。</string>
     <string name="carplay_night_time_note">CarPlayの外観が「自動」の場合、iPhoneの時刻も考慮されます。「常に昼」を選んでも夜は暗い表示になることがあります。</string>
     <string name="card_preview_title">案内カードの配置プレビュー</string>

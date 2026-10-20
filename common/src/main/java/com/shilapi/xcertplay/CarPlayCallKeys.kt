@@ -37,11 +37,13 @@ internal object CarPlayCallKeys {
                     val enabled = BydOutputSettings.carPlayCallControls(context)
                     val controller = currentController()
                     val call = BydNavigationOutputs.carPlayCall()
+                    val phoneCall = enabled && controller.hasSession() && controller?.carPlayPhoneCallActive() == true
                     val action = if (enabled) CarPlayCallKeyPolicy.onHangUpBroadcast(
-                        keyCode, call, controller.hasSession(),
+                        keyCode, call, controller.hasSession(), phoneCall,
                     ) else CarPlayCallKeyPolicy.Action.PASS
                     WheelKeyLog.route("call broadcast key=$keyCode enabled=$enabled session=${controller.hasSession()} " +
-                        "phase=${call?.phase ?: "none"} action=${if (action == CarPlayCallKeyPolicy.Action.PASS) "leave" else action.name}")
+                        "phase=${call?.phase ?: "none"} carPlayPhoneCall=$phoneCall " +
+                        "action=${if (action == CarPlayCallKeyPolicy.Action.PASS) "leave" else action.name}")
                     if (action == CarPlayCallKeyPolicy.Action.END) {
                         val sent = controller?.endCall() == true
                         Log.i(TAG, "hang-up key $keyCode: end CarPlay call sent=$sent")
@@ -72,13 +74,15 @@ internal object CarPlayCallKeys {
         val enabled = BydOutputSettings.carPlayCallControls(context)
         val call = BydNavigationOutputs.carPlayCall()
         val hasSession = enabled && controller.hasSession()
-        val action = if (enabled) CarPlayCallKeyPolicy.onKey(keyCode, down, call, hasSession)
+        val phoneCall = hasSession && controller?.carPlayPhoneCallActive() == true
+        val action = if (enabled) CarPlayCallKeyPolicy.onKey(keyCode, down, call, hasSession, phoneCall)
             else CarPlayCallKeyPolicy.Action.PASS
         if (!down && (CarPlayCallKeyPolicy.isAnswerKey(keyCode) || CarPlayCallKeyPolicy.isEndKey(keyCode) ||
-                (call != null && keyCode in 87..88))) {
+                ((call != null || phoneCall) && keyCode in 87..88))) {
             WheelKeyLog.route("call key=$keyCode enabled=$enabled session=$hasSession phase=${call?.phase ?: "none"} " +
+                "carPlayPhoneCall=$phoneCall " +
                 "action=${if (action == CarPlayCallKeyPolicy.Action.PASS) "leave" else action.name} " +
-                "reason=${if (!enabled) "setting_off" else if (!hasSession) "no_session" else if (call == null) "no_call_state" else "policy"}")
+                "reason=${if (!enabled) "setting_off" else if (!hasSession) "no_session" else if (call == null && !phoneCall) "no_call_state" else "policy"}")
         }
         when (action) {
             CarPlayCallKeyPolicy.Action.PASS -> return false

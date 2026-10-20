@@ -43,6 +43,7 @@ import com.shilapi.xcertplay.hud.BydOutputSettings
  */
 class WheelKeyService : AccessibilityService() {
     private val keys = WheelZoomKeys()
+    private val mediaPresses = WheelKeyPresses()
     private val navigationKeys = NavigationWheelKeyPolicy()
     private val joystick = WheelJoystick()
     private val siriKey = WheelSiriKey()
@@ -162,6 +163,7 @@ class WheelKeyService : AccessibilityService() {
     }
 
     private fun handleKey(event: KeyEvent): Boolean {
+        if (OriginalKeyReplayGuard.matches(event)) return false
         if (event.action != KeyEvent.ACTION_DOWN && event.action != KeyEvent.ACTION_UP) return false
         val down = event.action == KeyEvent.ACTION_DOWN
         val physicalKey = PhysicalWheelKey(event.deviceId, event.keyCode, event.scanCode)
@@ -174,7 +176,9 @@ class WheelKeyService : AccessibilityService() {
             rearmTimedMode()
             return true
         }
+        if (CarPlayShortcuts.consumeOwnedKey(event)) return true
         if (navigationKeys.owns(event.keyCode, event.deviceId, event.downTime)) return navigationKey(event)
+        if (CarPlayShortcuts.onLearningKey(this, event)) return true
         if (CarPlayCallKeys.onKey(this, event.keyCode, down)) return true
         if (BydOutputSettings.carPlayCallControls(this) &&
             CarPlayMediaButton.opensSiriWhileCarPlay(event.keyCode) && session() != null) {
@@ -226,7 +230,7 @@ class WheelKeyService : AccessibilityService() {
             },
         )
         when (action) {
-            WheelZoomKeys.Action.PASS -> return navigationKey(event)
+            WheelZoomKeys.Action.PASS -> return CarPlayShortcuts.onKey(this, event) || carPlayMediaKey(event, physicalKey, down) || navigationKey(event)
             WheelZoomKeys.Action.CONSUME -> Unit
             WheelZoomKeys.Action.MODE_ON -> announce(zoomOn = true)
             WheelZoomKeys.Action.MODE_OFF -> announce(zoomOn = false)
@@ -236,6 +240,23 @@ class WheelKeyService : AccessibilityService() {
         rearmTimedMode()
         return true
     }
+
+    /**
+     * The wheel's media keys while CarPlay is the car's media source. BYD hands them to whichever
+     * media session it picks, and before music had played in CarPlay that was not DiPlay's, so the
+     * first presses after connecting did nothing. Taken here they reach CarPlay either way.
+     */
+    private fun carPlayMediaKey(event: KeyEvent, physicalKey: PhysicalWheelKey, down: Boolean): Boolean =
+        mediaPresses.filter(physicalKey, down, event.repeatCount == 0) {
+            val index = CarPlayMediaButton.forWheelKey(event.keyCode, event.scanCode)
+                ?: return@filter WheelZoomKeys.Action.PASS
+            if (!CarPlayMediaKeys.wheelKeysBelongToCarPlay(this)) {
+                WheelKeyLog.route("media source=wheel-service key=${event.keyCode} left=not_carplay_source")
+                return@filter WheelZoomKeys.Action.PASS
+            }
+            CarPlayMediaKeys.onWheelMediaKey(index, "wheel-service:${event.keyCode}")
+            WheelZoomKeys.Action.CONSUME
+        } != WheelZoomKeys.Action.PASS
 
     private fun navigationKey(event: KeyEvent): Boolean = navigationKeys.onKey(
         event.action, event.keyCode, event.deviceId, event.downTime, event.repeatCount,
@@ -461,8 +482,19 @@ class WheelKeyService : AccessibilityService() {
          * answer while the write to the accessibility list is refused, and reporting that as an ADB
          * failure sends the driver to look at the wrong setting.
          */
-        data class EnableResult(val access: LocalAdb.Access, val serviceAllowed: Boolean) {
+        enum class EnableFailure { READ_LIST, INVALID_LIST, OTHER }
+
+        data class EnableResult(val access: LocalAdb.Access, val serviceAllowed: Boolean,
+            val failure: EnableFailure? = null, val step: String = "not tried") {
             val ok: Boolean get() = access == LocalAdb.Access.READY && serviceAllowed
+
+            fun failureMessage(context: Context): String = if (access != LocalAdb.Access.READY) {
+                context.getString(R.string.wheel_keys_adb_failed, access.name)
+            } else context.getString(when (failure) {
+                EnableFailure.READ_LIST -> R.string.wheel_keys_service_list_read_failed
+                EnableFailure.INVALID_LIST -> R.string.wheel_keys_service_list_invalid
+                else -> R.string.wheel_keys_service_refused
+            })
         }
 
         fun enableOverAdb(context: Context, mayAsk: Boolean = true): EnableResult = LocalAdb(AdbKeys.load(context)).use { adb ->
@@ -473,13 +505,13 @@ class WheelKeyService : AccessibilityService() {
                 WheelKeyLog.route("a11y restore skipped wanted=${wanted(context)} bound=${connected()}")
                 return@use EnableResult(access, connected())
             }
-            val allowed = applyServiceSettings(context, adb::shell) {
+            val result = applyServiceSettingsResult(context, adb::shell) {
                 mayAsk || wanted(context)
             }
-            if (allowed && mayAsk) NavigationWheelSettings.recordAuthorization(context)
+            if (result.serviceAllowed && mayAsk) NavigationWheelSettings.recordAuthorization(context)
             // Into the report as well as logcat, success or not: the step is what tells the two apart.
-            note("wheel key service over adb: allowed=$allowed user=${AdbUser.id(context)} step=\"$lastApplyStep\"")
-            EnableResult(access, allowed)
+            note("wheel key service over adb: allowed=${result.serviceAllowed} user=${AdbUser.id(context)} step=\"${result.step}\"")
+            result
         }
 
         private const val GRANT_EXIT = "DIPLAY_WHEEL_EXIT"
@@ -493,20 +525,27 @@ class WheelKeyService : AccessibilityService() {
 
         /** Failed reads and shell commands must not replace the accessibility list or claim success. */
         internal fun applyServiceSettings(context: Context, shell: (String) -> String?,
-            shouldContinue: () -> Boolean = { true }): Boolean = synchronized(UsbPermissionSetup.accessibilityLock) {
+            shouldContinue: () -> Boolean = { true }): Boolean =
+            applyServiceSettingsResult(context, shell, shouldContinue).serviceAllowed
+
+        internal fun applyServiceSettingsResult(context: Context, shell: (String) -> String?,
+            shouldContinue: () -> Boolean = { true }): EnableResult = synchronized(UsbPermissionSetup.accessibilityLock) {
             applyServiceSettingsLocked(context, shell, shouldContinue)
         }
 
         private fun applyServiceSettingsLocked(context: Context, shell: (String) -> String?,
-            shouldContinue: () -> Boolean): Boolean {
-            fun fail(step: String): Boolean = false.also { lastApplyStep = "failed at $step" }
+            shouldContinue: () -> Boolean): EnableResult {
+            fun fail(step: String, failure: EnableFailure = EnableFailure.OTHER): EnableResult {
+                lastApplyStep = "failed at $step"
+                return EnableResult(LocalAdb.Access.READY, false, failure, lastApplyStep)
+            }
             if (!shouldContinue()) return fail("start (no longer wanted)")
             // BYD runs DiPlay as a secondary user; without --user the write lands on user 0.
             val settings = AdbUser.settings(context)
             val current = checkedShell("$settings get secure enabled_accessibility_services", shell)
-                ?: return fail("read of the allowed list")
+                ?: return fail("read of the allowed list", EnableFailure.READ_LIST)
             val lists = allowedServices(current, component(context).flattenToString())
-                ?: return fail("parse of the allowed list (${current.count { it == ':' } + 1} entries)")
+                ?: return fail("parse of the allowed list (${current.count { it == ':' } + 1} entries)", EnableFailure.INVALID_LIST)
             // Binding may finish after the read. Check again immediately before a destructive rebind,
             // after the continuation callback, without blocking the service's main-thread callback.
             // Android marks a service whose process died as crashed and does not bind it again until
@@ -541,7 +580,8 @@ class WheelKeyService : AccessibilityService() {
                 listed = investigateRevert(context, shell, settings, lists.second)
                 lastApplyStep += "; $lastRevert"
             }
-            return listed && enabled
+            val allowed = listed && enabled
+            return EnableResult(LocalAdb.Access.READY, allowed, if (allowed) null else EnableFailure.OTHER, lastApplyStep)
         }
 
         /**
@@ -603,7 +643,7 @@ class WheelKeyService : AccessibilityService() {
          */
         internal fun wanted(context: Context): Boolean = WheelZoomSettings.anyEnabled(context) ||
             BydOutputSettings.carPlayCallControls(context) || NavigationWheelSettings.restoreAllowed(context) ||
-            BydOutputSettings.phoneAudioRouteApps(context)
+            BydOutputSettings.phoneAudioRouteApps(context) || CarPlayShortcuts.wanted(context) || CarPlayShortcuts.hasCapture()
 
         /**
          * Android takes the service off the allowed list when the app is force-stopped (BYD's system does
@@ -719,6 +759,7 @@ class WheelKeyService : AccessibilityService() {
             val component = Regex("[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+")
             if (!component.matches(ours)) return null
             val listed = value.takeUnless { it.isEmpty() || it == "null" }?.split(':').orEmpty()
+                .map { it.trim() }.filter { it.isNotEmpty() }
             if (listed.any { !component.matches(it) }) return null
             val others = listed.filter { it != ours }
             val without = if (ours in listed) others.joinToString(":") else null
@@ -739,10 +780,12 @@ private fun note(message: String) {
     WheelKeyLog.note(message)
 }
 
-// CarPlay's iAP2 call state can be active even when the head unit leaves Android's mode normal.
+// CarPlay's iAP2 call state can be active even when the head unit leaves Android's mode normal, and
+// some calls bring no iAP2 update at all, only CarPlay's phone-call app state.
 // Native Bluetooth calls also use a call/communication audio mode.
 internal fun inCall(context: Context): Boolean =
     BydNavigationOutputs.carPlayCall() != null ||
+        CarPlayBackgroundSession.snapshot()?.controller?.carPlayPhoneCallActive() == true ||
         (context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager)?.mode.let { it != null && it != AudioManager.MODE_NORMAL }
 
 /** Use the input-device ID for a held press; saved assignments still use the stable device name. */

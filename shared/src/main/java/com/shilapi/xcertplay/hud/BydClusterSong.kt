@@ -114,8 +114,27 @@ internal object BydClusterSong {
     private var note: Any? = null // the note on the card now, if any
     private var onChange: Any? = null // the new song's few seconds on the card, while they run
     private var announced: String? = null // the last song shown in the "only when it changes" mode
-    private var shown: ClusterSong? = null // writer thread
+    @Volatile private var shown: ClusterSong? = null // written on the writer thread
     private var firstLogged = false // writer thread
+    private var retryable = false // writer thread
+    private val diagnostics = ArrayDeque<String>()
+    internal var runCommand: (Context, String) -> String? = { app, command -> shell.run(app, command) }
+
+    private fun diagnostic(message: String) = synchronized(diagnostics) {
+        if (diagnostics.size == 40) diagnostics.removeFirst()
+        diagnostics.addLast("${android.os.SystemClock.elapsedRealtime()}ms $message")
+    }
+
+    fun diagnosticReport(): List<String> {
+        val app = context
+        val summary = synchronized(state) {
+            "oemSong attached=${app != null} enabled=${app?.let(BydOutputSettings::clusterSong)} " +
+                "onlyOnChange=${app?.let(BydOutputSettings::clusterSongOnChange)} " +
+                "hasTitle=${state.current() != null} wanted=${wanted != null} lastWriteAccepted=${shown != null} " +
+                "adb=${shell.lastAccess}"
+        }
+        return listOf(summary) + synchronized(diagnostics) { diagnostics.map { "OEM song: $it" } }
+    }
 
     fun attach(appContext: Context) {
         context = appContext.applicationContext
@@ -249,9 +268,10 @@ internal object BydClusterSong {
         writer.execute { clear(app) }
     }
 
-    private fun write(app: Context, song: ClusterSong) {
-        // Only the newest song matters; older queued ones are skipped.
-        if (synchronized(state) { wanted } != song || song == shown) return
+    private fun write(app: Context, song: ClusterSong, attempt: Int = 0) {
+        // Identity also rejects an old retry after reconnecting to the same song.
+        if (synchronized(state) { wanted } !== song || song == shown) return
+        if (attempt > 0 && synchronized(state) { note == null } && !BydOutputSettings.clusterSong(app)) return
         val text = Base64.encodeToString(song.text.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
         val playing = when {
             song == EMPTY -> STATE_STOPPED
@@ -264,6 +284,10 @@ internal object BydClusterSong {
                 firstLogged = true
                 Log.i(TAG, "song on the dashboard")
             }
+        } else if (retryable && attempt < 2) {
+            val delay = if (shell.lastAccess != null && shell.lastAccess != com.shilapi.xcertplay.adb.LocalAdb.Access.READY) 30_500L else 1_500L
+            diagnostic("retry scheduled attempt=${attempt + 1} delayMs=$delay")
+            writer.schedule({ write(app, song, attempt + 1) }, delay, TimeUnit.MILLISECONDS)
         }
     }
 
@@ -274,9 +298,19 @@ internal object BydClusterSong {
 
     private fun run(app: Context, args: String, clearing: Boolean = false): Boolean {
         val apk = app.applicationInfo.sourceDir
-        val output = shell.run(app, "CLASSPATH=$apk app_process /system/bin ${BydClusterSongTool::class.java.name} $args")
-            ?: return false
-        val succeeded = ClusterSongWriteResult.accepted(output, clearing)
+        val started = android.os.SystemClock.elapsedRealtime()
+        var exception: String? = null
+        val output = try {
+            runCommand(app, "CLASSPATH=$apk app_process /system/bin ${BydClusterSongTool::class.java.name} $args")
+        } catch (error: Exception) {
+            exception = error.javaClass.simpleName
+            null
+        }
+        val succeeded = output != null && ClusterSongWriteResult.accepted(output, clearing)
+        retryable = !succeeded && ClusterSongWriteResult.retryable(output, clearing)
+        diagnostic("write clearing=$clearing accepted=$succeeded adb=${shell.lastAccess} " +
+            "elapsedMs=${android.os.SystemClock.elapsedRealtime() - started} exception=${exception ?: "none"} " +
+            ClusterSongWriteResult.diagnostic(output))
         if (!succeeded) Log.w(TAG, "dashboard write failed: incomplete or rejected vendor response")
         return succeeded
     }
@@ -287,6 +321,29 @@ internal object ClusterSongWriteResult {
     // The PR reporter observed this result on a DiLink 4 Seal while the music card updated.
     // Accept it only for the instrument writes below; it is not a general shell success code.
     private const val OBSERVED_VENDOR_RESULT = -2147482648
+
+    fun diagnostic(output: String?): String {
+        if (output == null) return "reply=missing"
+        if (output.isBlank()) return "reply=empty"
+        val lines = output.lineSequence().map { it.trim() }.toList()
+        val codes = listOf("source", "state", "text", "write").joinToString(" ") { key ->
+            val value = lines.firstOrNull { it.startsWith("$key=") }?.substringAfter('=')?.trim()
+            "$key=${value?.toIntOrNull()?.toString() ?: if (value == null) "missing" else "non_numeric"}"
+        }
+        val error = listOf("ClassNotFoundException", "NoSuchMethodException", "SecurityException", "IllegalAccessException")
+            .firstOrNull { output.contains(it) } ?: "none"
+        return "$codes error=$error"
+    }
+
+    fun retryable(output: String?, clearing: Boolean = false): Boolean {
+        if (output == null) return true
+        if (accepted(output, clearing)) return false
+        val expected = if (clearing) setOf("state") else setOf("source", "state", "text")
+        return output.lineSequence().map { it.trim() }.filter { '=' in it }.all { line ->
+            val result = line.substringAfter('=').trim().toIntOrNull()
+            line.substringBefore('=').trim() in expected && (result == 0 || result == OBSERVED_VENDOR_RESULT)
+        }
+    }
 
     fun accepted(output: String, clearing: Boolean = false): Boolean {
         val expected = if (clearing) setOf("state") else setOf("source", "state", "text")

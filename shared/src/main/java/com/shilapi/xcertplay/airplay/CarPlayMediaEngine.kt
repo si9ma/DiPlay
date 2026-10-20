@@ -132,7 +132,7 @@ class CarPlayMediaEngine(
         val screen = ScreenStream(key, session::logDebug)
         sink.setVideoDiagnosticHandler(type) {
             if (it == "first frame rendered") session.videoFrameRendered()
-            session.logDebug("Video: $it")
+            session.logDebug(if (type == STREAM_TYPE_ALT_SCREEN) "Video[111]: $it" else "Video: $it")
         }
         sink.setVideoRecoveryHandler(type) {
             if (streams[streamKey] === screen) {
@@ -213,6 +213,7 @@ class CarPlayMediaEngine(
         val (dataPort, controlPort) = audio.listen(
             object : AudioStream.Listener {
                 override fun onStarted(firstSample: Int) {
+                    com.shilapi.xcertplay.media.PlaybackDiagnostics.note("session=${session.diagnosticId} phase=audio_first_packet type=$type codec=${format.codec} rate=${format.sampleRate}")
                     meta.firstSample = firstSample
                     meta.originNs = System.nanoTime()
                     sink.onAudioStarted(streamId, format, firstSample)

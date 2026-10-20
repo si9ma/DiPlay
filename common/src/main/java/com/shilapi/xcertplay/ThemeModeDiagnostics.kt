@@ -42,7 +42,7 @@ internal class ThemeModeDiagnostics {
         val nightMask = uiMode and Configuration.UI_MODE_NIGHT_MASK
         val message = "THEME_DIAGNOSTIC sample source=${source.label} uiMode=0x${uiMode.toString(16)} " +
             "nightMask=0x${nightMask.toString(16)} reported=$reported " +
-            "applied=${if (appliedNight) "dark" else "light"} sessionActive=$sessionActive " +
+            "target=${if (appliedNight) "dark" else "light"} sessionActive=$sessionActive " +
             "pollsSinceSample=$polls callbacksSinceSample=$callbacks"
         lastLoggedState = state
         lastLoggedAt = elapsedMillis

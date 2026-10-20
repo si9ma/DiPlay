@@ -7,8 +7,9 @@ import kotlin.math.sqrt
 internal class AmbientMusicColorDetector(initial: Int = 1,
     selectedColors: List<Int> = (1..31).toList(),
     private val speed: AmbientColorSpeed = AmbientColorSpeed.STANDARD,
+    private var range: IntRange = AmbientPalette.LEGACY31.colors,
     private var randomIndex: ((Int) -> Int)? = null) {
-    private var palette = normalizeAmbientPalette(selectedColors, initial)
+    private var palette = normalizeAmbientPalette(selectedColors, initial, range)
     private var colorIndex = palette.indexOf(initial).coerceAtLeast(0)
     private var current = palette[colorIndex]
     private var beatCount = 0
@@ -24,8 +25,10 @@ internal class AmbientMusicColorDetector(initial: Int = 1,
     var estimatedBpm: Double? = null
         private set
 
-    fun updatePalette(initial: Int, selected: List<Int>, random: ((Int) -> Int)? = null) {
-        palette = normalizeAmbientPalette(selected, initial)
+    fun updatePalette(initial: Int, selected: List<Int>, random: ((Int) -> Int)? = null,
+        range: IntRange = this.range) {
+        this.range = range
+        palette = normalizeAmbientPalette(selected, initial, range)
         colorIndex = palette.indexOf(initial).coerceAtLeast(0)
         current = palette[colorIndex]
         randomIndex = random
@@ -130,8 +133,9 @@ enum class AmbientColorMode { ENERGY, BEAT, TEMPO, BASS, SMART }
 enum class AmbientColorSpeed(val beatsPerColor: Int, val energyIntervalMillis: Long) {
     SLOW(4, 1500), STANDARD(2, 500), FAST(1, 200)
 }
-internal fun normalizeAmbientPalette(colors: List<Int>, fallback: Int = 1): List<Int> =
-    colors.filter { it in 1..31 }.distinct().sorted().ifEmpty { listOf(fallback.coerceIn(1, 31)) }
+internal fun normalizeAmbientPalette(colors: List<Int>, fallback: Int = 1,
+    range: IntRange = AmbientPalette.LEGACY31.colors): List<Int> =
+    colors.filter { it in range }.distinct().sorted().ifEmpty { listOf(fallback.coerceIn(range.first, range.last)) }
 
 /** UI speed affects brightness transitions only, never the production beat/color detector. */
 internal fun ambientMusicColorDetector(initial: Int, palette: List<Int>): AmbientMusicColorDetector =

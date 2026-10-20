@@ -3,6 +3,20 @@ package com.shilapi.xcertplay.settings
 import android.content.Context
 import com.shilapi.xcertplay.DiPlayPalette
 
+internal object SettingsControlMetrics {
+    const val HEIGHT_DP = 60
+    const val GAP_DP = 12
+    const val BLOCK_GAP_DP = 16
+    const val OUTLINE_DP = 1
+    const val FOCUS_OUTLINE_DP = 3
+    private const val MAX_RADIUS_DP = 24
+    private const val REFERENCE_RADIUS_DP = 20
+    private const val REFERENCE_HEIGHT_DP = 56
+
+    fun radius(heightPx: Int, density: Float): Float =
+        minOf(MAX_RADIUS_DP * density, heightPx.toFloat() * REFERENCE_RADIUS_DP / REFERENCE_HEIGHT_DP)
+}
+
 class SettingsTheme private constructor(
     val isOverlay: Boolean,
     val textPrimary: Int,

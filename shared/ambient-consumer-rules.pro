@@ -1,4 +1,10 @@
 # Entry point launched by app_process from the installed application classpath.
+-keep class com.shilapi.xcertplay.input.ShellKeyReplayMain {
+    public static void main(java.lang.String[]);
+}
+-keep class com.shilapi.xcertplay.hud.BydAmbientSdkTool {
+    public static void main(java.lang.String[]);
+}
 -keep class com.shilapi.xcertplay.hud.BydAmbientLightTool {
     public static void main(java.lang.String[]);
 }

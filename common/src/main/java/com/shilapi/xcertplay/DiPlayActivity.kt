@@ -68,6 +68,7 @@ import com.shilapi.xcertplay.host.R
 import com.shilapi.xcertplay.media.AmbientColorMode
 import com.shilapi.xcertplay.media.AmbientColorSpeed
 import com.shilapi.xcertplay.media.AmbientIdleBehavior
+import com.shilapi.xcertplay.media.AmbientDiagnostics
 import com.shilapi.xcertplay.media.AmbientMusicController
 import com.shilapi.xcertplay.media.AmbientColorSource
 import com.shilapi.xcertplay.media.AmbientMusicSettings
@@ -99,7 +100,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 internal enum class SettingsCategory {
-    OVERVIEW, CONNECTION, DISPLAY, AUDIO, NAVIGATION, VEHICLE, LANGUAGE, DIAGNOSTICS, ADVANCED, ABOUT,
+    OVERVIEW, CONNECTION, DISPLAY, CLUSTER_WINDOWS, AUDIO, NAVIGATION, SHORTCUTS, VEHICLE, LANGUAGE, DIAGNOSTICS, ADVANCED, ABOUT,
 }
 
 /** A settings card. Every entry needs one category in [SettingsInformationArchitecture]; see AGENTS.md. */
@@ -120,6 +121,8 @@ internal enum class SettingsSection {
     NAVIGATION_WHEEL,
     LOCATION,
     CLUSTER_MAP,
+    CLUSTER_WINDOWS,
+    SHORTCUTS,
     BYD_NAVIGATION,
     MAP_DESTINATION,
     PERMISSIONS_AND_HELP,
@@ -139,6 +142,7 @@ internal object SettingsInformationArchitecture {
             SettingsSection.PERMISSIONS_AND_HELP,
         ),
         SettingsCategory.DISPLAY to setOf(SettingsSection.DISPLAY_AND_PERFORMANCE),
+        SettingsCategory.CLUSTER_WINDOWS to setOf(SettingsSection.CLUSTER_WINDOWS),
         SettingsCategory.AUDIO to setOf(SettingsSection.AUDIO_ROUTING),
         SettingsCategory.NAVIGATION to setOf(
             SettingsSection.LOCATION,
@@ -152,6 +156,7 @@ internal object SettingsInformationArchitecture {
             SettingsSection.CAR_BUTTON,
         ),
         SettingsCategory.DIAGNOSTICS to setOf(SettingsSection.DIAGNOSTICS),
+        SettingsCategory.SHORTCUTS to setOf(SettingsSection.SHORTCUTS),
         SettingsCategory.ADVANCED to setOf(
             SettingsSection.CLUSTER_MAP,
             SettingsSection.EXPERIMENTAL_DISPLAY,
@@ -176,6 +181,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private val endWindowLearning = Runnable { cancelKeyLearning() }
     private var page = "home"
     internal var ambientSupportCheck: (Context) -> java.util.concurrent.CompletableFuture<Boolean> = AmbientMusicController::checkSupport
+    internal var ambientSdkCheck: (Context) -> java.util.concurrent.CompletableFuture<com.shilapi.xcertplay.hud.BydAmbientSdkProbe.Outcome> =
+        com.shilapi.xcertplay.hud.BydAmbientSdkProbe::check
+    internal var ambientWriteTest: (Context, (String) -> Unit) -> java.util.concurrent.CompletableFuture<com.shilapi.xcertplay.hud.BydAmbientWriteTest.Outcome> =
+        com.shilapi.xcertplay.hud.BydAmbientWriteTest::run
+    internal var rawMapFrameSave: (Context, (Result<DiagnosticExportStore.SavedReport>) -> Unit) -> Boolean = RawMapFrameExport::save
     private var settingsCategory = SettingsCategory.OVERVIEW
     private var connectionSettingsReturnCategory: SettingsCategory? = null
     private var setupStep = SetupGuide.STEP_CAR
@@ -508,6 +518,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     override fun onStop() {
+        stopDiagnosticWindows()
         cancelUsbPermissionSetup()
         clusterSafeAreaDialog?.dismiss()
         startupHotspotCancelled = true
@@ -548,8 +559,17 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 handler.post { connect(DiPlayPreferences.autoConnectWireless(this)) }
             }
         }
+        if (ShortcutEditor.hasTouchTransfer()) {
+            page = "settings"
+            settingsCategory = SettingsCategory.SHORTCUTS
+            render()
+            ShortcutEditor.resumeTouchDraft(this) { render() }
+        }
     }
     override fun onPause() {
+        // Touch capture starts only after Host resumes; the in-memory handoff is not a key capture.
+        CarPlayShortcuts.cancelCapture()
+        stopDiagnosticWindows()
         appearanceUpdatesResumed = false
         appearanceObserverRemoval?.invoke()
         appearanceObserverRemoval = null
@@ -561,6 +581,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     override fun onDestroy() {
+        stopDiagnosticWindows()
         settingsSearchPopup?.dismiss()
         appearanceObserverRemoval?.invoke()
         appearanceObserverRemoval = null
@@ -665,6 +686,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // A restore still waiting for layout keeps its target: the old page was never laid out.
         val sameDestination = renderedPage == page &&
             (page != "settings" || renderedSettingsCategory == settingsCategory)
+        if (!sameDestination) stopDiagnosticWindows()
         val previousScrollY = (pendingScrollY ?: rootScroll?.scrollY)?.takeIf { sameDestination }
         // The rail is one destination even when its selected category changes.
         val keepRailPosition = renderedPage == "settings" && page == "settings"
@@ -1134,8 +1156,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         SettingsCategory.OVERVIEW -> R.drawable.ic_dp_overview
         SettingsCategory.CONNECTION -> R.drawable.ic_dp_connection
         SettingsCategory.DISPLAY -> R.drawable.ic_dp_display
+        SettingsCategory.CLUSTER_WINDOWS -> R.drawable.ic_dp_dashboard
         SettingsCategory.AUDIO -> R.drawable.ic_dp_audio
         SettingsCategory.NAVIGATION -> R.drawable.ic_dp_navigation
+        SettingsCategory.SHORTCUTS -> R.drawable.ic_dp_controls
         SettingsCategory.VEHICLE -> R.drawable.ic_dp_car
         SettingsCategory.DIAGNOSTICS -> R.drawable.ic_dp_diagnostics
         SettingsCategory.ADVANCED -> R.drawable.ic_dp_advanced
@@ -1147,8 +1171,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         SettingsCategory.OVERVIEW -> R.string.settings_overview
         SettingsCategory.CONNECTION -> R.string.connection
         SettingsCategory.DISPLAY -> R.string.settings_display
+        SettingsCategory.CLUSTER_WINDOWS -> R.string.settings_cluster_category
         SettingsCategory.AUDIO -> R.string.audio
         SettingsCategory.NAVIGATION -> R.string.settings_navigation
+        SettingsCategory.SHORTCUTS -> R.string.settings_shortcuts
         SettingsCategory.VEHICLE -> R.string.settings_vehicle
         SettingsCategory.DIAGNOSTICS -> R.string.diagnostics
         SettingsCategory.ADVANCED -> R.string.settings_advanced
@@ -1161,8 +1187,16 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             SettingsCategory.OVERVIEW -> settingsOverview(content)
             SettingsCategory.CONNECTION -> connectionSettings(content)
             SettingsCategory.DISPLAY -> displaySettings(content)
+            SettingsCategory.CLUSTER_WINDOWS -> {
+                settingsPageTitle(content, getString(R.string.settings_cluster_category), getString(R.string.settings_cluster_category_summary))
+                renderSections(content, SettingsInformationArchitecture.sectionsByCategory.getValue(SettingsCategory.CLUSTER_WINDOWS))
+            }
             SettingsCategory.AUDIO -> audioSettings(content)
             SettingsCategory.NAVIGATION -> navigationSettings(content)
+            SettingsCategory.SHORTCUTS -> {
+                settingsPageTitle(content, getString(R.string.settings_shortcuts), getString(R.string.settings_shortcuts_description))
+                renderSections(content, SettingsInformationArchitecture.sectionsByCategory.getValue(SettingsCategory.SHORTCUTS))
+            }
             SettingsCategory.VEHICLE -> vehicleSettings(content)
             SettingsCategory.DIAGNOSTICS -> diagnosticsSettings(content)
             SettingsCategory.ADVANCED -> advancedSettings(content)
@@ -1199,8 +1233,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val destinations = listOf(
             SettingsCategory.CONNECTION to R.string.settings_connection_summary,
             SettingsCategory.DISPLAY to R.string.settings_display_summary,
+            SettingsCategory.CLUSTER_WINDOWS to R.string.settings_cluster_category_summary,
             SettingsCategory.AUDIO to R.string.settings_audio_summary,
             SettingsCategory.NAVIGATION to R.string.settings_navigation_summary,
+            SettingsCategory.SHORTCUTS to R.string.settings_shortcuts_description,
             SettingsCategory.VEHICLE to R.string.settings_vehicle_summary,
             SettingsCategory.LANGUAGE to R.string.settings_language_summary,
             SettingsCategory.ABOUT to R.string.about_diplay,
@@ -1797,6 +1833,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(getString(R.string.choose_save_location), false) { chooseReportDestination() }, matchButton(10, 60))
             card.addView(button(getString(R.string.settings_report_on_phone), false) { openBackup(SettingsCategory.DIAGNOSTICS) }, matchButton(10, 60))
             card.addView(button(getString(R.string.adb_diagnostics_run), false) { runAdbDiagnostics() }, matchButton(10, 60))
+            mediaDiagnosticControls(card)
+            AmbientSdkDiagnosticsUi.render(this, card, { text, click -> button(text, false, click) },
+                { text -> label(text, 14, MUTED) }, { ambientSdkCheck(applicationContext) })
             val destination = getString(R.string.reports_save_to_downloads_diplay)
             card.addView(label(destination + getString(R.string.nothing_is_sent_automatically_protocol_payloads_and_creden), 14, MUTED).apply { setPadding(0, dp(12), 0, 0) })
             toggle(card, getString(R.string.settings_fps_counter), getString(R.string.settings_fps_counter_description),
@@ -2014,7 +2053,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         // Opt-in controls that can cost sound or video on some head units.
         filteredSection(content, SettingsSection.ADVANCED_MEDIA,
             getString(R.string.settings_advanced_media), R.drawable.ic_dp_advanced) { card ->
-            autoPlaybackControls(card)
             if (Build.VERSION.SDK_INT == 32) {
                 toggle(card, getString(R.string.settings_hide_byd_call_popup),
                     getString(R.string.settings_hide_byd_call_popup_description),
@@ -2147,6 +2185,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(button(ambientConfigurationLabel(AmbientMusicSettings.load(this)), false) {
                 showAmbientConfiguration()
             }, matchButton(0, 60))
+            AmbientWriteTestUi.render(this, card, { text, click -> button(text, false, click) },
+                { text -> label(text, 14, MUTED) }, { log -> ambientWriteTest(applicationContext, log) })
         }
         filteredSection(content, SettingsSection.LOCATION,
             getString(R.string.location), R.drawable.ic_dp_navigation) { card ->
@@ -2154,6 +2194,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 getString(R.string.sends_precise_android_location_as_carplay_gps_data_when_th),
                 AirPlayPersistence.loadLocationReportingEnabled(this), save = ::onLocationReportingChanged)
             card.addView(label(getString(R.string.location_reporting_reconnects), 14, MUTED))
+        }
+        filteredSection(content, SettingsSection.CLUSTER_WINDOWS,
+            getString(R.string.settings_cluster_windows), R.drawable.ic_dp_dashboard) { customClusterControls(it) }
+        filteredSection(content, SettingsSection.SHORTCUTS,
+            getString(R.string.settings_shortcuts), R.drawable.ic_dp_controls) { card ->
+            ShortcutEditor.renderList(this, card)
+            card.addView(label(getString(R.string.settings_shortcuts_window_hint), 14, MUTED))
         }
         // Cluster video does not require a BYD navigation broadcast receiver.
         filteredSection(content, SettingsSection.CLUSTER_MAP,
@@ -2385,9 +2432,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                                     card.addView(label(getString(R.string.cluster_small_window_access_missing), 14, WARNING)
                                         .apply { setPadding(0, dp(4), 0, dp(4)) })
                                     card.addView(button(getString(R.string.cluster_small_window_grant_access), false) {
-                                        runCatching {
-                                            openSystem(Intent(android.provider.Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                                        }
+                                        openPageUsageAccess()
                                     }, matchButton(6, 56))
                                 } else {
                                     card.addView(label(getString(R.string.cluster_small_window_access_ok), 14, MUTED)
@@ -3627,6 +3672,186 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         else -> "$positive ${step * CarPlayClusterDisplay.MARKER_STEP_PERCENT} %"
     }
 
+    private fun customClusterControls(card: LinearLayout) {
+        val config = ClusterWindowSettings.load(this)
+        card.addView(label(getString(R.string.settings_cluster_windows_description), 14, WARNING))
+        toggle(card, getString(R.string.settings_cluster_window_music), getString(R.string.settings_cluster_window_music_description), config.music) {
+            ClusterWindowSettings.save(this, "music", it); markReconnectNeeded(); render()
+        }
+        toggle(card, getString(R.string.settings_cluster_window_map), getString(R.string.settings_cluster_window_map_description), config.map) {
+            ClusterWindowSettings.save(this, "map", it); markReconnectNeeded(); render()
+        }
+        card.addView(button(getString(R.string.settings_cluster_windows_stop), false) {
+            ClusterWindowSettings.disable(this); markReconnectNeeded(); render()
+        })
+        val displays = ClusterTransparencyProbe.displays(this)
+        val display = CustomClusterWindows.findDisplay(this, config)
+        card.addView(button(getString(R.string.cluster_display) + " · " + (display?.name ?: getString(R.string.cluster_display_automatic)), false) {
+            appDialogBuilder().setTitle(R.string.cluster_display).setItems(displays.map { "${it.displayId}: ${it.name}" }.toTypedArray()) { _, i ->
+                ClusterWindowSettings.save(this, "display", displays[i].name); markReconnectNeeded(); render()
+            }.setNegativeButton(R.string.cancel, null).show()
+        })
+        toggle(card, getString(R.string.settings_cluster_window_elevated), getString(R.string.settings_cluster_window_elevated_description), config.elevated) {
+            if (it) appDialogBuilder().setTitle(R.string.settings_cluster_window_elevated)
+                .setMessage(R.string.settings_cluster_window_elevated_description)
+                .setPositiveButton(R.string.save) { _, _ ->
+                    ClusterWindowSettings.save(this, "elevated", true)
+                    if (!CustomClusterWindows.canElevate(this)) openOverlayPermission()
+                    render()
+                }.setNegativeButton(R.string.cancel) { _, _ -> render() }.show()
+            else { ClusterWindowSettings.save(this, "elevated", false); render() }
+        }
+        val size = display?.let(ClusterMapPresentation::sizeOf) ?: android.graphics.Point(1920, 720)
+        val preview = ClusterWindowLayoutView(this, size.x.toFloat() / size.y.coerceAtLeast(1)).apply { onMoved = { render() } }
+        card.addView(label(getString(R.string.settings_cluster_window_drag), 14, MUTED))
+        card.addView(preview, LinearLayout.LayoutParams(-1, -2))
+        val canvases = ClusterMapCanvas.entries
+        fun canvasLabel(canvas: ClusterMapCanvas) = if (canvas.independent) "${canvas.width} × ${canvas.height}"
+            else getString(if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP)
+                R.string.settings_cluster_canvas_panel_auto else R.string.settings_cluster_canvas_window)
+        card.addView(button(getString(R.string.settings_cluster_canvas) + " · " + canvasLabel(config.mapCanvas), false) {
+            appDialogBuilder().setTitle(R.string.settings_cluster_canvas)
+                .setSingleChoiceItems(canvases.map(::canvasLabel).toTypedArray(), canvases.indexOf(config.mapCanvas)) { _, _ -> }
+                .setPositiveButton(R.string.save) { dialog, _ ->
+                    val index = (dialog as AlertDialog).listView.checkedItemPosition
+                    val selected = canvases.getOrNull(index) ?: return@setPositiveButton
+                    if (selected != config.mapCanvas) {
+                        ClusterWindowSettings.save(this, "map_canvas", selected.name)
+                        markReconnectNeeded()
+                        render()
+                    }
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        card.addView(label(getString(R.string.settings_cluster_canvas_request_hint), 14, MUTED))
+        fun number(key: String, title: String, current: Int, options: List<Int>, reconnect: Boolean = false) {
+            searchIndexSink?.add(title)
+            card.addView(overlaySliderRow(title, options, current) { "$it%" }.also { row ->
+                row.onSave = { ClusterWindowSettings.save(this, key, it); preview.invalidate(); if (reconnect) markReconnectNeeded() }
+            })
+        }
+        val displayModes = ClusterMapDisplayMode.entries
+        fun modeLabel(mode: ClusterMapDisplayMode) = getString(if (mode == ClusterMapDisplayMode.PANEL_CROP)
+            R.string.settings_cluster_display_panel_crop else R.string.settings_cluster_display_fit)
+        card.addView(button(getString(R.string.settings_cluster_display_mode) + " · " + modeLabel(config.mapDisplayMode), false) {
+            appDialogBuilder().setTitle(R.string.settings_cluster_display_mode)
+                .setSingleChoiceItems(displayModes.map(::modeLabel).toTypedArray(), displayModes.indexOf(config.mapDisplayMode)) { _, _ -> }
+                .setPositiveButton(R.string.save) { dialog, _ ->
+                    val mode = displayModes.getOrNull((dialog as AlertDialog).listView.checkedItemPosition) ?: return@setPositiveButton
+                    if (mode != config.mapDisplayMode) {
+                        ClusterWindowSettings.save(this, "map_display_mode", mode.name)
+                        val currentCanvas = CarPlayBackgroundSession.snapshot()?.controller?.configuredClusterSize()
+                        val selectedCanvas = config.mapCanvas.width to config.mapCanvas.height
+                        if (!config.mapCanvas.independent || currentCanvas != selectedCanvas) markReconnectNeeded()
+                        render()
+                    }
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        if (config.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP) {
+            card.addView(label(getString(R.string.settings_cluster_display_panel_hint, size.x, size.y), 14, MUTED))
+            number("map_center_x", getString(R.string.settings_cluster_viewport_x), config.mapCenterX, (0..100).toList())
+            number("map_center_y", getString(R.string.settings_cluster_viewport_y), config.mapCenterY, (0..100).toList())
+        }
+        val musicModes = ClusterMusicMode.entries
+        fun musicModeLabel(mode: ClusterMusicMode) = getString(if (mode == ClusterMusicMode.MINI)
+            R.string.settings_cluster_music_mini else R.string.settings_cluster_music_card)
+        card.addView(button(getString(R.string.settings_cluster_music_layout) + " · " + musicModeLabel(config.musicMode), false) {
+            appDialogBuilder().setTitle(R.string.settings_cluster_music_layout)
+                .setItems(musicModes.map(::musicModeLabel).toTypedArray()) { _, index ->
+                    ClusterWindowSettings.save(this, "music_mode", musicModes[index].name); render()
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        card.addView(label(getString(R.string.settings_cluster_music_layout_hint), 14, MUTED))
+        for ((role, bounds, title) in listOf(Triple(config.musicRectKey, config.activeMusicRect, R.string.settings_cluster_window_music), Triple("map", config.mapRect, R.string.settings_cluster_window_map))) {
+            card.addView(label(getString(title), 16, TEXT, true))
+            number("${role}_x", "X", bounds.x, (0..100).toList())
+            number("${role}_y", "Y", bounds.y, (0..100).toList())
+            val needsCanvas = role == "map" && !config.mapCanvas.independent && config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW
+            number("${role}_width", getString(R.string.settings_cluster_window_width), bounds.width, (10..95).toList(), needsCanvas)
+            number("${role}_height", getString(R.string.settings_cluster_window_height), bounds.height, (10..95).toList(), needsCanvas)
+        }
+        card.addView(label(getString(R.string.settings_cluster_safe_area), 16, TEXT, true))
+        card.addView(label(getString(R.string.settings_cluster_safe_area_description), 14, MUTED))
+        for ((key, title, value) in listOf(
+            Triple("safe_top", R.string.settings_cluster_safe_top, config.safeArea.top),
+            Triple("safe_bottom", R.string.settings_cluster_safe_bottom, config.safeArea.bottom),
+            Triple("safe_left", R.string.settings_cluster_safe_left, config.safeArea.left),
+            Triple("safe_right", R.string.settings_cluster_safe_right, config.safeArea.right),
+        )) number(key, getString(title), value, ClusterWindowSettings.SAFE_AREA_RANGE.toList(), reconnect = true)
+        card.addView(button(getString(R.string.settings_cluster_safe_reset), false) {
+            ClusterWindowSettings.resetSafeArea(this); markReconnectNeeded(); render()
+        })
+        toggle(card, getString(R.string.settings_cluster_window_cover), "", config.cover) { ClusterWindowSettings.save(this, "cover", it) }
+        val coverSides = ClusterCoverSide.entries
+        fun coverLabel(side: ClusterCoverSide) = getString(if (side == ClusterCoverSide.LEFT) R.string.settings_cluster_cover_left else R.string.settings_cluster_cover_right)
+        if (config.musicMode == ClusterMusicMode.MINI) {
+            card.addView(button(getString(R.string.settings_cluster_cover_side) + " · " + coverLabel(config.coverSide), false) {
+                appDialogBuilder().setTitle(R.string.settings_cluster_cover_side)
+                    .setItems(coverSides.map(::coverLabel).toTypedArray()) { _, index ->
+                        ClusterWindowSettings.save(this, "cover_side", coverSides[index].name); render()
+                    }.setNegativeButton(R.string.cancel, null).show()
+            })
+        }
+        toggle(card, getString(R.string.settings_cluster_window_text), "", config.text) { ClusterWindowSettings.save(this, "text", it) }
+        if (config.musicMode == ClusterMusicMode.CARD) {
+            number("music_card_cover_size", getString(R.string.settings_cluster_card_cover_size), config.musicCardCoverSize,
+                (ClusterWindowSettings.CARD_COVER_SIZE_RANGE step 5).toList())
+        }
+        number("title_font", getString(R.string.settings_cluster_title_font), config.titleFont,
+            (ClusterWindowSettings.MUSIC_FONT_RANGE step 5).toList())
+        number("artist_font", getString(R.string.settings_cluster_artist_font), config.artistFont,
+            (ClusterWindowSettings.MUSIC_FONT_RANGE step 5).toList())
+        card.addView(label(getString(R.string.settings_cluster_music_sizes_hint), 14, MUTED))
+        number("opacity", getString(R.string.settings_cluster_window_opacity), config.opacity, (0..100 step 5).toList())
+        card.addView(label(getString(R.string.settings_cluster_night_background), 14, MUTED))
+        card.addView(label(getString(R.string.settings_cluster_window_alpha_hint), 14, MUTED))
+        if (config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW) {
+            toggle(card, getString(R.string.settings_cluster_window_crop), getString(R.string.settings_cluster_window_crop_description), config.crop) { ClusterWindowSettings.save(this, "crop", it) }
+        }
+        card.addView(label(getString(R.string.settings_cluster_trim), 16, TEXT, true))
+        if (config.mapDisplayMode == ClusterMapDisplayMode.FIT_WINDOW) {
+            card.addView(label(getString(R.string.settings_cluster_trim_modes_hint), 14, MUTED))
+            toggle(card, getString(R.string.settings_cluster_trim_in_place), getString(R.string.settings_cluster_trim_in_place_hint), config.trimInPlace) {
+                ClusterWindowSettings.save(this, "trim_in_place", it)
+            }
+        }
+        for ((key, title, value) in listOf(
+            Triple("trim_top", R.string.settings_cluster_trim_top, config.trim.top),
+            Triple("trim_bottom", R.string.settings_cluster_trim_bottom, config.trim.bottom),
+            Triple("trim_left", R.string.settings_cluster_trim_left, config.trim.left),
+            Triple("trim_right", R.string.settings_cluster_trim_right, config.trim.right),
+        )) number(key, getString(title), value, ClusterWindowSettings.TRIM_RANGE.toList())
+        card.addView(button(getString(R.string.settings_cluster_trim_reset), false) {
+            ClusterWindowSettings.resetTrim(this); render()
+        })
+        toggle(card, getString(R.string.settings_cluster_map_blend), getString(R.string.settings_cluster_map_blend_description), config.mapBlend) {
+            ClusterWindowSettings.save(this, "map_blend", it)
+        }
+        number("map_feather_percent", getString(R.string.settings_cluster_map_feather), config.mapFeatherPercent,
+            ClusterWindowSettings.MAP_FEATHER_PERCENT_RANGE.toList())
+        number("map_corner_percent", getString(R.string.settings_cluster_map_corner), config.mapCornerPercent,
+            ClusterWindowSettings.MAP_CORNER_PERCENT_RANGE.toList())
+        val contents = listOf(CarPlayClusterDisplay.Content.MAP, CarPlayClusterDisplay.Content.TURN_CARD, CarPlayClusterDisplay.Content.INSTRUMENTS)
+        choice(card, getString(R.string.dashboard_shows), listOf(getString(R.string.dashboard_content_map), getString(R.string.dashboard_content_turn_card), getString(R.string.dashboard_content_map_with_turn_card)),
+            contents.indexOf(config.mapContent), reconnects = false) {
+            ClusterWindowSettings.save(this, "content", contents[it].name); markReconnectNeeded()
+        }
+        if (config.map && config.mapContent != CarPlayClusterDisplay.Content.TURN_CARD) {
+            val zooms = ClusterWindowSettings.AUTO_ZOOM_STEPS
+            choice(card, getString(R.string.settings_cluster_map_auto_zoom), zooms.map { steps ->
+                when {
+                    steps > 0 -> getString(R.string.settings_cluster_map_auto_zoom_in, steps)
+                    steps < 0 -> getString(R.string.settings_cluster_map_auto_zoom_out, -steps)
+                    else -> getString(R.string.settings_cluster_map_auto_zoom_off)
+                }
+            }, zooms.indexOf(config.autoZoomSteps), reconnects = false) {
+                ClusterWindowSettings.save(this, "auto_zoom_steps", zooms[it])
+                markReconnectNeeded()
+            }
+            card.addView(label(getString(R.string.settings_cluster_map_auto_zoom_description), 14, MUTED))
+        }
+        card.addView(label(getString(R.string.settings_cluster_window_camera_limit), 14, MUTED))
+    }
+
     private fun clusterMusicControls(card: LinearLayout) {
         toggle(card, getString(R.string.settings_cluster_music), getString(R.string.settings_cluster_music_description),
             ClusterMusicSettings.enabled(this)) {
@@ -3822,7 +4047,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     private fun autoApplyPermissions() = applyPermissions(usageOnly = false)
 
-    private fun grantPageUsageAccess() {
+    private fun grantPageUsageAccess() = startPageUsageAccessGrant(pageFallback = false)
+
+    /** ADB first; only when it fails does the system screen get a chance, then the manual dialog. */
+    private fun startPageUsageAccessGrant(pageFallback: Boolean) {
         if (UsbPermissionSetup.Permission.USAGE.granted(this)) {
             render()
             toast(getString(R.string.permission_enabled_ready))
@@ -3830,13 +4058,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         if (usbPermissionOperation != null || adbSwitchChangePending || vehicleAdbWorkInProgress() ||
             automaticVehicleValidationInProgress) {
+            if (pageFallback && openSystemUsageAccessPage()) return
             toast(getString(R.string.settings_usage_adb_busy))
             return
         }
-        applyPermissions(usageOnly = true)
+        applyPermissions(usageOnly = true, pageFallback = pageFallback)
     }
 
-    private fun applyPermissions(usageOnly: Boolean) {
+    private fun applyPermissions(usageOnly: Boolean, pageFallback: Boolean = false) {
         if (usbPermissionOperation != null || isFinishing || isDestroyed) return
         val operation = usbPermissionOperationFactory(applicationContext)
         val permissions = if (usageOnly) setOf(UsbPermissionSetup.Permission.USAGE)
@@ -3872,7 +4101,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                             LocalAdb.Access.UNSUPPORTED -> R.string.adb_pairing_only
                             else -> R.string.settings_usage_adb_failed
                         })
-                        showPageUsageAccessSetup(reason)
+                        if (pageFallback && openSystemUsageAccessPage()) toast(reason)
+                        else showPageUsageAccessSetup(reason)
                     }
                     return@post
                 }
@@ -4380,11 +4610,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             val result = WheelKeyService.enableOverAdb(this)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                if (!result.ok) toast(
-                    if (result.access == com.shilapi.xcertplay.adb.LocalAdb.Access.READY)
-                        getString(R.string.wheel_keys_service_refused)
-                    else getString(R.string.wheel_keys_adb_failed, result.access.name),
-                )
+                if (!result.ok) toast(result.failureMessage(this))
                 if (refresh) render()
             }
         }, threadName).start()
@@ -4509,6 +4735,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (OriginalKeyReplayGuard.matches(event)) return super.dispatchKeyEvent(event)
+        if (CarPlayShortcuts.consumeOwnedKey(event)) return true
+        if (windowLearning == null && CarPlayShortcuts.onLearningKey(this, event)) return true
         if (event.action != KeyEvent.ACTION_DOWN && event.action != KeyEvent.ACTION_UP) return super.dispatchKeyEvent(event)
         val action = windowLearningPresses.filter(
             Triple(event.deviceId, event.keyCode, event.scanCode),
@@ -5381,47 +5610,179 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         toast(getString(R.string.saved_for_your_next_connection))
     }
 
-    private fun autoPlaybackControls(parent: LinearLayout) {
-        toggle(parent, getString(R.string.settings_auto_playback),
-            getString(R.string.settings_auto_playback_description), AirPlayPersistence.loadAutoPlayback(this).enabled) {
-            AirPlayPersistence.saveAutoPlayback(this, it)
-            CarPlayBackgroundSession.snapshot()?.controller?.cancelAutoPlayback()
-            if (it) markReconnectNeeded()
+    private var transparencyDialog: AlertDialog? = null
+    private var mediaDiagnosticsExpanded = false
+
+    private fun stopDiagnosticWindows() {
+        transparencyDialog?.dismiss(); transparencyDialog = null
+        ClusterTransparencyProbe.stop("settings_exit")
+    }
+
+    private fun mediaDiagnosticControls(parent: LinearLayout) {
+        val details = column()
+        val expand = button(getString(if (mediaDiagnosticsExpanded) R.string.settings_media_diagnostics_hide
+            else R.string.settings_media_diagnostics_show), false) {}
+        expand.tag = "media_diagnostics_expand"
+        fun refresh() {
+            details.removeAllViews()
+            if (mediaDiagnosticsExpanded) expandedMediaDiagnosticControls(details)
+            expand.text = getString(if (mediaDiagnosticsExpanded) R.string.settings_media_diagnostics_hide
+                else R.string.settings_media_diagnostics_show)
         }
-        fun summary(): String = getString(R.string.settings_auto_playback_url) + " · " + getString(
-            if (AirPlayPersistence.loadAutoPlayback(this).appUrl.isEmpty()) R.string.settings_auto_playback_resume
-            else R.string.settings_auto_playback_custom)
-        val urlButton = button(summary(), false) {}
-        urlButton.setOnClickListener {
-            val input = EditText(appDialogContext()).apply {
-                setSingleLine()
-                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-                setText(AirPlayPersistence.loadAutoPlayback(this@DiPlayActivity).appUrl)
-            }
-            val dialog = appDialogBuilder().setTitle(R.string.settings_auto_playback_url)
-                .setMessage(R.string.settings_auto_playback_url_hint).setView(input)
-                .setPositiveButton(R.string.save, null).setNegativeButton(R.string.cancel, null).create()
-            dialog.setOnShowListener {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                    val value = com.shilapi.xcertplay.orchestration.AutoPlaybackOptions.validatedUrl(input.text.toString())
-                    if (value == null) {
-                        input.error = getString(R.string.settings_auto_playback_url_error)
-                    } else {
-                        AirPlayPersistence.saveAutoPlaybackUrl(this, value)
-                        CarPlayBackgroundSession.snapshot()?.controller?.cancelAutoPlayback()
-                        if (AirPlayPersistence.loadAutoPlayback(this).enabled) markReconnectNeeded()
-                        urlButton.text = summary()
-                        dialog.dismiss()
-                    }
+        expand.setOnClickListener {
+            mediaDiagnosticsExpanded = !mediaDiagnosticsExpanded
+            if (!mediaDiagnosticsExpanded) stopDiagnosticWindows()
+            refresh()
+        }
+        parent.addView(expand)
+        parent.addView(details)
+        refresh()
+    }
+
+    private fun expandedMediaDiagnosticControls(parent: LinearLayout) {
+        val rawFrame = button(getString(R.string.settings_map_frame_save), false) {}
+        rawFrame.tag = "raw_map_frame_save"
+        rawFrame.setOnClickListener {
+            appDialogBuilder().setTitle(R.string.settings_map_frame_save).setMessage(R.string.settings_map_frame_hint)
+                .setPositiveButton(R.string.save) { _, _ -> saveRawMapFrame(rawFrame) }
+                .setNegativeButton(R.string.cancel, null).show()
+        }
+        parent.addView(rawFrame)
+        parent.addView(button(getString(R.string.diag_lyrics_start), false) {
+            appDialogBuilder().setTitle(R.string.diag_lyrics_start).setMessage(R.string.diag_lyrics_warning)
+                .setPositiveButton(R.string.diag_begin) { _, _ ->
+                    com.shilapi.xcertplay.media.LyricsDiagnostics.start()
+                    toast(getString(R.string.diag_lyrics_started))
+                }.setNegativeButton(R.string.cancel, null).show()
+        })
+        parent.addView(button(getString(R.string.diag_lyrics_clear), false) {
+            com.shilapi.xcertplay.media.LyricsDiagnostics.stop()
+            toast(getString(R.string.diag_lyrics_cleared))
+        })
+        parent.addView(button(getString(R.string.diag_cluster_probe), false) { chooseProbeDisplay() })
+    }
+
+    private fun saveRawMapFrame(button: Button) {
+        if (!button.isEnabled) return
+        button.isEnabled = false
+        button.text = getString(R.string.settings_map_frame_saving)
+        val started = rawMapFrameSave(applicationContext) { result ->
+            button.isEnabled = true
+            button.text = getString(R.string.settings_map_frame_save)
+            if (!isFinishing && !isDestroyed) {
+                val saved = result.getOrNull()
+                if (saved == null) {
+                    toast(getString(R.string.settings_map_frame_failed, result.exceptionOrNull()?.message ?: "unknown"))
+                } else {
+                    appDialogBuilder().setTitle(R.string.settings_map_frame_saved)
+                        .setMessage(if (saved.savedInApp) getString(R.string.settings_map_frame_private)
+                            else saved.savedPath ?: saved.uri.toString())
+                        .setPositiveButton(R.string.share) { _, _ ->
+                            runCatching {
+                                startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                    type = "image/png"; putExtra(Intent.EXTRA_STREAM, saved.uri)
+                                    clipData = android.content.ClipData.newRawUri("Map PNG", saved.uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }, getString(R.string.share)))
+                            }.onFailure { toast(getString(R.string.settings_map_frame_failed, "no_share_app")) }
+                        }.setNegativeButton(R.string.done, null).show()
                 }
             }
-            dialog.show()
         }
-        parent.addView(urlButton)
-        parent.addView(button(getString(R.string.settings_auto_playback_test), false) {
-            val accepted = CarPlayBackgroundSession.snapshot()?.controller?.tryAutoPlayback() == true
-            toast(getString(if (accepted) R.string.settings_auto_playback_scheduled else R.string.settings_auto_playback_unavailable))
-        })
+        if (!started) {
+            button.isEnabled = true
+            button.text = getString(R.string.settings_map_frame_save)
+            toast(getString(R.string.settings_map_frame_busy))
+        }
+    }
+
+    private fun chooseProbeDisplay() {
+        stopDiagnosticWindows()
+        val displays = ClusterTransparencyProbe.displays(this)
+        if (displays.isEmpty()) { toast(getString(R.string.diag_probe_unavailable)); return }
+        appDialogBuilder().setTitle(R.string.diag_cluster_probe).setItems(displays.map {
+            val size = ClusterMapPresentation.sizeOf(it)
+            "${it.displayId}: ${it.name} ${size.x}×${size.y}"
+        }.toTypedArray()) { _, index -> showProbeControls(displays[index]) }
+            .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun showProbeControls(display: android.view.Display) {
+        val body = column().apply { setPadding(dp(20), dp(12), dp(20), dp(12)) }
+        val targetSize = ClusterMapPresentation.sizeOf(display)
+        body.addView(label("${display.displayId}: ${display.name} ${targetSize.x}×${targetSize.y}", 16, TEXT))
+        body.addView(label(getString(R.string.diag_probe_warning), 14, WARNING))
+        var x = 50
+        var y = 75
+        var resetConfirmation: () -> Unit = {}
+        var probeBackend = ClusterTransparencyProbe.Backend.PRESENTATION
+        val backendButton = button("${getString(R.string.settings_cluster_probe_backend)} · Presentation", false) {}
+        backendButton.tag = "cluster_probe_backend"
+        backendButton.setOnClickListener {
+            ClusterTransparencyProbe.stop("backend_changed")
+            resetConfirmation()
+            probeBackend = if (probeBackend == ClusterTransparencyProbe.Backend.PRESENTATION)
+                ClusterTransparencyProbe.Backend.OVERLAY else ClusterTransparencyProbe.Backend.PRESENTATION
+            backendButton.text = "${getString(R.string.settings_cluster_probe_backend)} · ${if (probeBackend == ClusterTransparencyProbe.Backend.OVERLAY) "Overlay" else "Presentation"}"
+        }
+        body.addView(backendButton)
+        body.addView(label(getString(R.string.settings_cluster_probe_backend_hint), 14, MUTED))
+        val previewBox = object : FrameLayout(appDialogContext()) {
+            override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+                val height = (View.MeasureSpec.getSize(widthSpec).toLong() * targetSize.y / targetSize.x.coerceAtLeast(1)).toInt()
+                super.onMeasure(widthSpec, View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            }
+        }.apply { setBackgroundColor(Color.DKGRAY) }
+        fun updatePreview() {
+            ClusterTransparencyProbe.stop("position_changed")
+            resetConfirmation()
+            previewBox.removeAllViews()
+            previewBox.addView(ClusterTransparencyProbe.ProbeView(appDialogContext(), x, y), FrameLayout.LayoutParams(-1, -1))
+        }
+        body.addView(previewBox, LinearLayout.LayoutParams(-1, -2))
+        updatePreview()
+        for (horizontal in listOf(true, false)) {
+            val title = label("${if (horizontal) "X" else "Y"}: ${if (horizontal) x else y}%", 14, TEXT)
+            body.addView(title)
+            body.addView(android.widget.SeekBar(appDialogContext()).apply {
+                max = 90; progress = (if (horizontal) x else y) - 5
+                setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: android.widget.SeekBar?, value: Int, user: Boolean) {
+                        if (horizontal) x = value + 5 else y = value + 5
+                        title.text = "${if (horizontal) "X" else "Y"}: ${value + 5}%"
+                        updatePreview()
+                    }
+                    override fun onStartTrackingTouch(bar: android.widget.SeekBar?) = Unit
+                    override fun onStopTrackingTouch(bar: android.widget.SeekBar?) = Unit
+                })
+            })
+        }
+        val confirmation = android.widget.CheckBox(appDialogContext()).apply {
+            text = getString(R.string.diag_probe_confirm); setTextColor(TEXT)
+        }
+        resetConfirmation = { confirmation.isChecked = false }
+        body.addView(confirmation)
+        val status = label("", 14, MUTED)
+        body.addView(status)
+        val dialog = appDialogBuilder().setTitle(R.string.diag_cluster_probe)
+            .setView(ScrollView(appDialogContext()).apply { addView(body) })
+            .setPositiveButton(R.string.diag_probe_start, null)
+            .setNegativeButton(R.string.diag_probe_stop) { _, _ -> ClusterTransparencyProbe.stop() }.create()
+        transparencyDialog = dialog
+        dialog.setOnDismissListener {
+            ClusterTransparencyProbe.stop("dialog_closed")
+            if (transparencyDialog === dialog) transparencyDialog = null
+        }
+        dialog.setOnShowListener {
+            val start = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            start.isEnabled = false
+            confirmation.setOnCheckedChangeListener { _, checked -> start.isEnabled = checked; if (!checked) ClusterTransparencyProbe.stop("confirmation_removed") }
+            start.setOnClickListener {
+                val ok = ClusterTransparencyProbe.start(this, display, x, y, confirmation.isChecked, probeBackend)
+                status.text = getString(if (ok) R.string.diag_probe_running else R.string.diag_probe_unavailable)
+            }
+        }
+        dialog.show()
     }
 
     private fun textInput(title: String, current: String, secret: Boolean, save: (String) -> Unit) {
@@ -5750,15 +6111,17 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         })
     }
 
-    private fun openPageUsageAccess() {
+    private fun openPageUsageAccess() = startPageUsageAccessGrant(pageFallback = true)
+
+    private fun openSystemUsageAccessPage(): Boolean {
+        // BYD's launcher answers the usage-access intent with its own "not supported" toast instead of
+        // failing, so opening it would hide the manual ADB fallback.
+        if (CarHotspotSetup.isBydHeadUnit(this)) return false
         val intents = listOf(
             Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:$packageName")),
             Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
         )
-        for (intent in intents) {
-            if (runCatching { startActivity(intent) }.isSuccess) return
-        }
-        showPageUsageAccessSetup()
+        return intents.any { runCatching { startActivity(it) }.isSuccess }
     }
 
     private fun showPageUsageAccessSetup(reason: String? = null) {
@@ -6266,6 +6629,31 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         appendLine()
         reportSection("Current cluster display diagnostics (even when disabled)") {
             appendLine(ClusterMapPresentation.diagnosticReport(appContext))
+            // The music card lives inside the dashboard map's window: without the map it is never shown.
+            appendLine("clusterMusic enabled=${ClusterMusicSettings.enabled(appContext)} " +
+                "permanent=${ClusterMusicSettings.permanent(appContext)} " +
+                "mapEnabled=${AirPlayPersistence.loadClusterMapEnabled(appContext)} ${ClusterMusicState.report()}")
+            appendLine(ClusterMusicSettings.diagnosticReport(appContext))
+            appendLine("customWindows=${ClusterWindowSettings.load(appContext)}")
+            ClusterMusicState.diagnosticEvents().forEach { appendLine(it) }
+        }
+        reportSection("Custom cluster window lifecycle — current process and saved history (read-only)") {
+            appendLine(ClusterWindowDiagnostics.report(appContext))
+        }
+        reportSection("Lyrics / dynamic titles — opt-in text samples, may contain listening history") {
+            com.shilapi.xcertplay.media.LyricsDiagnostics.report().forEach { appendLine(it) }
+        }
+        reportSection("Playback order and event command diagnostics") {
+            com.shilapi.xcertplay.media.PlaybackDiagnostics.report().forEach { appendLine(it) }
+        }
+        reportSection("Cluster transparency probe") {
+            ClusterTransparencyProbe.report().forEach { appendLine(it) }
+        }
+        reportSection("CarPlay shortcuts") {
+            CarPlayShortcuts.report().forEach { appendLine(it) }
+        }
+        reportSection("OEM cluster song output") {
+            BydNavigationOutputs.clusterSongDiagnosticReport().forEach { appendLine(it) }
         }
         reportSection("ADB cluster activity routing") {
             appendLine("adbClusterActivityEnabled=${AirPlayPersistence.loadAdbClusterEnabled(appContext)}")
@@ -6276,6 +6664,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         reportSection("Standalone HUD compatibility") {
             appendLine(BydOutputSettings.standaloneHudDiagnosticReport(appContext))
+        }
+        reportSection("Ambient lighting — saved configuration and recent checks (read-only)") {
+            appendLine(AmbientDiagnostics.report(appContext))
         }
         reportSection("DiPlay ADB link (127.0.0.1:5555)") {
             appendLine(com.shilapi.xcertplay.adb.AdbDiagnostics.report(appContext))
@@ -6334,6 +6725,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         reportSection("Wheel key routing") {
             appendLine(WheelKeyService.routingState(appContext))
             appendLine(CarPlayMediaKeys.report())
+            appendLine("CarPlay modes: ${CarPlayBackgroundSession.snapshot()?.controller?.carPlayModesReport() ?: "no session"}")
             WheelKeyLog.routingReport().forEach { appendLine(it) }
         }
         reportSection("Update availability") {
@@ -6620,6 +7012,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             AirPlayPersistence.saveDisableMediaKeyAudioFocus(this, it)
             markReconnectNeeded()
         }
+        toggle(parent, getString(R.string.settings_carplay_owns_main_audio),
+            getString(R.string.settings_carplay_owns_main_audio_description),
+            AirPlayPersistence.loadCarPlayOwnsMainAudio(this)) {
+            AirPlayPersistence.saveCarPlayOwnsMainAudio(this, it)
+            markReconnectNeeded()
+        }
         val enabled = AirPlayPersistence.loadAudioFocusEnabled(this)
         val dependent = column().apply { visibility = if (enabled) View.VISIBLE else View.GONE }
         toggle(parent, getString(R.string.contrib_audio_home_toggle_audio_focus),
@@ -6706,9 +7104,30 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (level <= 0) getString(R.string.settings_ambient_minimum) else getString(R.string.settings_ambient_brightness_value, level)
 
     private fun showAmbientConfiguration() {
+        val app = applicationContext
         var draft = AmbientMusicSettings.load(this)
+        fun log(stage: String, result: String, values: AmbientMusicSettings.Values = draft, checkId: String? = null) {
+            AmbientDiagnostics.record(app, "stage=$stage result=$result ${AmbientDiagnostics.configuration(values)}", checkId)
+        }
+        log("configuration-open", "ok")
+        var saved = false
+        var cancelled = false
         val body = column().apply { setPadding(dp(24), dp(12), dp(24), dp(12)) }
         body.addView(label(getString(R.string.settings_ambient_parked_notice), 14, MUTED))
+        val checkDetails = label("", 14, MUTED).apply { visibility = View.GONE }
+        body.addView(checkDetails)
+        fun showCheckFailure(pending: java.util.concurrent.CompletableFuture<Boolean>? = null) {
+            val details = pending?.let(AmbientMusicController::supportCheckDetails)
+            val front = details?.frontColor
+            val back = details?.backColor
+            val message = if (details?.reason == "color-unverified" && front != null && back != null)
+                getString(R.string.settings_ambient_color_unverified, front, back)
+            else getString(R.string.settings_ambient_unavailable)
+            checkDetails.text = if (details == null) message else
+                message + "\n" + getString(R.string.settings_ambient_check_detail, details.diagnosticSummary())
+            checkDetails.visibility = View.VISIBLE
+            toast(message)
+        }
         body.addView(space(12))
         body.addView(label(getString(R.string.settings_ambient_behavior_title), 16, ACCENT, bold = true))
         val behavior = label("", 14, MUTED)
@@ -6718,7 +7137,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         lateinit var colorHint: TextView
         lateinit var musicOptions: LinearLayout
         fun refreshAmbient() {
-            behavior.text = AmbientBehaviorText.lines(this, draft).joinToString("\n") { "• $it" }
+            behavior.text = AmbientBehaviorText.lines(this, draft).joinToString("\n") { "• $it" } +
+                if (draft.enabled && draft.music && draft.brightness == 0)
+                    "\n" + getString(R.string.settings_ambient_zero_music_warning) else ""
             musicOptions.visibility = if (draft.music) View.VISIBLE else View.GONE
             val album = draft.colorSource == AmbientColorSource.ALBUM
             colorGrid.single = !draft.music
@@ -6731,6 +7152,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         toggle(body, getString(R.string.settings_ambient_enable), getString(R.string.settings_ambient_enable_description), draft.enabled) {
             draft = draft.copy(enabled = it)
+            log("enable-change", "changed")
             refreshAmbient()
         }
         toggle(body, getString(R.string.settings_ambient_music), getString(R.string.settings_ambient_music_description), draft.music) {
@@ -6777,6 +7199,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 draft = draft.copy(selectedColors = sorted, color = sorted.first())
             },
             onLastDeselected = { toast(getString(R.string.settings_ambient_select_one)) },
+            palette = com.shilapi.xcertplay.media.AmbientColorProfile.current(this),
         )
         body.addView(colorGrid)
         body.addView(space(12))
@@ -6808,27 +7231,82 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.settings_ambient_configuration))
             .setView(ScrollView(this).apply { addView(body) })
             .setPositiveButton(getString(R.string.save), null)
-            .setNegativeButton(getString(R.string.cancel), null).create()
+            .setNegativeButton(getString(R.string.cancel)) { _, _ ->
+                cancelled = true
+                log("cancel", "skipped")
+            }.create()
+        dialog.setOnCancelListener {
+            cancelled = true
+            log("cancel", "skipped")
+        }
+        dialog.setOnDismissListener {
+            if (!saved && !cancelled) log("cancel", "skipped")
+            log("dismiss", if (saved) "ok" else "closed")
+        }
         dialog.setOnShowListener {
             val save = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
             save.setOnClickListener {
                 val selected = draft.copy(colorCycle = draft.music)
+                var checkId: String? = null
+                log("save-request", "start", selected)
                 fun commit() {
-                    AmbientMusicSettings.save(this, selected)
+                    val outcome = runCatching { AmbientMusicSettings.save(this, selected) }
+                    log("save-result", if (outcome.isSuccess) "ok" else "failed", selected, checkId)
+                    if (outcome.isFailure) {
+                        AmbientDiagnostics.record(app, "stage=save-result result=failed error=${outcome.exceptionOrNull()!!.javaClass.simpleName}", checkId)
+                        toast(getString(R.string.settings_ambient_unavailable))
+                        return
+                    }
+                    saved = true
                     dialog.dismiss()
                     render()
                 }
-                if (!selected.enabled) commit()
-                else {
+                if (!selected.enabled) {
+                    log("check-skipped", "skipped", selected)
+                    commit()
+                } else {
                     save.isEnabled = false
                     save.text = getString(R.string.settings_ambient_checking)
-                    ambientSupportCheck(applicationContext).whenComplete { supported, _ ->
+                    val pending = runCatching { ambientSupportCheck(app) }.getOrElse { error ->
+                        AmbientDiagnostics.record(app, "stage=check-complete result=failed error=${error.javaClass.simpleName}")
+                        log("save-result", "skipped", selected)
+                        save.isEnabled = true
+                        save.text = getString(R.string.save)
+                        showCheckFailure()
+                        return@setOnClickListener
+                    }
+                    checkId = AmbientMusicController.supportCheckId(pending)
+                    log("check-request", "start", selected, checkId)
+                    pending.whenComplete { supported, error ->
+                        val ok = supported == true && error == null
+                        log("check-complete", if (ok) "ok" else "failed", selected, checkId)
+                        if (error != null) AmbientDiagnostics.record(app,
+                            "stage=check-complete result=failed error=${error.javaClass.simpleName}", checkId)
                         runOnUiThread {
-                            if (!dialog.isShowing || isFinishing || isDestroyed) return@runOnUiThread
+                            if (!dialog.isShowing || isFinishing || isDestroyed) {
+                                log("check-complete-dialog-closed", if (ok) "ok" else "failed", selected, checkId)
+                                log("save-result", "skipped", selected, checkId)
+                                return@runOnUiThread
+                            }
                             save.isEnabled = true
                             save.text = getString(R.string.save)
-                            if (supported == true) commit()
-                            else toast(getString(R.string.settings_ambient_unavailable))
+                            // The same code means another color in another palette: let the driver pick again.
+                            val identified = com.shilapi.xcertplay.media.AmbientColorProfile.current(app)
+                            if (identified != colorGrid.palette) {
+                                colorGrid.setPalette(identified, draft.selectedColors.toSet())
+                                val sorted = colorGrid.selection.sorted()
+                                draft = draft.copy(selectedColors = sorted, color = sorted.first())
+                                log("save-result", "skipped", selected, checkId)
+                                checkDetails.text = getString(R.string.settings_ambient_palette_changed, identified.size)
+                                checkDetails.visibility = View.VISIBLE
+                                toast(getString(R.string.settings_ambient_palette_changed, identified.size))
+                                return@runOnUiThread
+                            }
+                            if (ok) commit()
+                            else {
+                                log("save-result", "skipped", selected, checkId)
+                                showCheckFailure(pending)
+                            }
                         }
                     }
                 }
@@ -6989,7 +7467,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     }
 
     private fun buttonShape(color: Int, stroke: Int, heightPx: Int = 0) = rounded(color, stroke).apply {
-        cornerRadius = if (heightPx > 0) minOf(dp(24).toFloat(), heightPx * 20f / 56) else layoutCornerRadius()
+        cornerRadius = if (heightPx > 0) com.shilapi.xcertplay.settings.SettingsControlMetrics.radius(
+            heightPx, resources.displayMetrics.density) else layoutCornerRadius()
     }
 
     private fun buttonFocusRing() = focusRing(
@@ -7304,12 +7783,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         private const val VALUE_SEPARATOR = " · "
         private const val SEARCH_HIGHLIGHT_MILLIS = 900L
         private const val SPACER = "spacer"
-        private const val CONTROL_HEIGHT_DP = 60
-        private const val CONTROL_GAP_DP = 12
+        private const val CONTROL_HEIGHT_DP = com.shilapi.xcertplay.settings.SettingsControlMetrics.HEIGHT_DP
+        private const val CONTROL_GAP_DP = com.shilapi.xcertplay.settings.SettingsControlMetrics.GAP_DP
         private const val GROUP_GAP_DP = 20
         private const val NOTE_LINE_GAP_DP = 4
         private const val NOTE_ATTACH_GAP_DP = 6
-        private const val SETTINGS_BLOCK_GAP_DP = 16
+        private const val SETTINGS_BLOCK_GAP_DP = com.shilapi.xcertplay.settings.SettingsControlMetrics.BLOCK_GAP_DP
     }
 }
 

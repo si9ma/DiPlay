@@ -96,8 +96,14 @@ class AirPlaySession(
     private var eventCipher: ControlCipher? = null
     @Volatile private var eventReady = false
     internal fun isEventReady(): Boolean = eventReady && !closed.get()
+    val diagnosticId = com.shilapi.xcertplay.media.PlaybackDiagnostics.newSession()
+    private val commandTrace = com.shilapi.xcertplay.media.EventCommandTrace(diagnosticId)
     private var eventCseq = 0
-    private var pendingNightMode: Boolean? = null
+    private val modeResponses = CarPlayModeResponses(
+        publish = { if (!closed.get()) listener.onCommand(this, "modesChanged", it) },
+        log = { debugLog("airplay $it") },
+    )
+    private val nightModeRequests = CarPlayNightModeRequests { debugLog("airplay session=$diagnosticId $it") }
     private val firstTouchSendLogged = AtomicBoolean(false)
     private val touchSendFailureLogged = AtomicBoolean(false)
     private val ntp = NtpClock()
@@ -326,14 +332,40 @@ class AirPlaySession(
             "Content-Type: $PLIST_CONTENT_TYPE\r\n" +
             "Content-Length: ${body.size}\r\n" +
             "CSeq: $eventCseq\r\n\r\n"
-        trace("airplay event tx headers=$head bodyHex=${body.toHex()}")
+        val night = if (command["type"] == "setNightMode") {
+            (command["params"] as? Map<*, *>)?.get("nightMode") as? Boolean
+        } else null
+        if (night != null) {
+            nightModeRequests.sent(eventCseq, night)
+            trace("airplay event tx type=setNightMode cseq=$eventCseq")
+        } else {
+            trace("airplay event tx headers=$head bodyHex=${body.toHex()}")
+        }
+        if (command["type"] == "changeModes") {
+            modeResponses.sent(eventCseq)
+            debugLog("airplay changeModes tx cseq=$eventCseq params=${command["params"]}")
+        }
+        val kind = when (command["type"]) {
+            "changeModes" -> "changeModes"
+            "requestSiri" -> "requestSiri"
+            "requestUI" -> "requestUI"
+            "hidSendReport" -> if (command["uuid"] == AirPlayHid.MEDIA_HID_UID.toString(16)) {
+                "mediaHID:index=${(command["hidReport"] as? ByteArray)?.firstOrNull()?.toInt()}"
+            } else null
+            else -> null
+        }
+        if (kind != null) commandTrace.sent(eventCseq, kind)
         return try {
             val bytes = cipher.encrypt(head.toByteArray(Charsets.US_ASCII) + body)
             val output = socket.getOutputStream()
             output.write(bytes)
             output.flush()
+            if (night != null) nightModeRequests.written(eventCseq, true)
+            if (kind != null) commandTrace.written(eventCseq, true)
             true
         } catch (error: Exception) {
+            if (night != null) nightModeRequests.written(eventCseq, false)
+            if (kind != null) commandTrace.written(eventCseq, false)
             Log.w(TAG, "airplay event command failed type=${command["type"]}", error)
             close()
             false
@@ -387,6 +419,9 @@ class AirPlaySession(
         return pressed && released
     }
 
+    /** changeModes: the car gives up main audio, so the iPhone acts on media presses. */
+    fun releaseMainAudio(): Boolean = sendCommand(CarPlayModes.releaseMainAudioCommand())
+
     fun sendIapMessage(data: ByteArray, timeoutMillis: Long = 0L): Boolean {
         require(timeoutMillis >= 0) { "timeoutMillis must not be negative" }
         val command = linkedMapOf<String, Any?>(
@@ -422,18 +457,26 @@ class AirPlaySession(
         }
     }
 
-    fun setNightMode(night: Boolean): Boolean = synchronized(eventWriteLock) {
-        pendingNightMode = night
+    /** True means written, not that the iPhone has changed its appearance. */
+    fun setNightMode(night: Boolean): Boolean = setNightModeWithDelivery(night) == AirPlayNightModeDelivery.WRITTEN
+
+    fun setNightModeWithDelivery(night: Boolean): AirPlayNightModeDelivery = synchronized(eventWriteLock) {
+        if (closed.get()) return AirPlayNightModeDelivery.FAILED
+        nightModeRequests.target(night)
         sendPendingNightModeLocked()
     }
 
-    private fun sendPendingNightModeLocked(): Boolean {
-        val night = pendingNightMode ?: return true
+    private fun sendPendingNightModeLocked(): AirPlayNightModeDelivery {
+        if (closed.get()) return AirPlayNightModeDelivery.FAILED
+        val night = nightModeRequests.pending() ?: return AirPlayNightModeDelivery.WRITTEN
+        if (!isEventReady() || eventSocket == null || eventCipher == null) {
+            debugLog("airplay setNightMode write target=$night result=queued reason=event-not-ready")
+            return AirPlayNightModeDelivery.QUEUED
+        }
         val sent = sendCommandLocked(
             linkedMapOf("type" to "setNightMode", "params" to linkedMapOf("nightMode" to night)),
         )
-        if (sent) pendingNightMode = null
-        return sent
+        return if (sent) AirPlayNightModeDelivery.WRITTEN else AirPlayNightModeDelivery.FAILED
     }
 
     private fun sendHidReport(uid: Int, report: ByteArray): Boolean =
@@ -592,6 +635,7 @@ class AirPlaySession(
                         "videoPlaybackAllowed=${if (config.videoInCar) VideoInCar.allowed else "not-offered"}",
                 )
                 debugLog("airplay /info displays=${info["displays"]}")
+                debugLog("airplay /info modes=${info["modes"]}")
                 RtspMessage.Response(
                     headers = mapOf("Content-Type" to PLIST_CONTENT_TYPE),
                     body = BplistCodec.encode(info),
@@ -762,7 +806,8 @@ class AirPlaySession(
         } else if (type == "requestUI") {
             listener.onHostUiRequested(this)
         }
-        listener.onCommand(this, type, params)
+        if (type == "modesChanged") modeResponses.changed(params)
+        else listener.onCommand(this, type, params)
         return RtspMessage.Response(status = 200)
     }
 
@@ -830,7 +875,13 @@ class AirPlaySession(
     }
 
     private fun updateEventReady(ready: Boolean) {
+        val wasReady = eventReady
         eventReady = ready && !closed.get()
+        if (!eventReady) {
+            commandTrace.close()
+            modeResponses.clear()
+            if (wasReady || closed.get()) nightModeRequests.clear()
+        }
         listener.onEventChannelChanged(this)
     }
 
@@ -920,7 +971,12 @@ class AirPlaySession(
                 val parsed = RtspMessage.parseMessages(plaintext)
                 plaintext = parsed.rest
                 for (message in parsed.messages) {
-                    if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) continue
+                    if (message.method.startsWith("RTSP/") || message.method.startsWith("HTTP/")) {
+                        commandTrace.reply(message)
+                        modeResponses.accept(message)
+                        synchronized(eventWriteLock) { nightModeRequests.accept(message) }
+                        continue
+                    }
                     debugLog(
                         "airplay event rx ${message.method} ${message.path} cseq=${message.headers["cseq"] ?: "-"} body=${message.body.size}",
                     )
@@ -1006,6 +1062,59 @@ internal fun teardownStreamTypes(body: Any?): List<Int>? {
     }
     if (entries.isEmpty()) return null
     return entries.filterNot { (type, streamId) -> type == 130 && streamId != null && streamId != 1L }.map { it.first }
+}
+
+/** Transport delivery only; even a successful response is not an appearance observation. */
+enum class AirPlayNightModeDelivery { WRITTEN, QUEUED, FAILED }
+
+internal class CarPlayNightModeRequests(private val log: (String) -> Unit) {
+    private data class Request(val night: Boolean, val revision: Long)
+    private var revision = 0L
+    private var pendingNight: Boolean? = null
+    private val requests = linkedMapOf<Int, Request>()
+
+    @Synchronized fun target(night: Boolean) {
+        revision++
+        pendingNight = night
+        log("setNightMode target=$night revision=$revision")
+    }
+
+    @Synchronized fun pending(): Boolean? = pendingNight
+
+    @Synchronized fun sent(cseq: Int, night: Boolean) {
+        if (pendingNight != night) return
+        requests[cseq] = Request(night, revision)
+        while (requests.size > 16) requests.remove(requests.keys.first())
+    }
+
+    @Synchronized fun written(cseq: Int, success: Boolean) {
+        val request = requests[cseq] ?: return
+        if (success && request.revision == revision) pendingNight = null
+        if (!success) requests.remove(cseq)
+        log("setNightMode write cseq=$cseq target=${request.night} " +
+            "result=${if (success) "written" else "failed"} appearance=unconfirmed")
+    }
+
+    @Synchronized fun accept(response: RtspMessage.Request) {
+        if (!response.method.startsWith("RTSP/") && !response.method.startsWith("HTTP/")) return
+        val cseq = response.headers["cseq"]?.toIntOrNull() ?: return
+        val request = requests.remove(cseq) ?: return
+        val body = if (response.body.isEmpty()) null else
+            runCatching { BplistCodec.decode(response.body) as? Map<*, *> }.getOrNull()
+        val status = body?.get("status")
+        val validBody = response.body.isEmpty() || body != null
+        val statusOk = status == null || (status is Number && status.toDouble() == 0.0)
+        val accepted = response.path.toIntOrNull() == 200 && validBody && statusOk
+        log("setNightMode response cseq=$cseq target=${request.night} rtsp=${response.path.toIntOrNull()} " +
+            "status=${(status as? Number)?.toLong() ?: if (status == null) "absent" else "invalid"} " +
+            "bodyValid=$validBody accepted=$accepted superseded=${request.revision != revision} appearance=unconfirmed")
+    }
+
+    @Synchronized fun clear() {
+        revision++
+        pendingNight = null
+        requests.clear()
+    }
 }
 
 internal fun safeClose(closeable: Closeable?) {

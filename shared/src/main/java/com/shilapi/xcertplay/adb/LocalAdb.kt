@@ -186,9 +186,10 @@ class LocalAdb(
             val reply = receive()
             if (reply.command != AdbPacket.OKAY || reply.arg1 != local) throw IOException("interactive open rejected")
             InteractiveShell(local, reply.arg0, ::send, ::receive,
-                { timeout -> socket?.soTimeout = timeout }, ::closeQuietly)
-        } catch (_: IOException) {
+                { timeout -> socket?.soTimeout = timeout }, ::closeQuietly, trace)
+        } catch (error: IOException) {
             closeQuietly()
+            runCatching { trace("$host:$port interactive-open failed error=${error.javaClass.simpleName}") }
             null
         }
     }
@@ -201,6 +202,7 @@ class LocalAdb(
         private val readPacket: () -> AdbPacket,
         private val setTimeout: (Int) -> Unit,
         private val closeConnection: () -> Unit,
+        private val trace: (String) -> Unit = {},
     ) : Closeable {
         @Volatile private var closed = false
         private companion object {
@@ -209,20 +211,25 @@ class LocalAdb(
             }
         }
         @Synchronized
-        fun exchangeBounded(request: String, timeoutMillis: Int = 5000): String? {
-            if (closed || request.toByteArray(Charsets.UTF_8).size > 1024 || '\n' in request || '\r' in request) return null
+        fun exchangeBounded(request: String, timeoutMillis: Int = 5000, observeResponse: (String) -> Unit = {}): String? {
+            if (closed || request.toByteArray(Charsets.UTF_8).size > 1024 || '\n' in request || '\r' in request) {
+                runCatching { trace("interactive-exchange rejected reason=${if (closed) "closed" else "invalid-request"}") }
+                return null
+            }
             val boundedMillis = timeoutMillis.coerceIn(1, 10000)
+            val deadlineExpired = AtomicBoolean(false)
             // Socket read timeout alone restarts per read; an independent deadline also bounds drips.
             val deadlineTask = deadlines.schedule({
+                deadlineExpired.set(true)
                 closed = true
                 closeConnection()
             }, boundedMillis.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
+            val response = InteractiveResponseBuffer()
+            var packets = 0
             return try {
                 val deadline = System.nanoTime() + boundedMillis * 1_000_000L
                 sendPacket(AdbPacket(AdbPacket.WRTE, local, remote, "$request\n".toByteArray(Charsets.UTF_8)))
                 var acknowledged = false
-                val response = InteractiveResponseBuffer()
-                var packets = 0
                 while (!acknowledged || !response.complete) {
                     if (++packets > 64) throw IOException("interactive packet limit")
                     val remaining = (deadline - System.nanoTime()) / 1_000_000L
@@ -241,11 +248,21 @@ class LocalAdb(
                     }
                 }
                 response.text()
-            } catch (_: IOException) {
+            } catch (error: IOException) {
+                val reason = when {
+                    deadlineExpired.get() || error is SocketTimeoutException -> "timeout"
+                    error is EOFException -> "eof"
+                    error.message in setOf("interactive packet limit", "wrong interactive stream", "interactive stream ended",
+                        "unexpected interactive packet", "interactive response limit") -> error.message
+                    else -> "io-error"
+                }
+                runCatching { trace("interactive-exchange failed reason=$reason error=${error.javaClass.simpleName} packets=$packets timeoutMs=$boundedMillis") }
                 close()
                 null
             } finally {
                 deadlineTask.cancel(false)
+                // Preserve bounded partial diagnostics on EOF/timeout without ever logging the request.
+                runCatching { observeResponse(response.text()) }
             }
         }
         @Synchronized

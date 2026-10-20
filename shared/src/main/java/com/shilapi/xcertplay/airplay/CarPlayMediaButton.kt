@@ -62,6 +62,23 @@ object CarPlayMediaButton {
     }
 
     /**
+     * The press for a raw wheel key as the wheel key service sees it, before BYD rewrites it. The
+     * Di150VCP's play/pause key arrives as 398 with scan code 505 (the Tang's is 353/505); BYD then
+     * passes it to whichever media session it picks, which before CarPlay had played was not DiPlay's.
+     */
+    fun forWheelKey(keyCode: Int, scanCode: Int): Int? = when {
+        keyCode == KeyEvent.KEYCODE_MEDIA_NEXT -> NEXT
+        keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS -> PREVIOUS
+        keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || keyCode == KeyEvent.KEYCODE_MEDIA_PLAY ||
+            keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE || keyCode == KEYCODE_BYD_AUTO_MEDIA_PLAY_PAUSE -> PLAY_PAUSE
+        keyCode == KEYCODE_BYD_DI150_MEDIA_PLAY_PAUSE && scanCode == SCAN_BYD_MEDIA_PLAY_PAUSE -> PLAY_PAUSE
+        else -> null
+    }
+
+    const val KEYCODE_BYD_DI150_MEDIA_PLAY_PAUSE = 398
+    const val SCAN_BYD_MEDIA_PLAY_PAUSE = 505
+
+    /**
      * The CarPlay press the CarPlay screen itself should claim for [keyCode], or null to let the key
      * go on to the car.
      *

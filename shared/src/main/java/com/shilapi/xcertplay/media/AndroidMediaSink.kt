@@ -44,7 +44,13 @@ internal class AudioFocusCoordinator(
     private val muteMediaOnTransientLoss: Boolean = true,
     private val report: (String) -> Unit = {},
 ) {
-    private data class Entry(val channel: AudioChannel, val attributes: AudioAttributes, var appliedVolume: Float = FULL_VOLUME)
+    /** [call]: a CarPlay call played on the media channel; it focuses like media but is never muted or ducked. */
+    private data class Entry(
+        val channel: AudioChannel,
+        val attributes: AudioAttributes,
+        val call: Boolean = false,
+        var appliedVolume: Float = FULL_VOLUME,
+    )
 
     private val manager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
     private val active = LinkedHashMap<AudioTrack, Entry>()
@@ -76,7 +82,11 @@ internal class AudioFocusCoordinator(
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                     if (muteMediaOnTransientLoss) {
                         // This reports a temporary Android focus owner, not a confirmed call.
-                        Log.i(TAG, "Audio: muting media during transient focus loss")
+                        val line = "Audio: muting media during transient focus loss" +
+                            " media=${active.values.count { it.channel == AudioChannel.MEDIA && !it.call }}" +
+                            " callsKeptAudible=${active.values.count { it.call }}"
+                        Log.i(TAG, line)
+                        runCatching { report(line) }
                         setMediaVolume(0f)
                     }
                 }
@@ -88,9 +98,9 @@ internal class AudioFocusCoordinator(
     }
 
     @Synchronized
-    fun acquire(track: AudioTrack, channel: AudioChannel, attributes: AudioAttributes) {
+    fun acquire(track: AudioTrack, channel: AudioChannel, attributes: AudioAttributes, call: Boolean = false) {
         if (closed || !enabled || manager == null || channel == AudioChannel.NAVIGATION) return
-        active[track] = Entry(channel, attributes)
+        active[track] = Entry(channel, attributes, call)
         refreshRequest()
         applyMediaVolume(track, active.getValue(track))
     }
@@ -152,7 +162,8 @@ internal class AudioFocusCoordinator(
     private fun applyMediaVolume(track: AudioTrack, entry: Entry) {
         // Telephony and assistant speech remain audible, and navigation never enters this map.
         // This changes only the renderer's relative gain, never Android's user stream volume.
-        if (entry.channel != AudioChannel.MEDIA || entry.appliedVolume == mediaVolume) return
+        // A call moved to the media channel is still the call: muting it is the "no sound after answering" bug.
+        if (entry.channel != AudioChannel.MEDIA || entry.call || entry.appliedVolume == mediaVolume) return
         val applied = runCatching { track.setStereoVolume(mediaVolume, mediaVolume) == AudioTrack.SUCCESS }.getOrDefault(false)
         if (applied) entry.appliedVolume = mediaVolume
     }
@@ -305,6 +316,11 @@ class AndroidMediaSink(
             surfaces[type] = surface
             videoDecoders[type]?.setSurface(surface)
         }
+    }
+
+    /** Actual decoded content size, not the host canvas or stride; only for the attached output. */
+    fun videoOutputSize(type: Int, surface: Surface): Pair<Int, Int>? = synchronized(videoOwnershipLock) {
+        if (videoClosed || surfaces[type] !== surface) null else videoDecoders[type]?.outputSize
     }
 
     fun clearSurface(type: Int, surface: Surface) {
@@ -533,8 +549,7 @@ class AndroidMediaSink(
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
         // This callback runs on the downlink thread; microphone failures must not stop playback.
         try {
-            val speakerphoneCall = config.audioType == "telephony" &&
-                appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext)
+            val speakerphoneCall = speakerphoneCall(config.audioType)
             if (config.audioType == "telephony" && !speakerphoneCall) enterCommunicationMode(id)
             val uplink = microphoneUplinks.computeIfAbsent(id) {
                 MicrophoneUplink(config, onAudioDiagnostic,
@@ -697,8 +712,7 @@ class AndroidMediaSink(
             mediaBufferMillis,
             onAudioDiagnostic,
             ambientSinkToken,
-            speakerphoneCall = format.audioType == "telephony" &&
-                appContext != null && BydBluetoothSuspend.isSuspendedByUs(appContext),
+            speakerphoneCall = speakerphoneCall(format.audioType),
             echoReference = echoReference,
             voiceFilter = callVoiceFilter && format.audioType == TELEPHONY_AUDIO_TYPE,
         ).also {
@@ -708,6 +722,15 @@ class AndroidMediaSink(
             it.setNavigationAttenuationDb(navigationAttenuationDb)
         }
     }
+
+    /**
+     * With the car Bluetooth radio off there is no SCO, so a call normally plays on the media speaker.
+     * Not while DiPlay holds the car's phone audio state: Android then runs a call, refuses media focus and
+     * silences other apps' media players, so the call has to stay a voice-communication stream.
+     */
+    private fun speakerphoneCall(audioType: String): Boolean =
+        audioType == TELEPHONY_AUDIO_TYPE && appContext != null &&
+            BydBluetoothSuspend.isSuspendedByUs(appContext) && !PhoneAudioRoute.carPlayCallsUseCarAudio()
 
     private companion object {
         const val TELEPHONY_AUDIO_TYPE = "telephony"
@@ -891,6 +914,8 @@ private class VideoDecoder(
     private val queue = VideoDecodeQueue()
     @Volatile private var running = true
     @Volatile private var decoder: MediaCodec? = null
+    @Volatile var outputSize: Pair<Int, Int>? = null
+        private set
     private var outputSurface: Surface? = surface
     private var parking: ParkingOutput? = null
     private var lastConfig: VideoJob.Config? = null
@@ -1586,7 +1611,15 @@ private class VideoDecoder(
     }
 
     private fun logOutputFormat(format: MediaFormat) {
-        report("output format requested=${width}x${height} " +
+        val codedWidth = format.intOrNull(MediaFormat.KEY_WIDTH) ?: 0
+        val codedHeight = format.intOrNull(MediaFormat.KEY_HEIGHT) ?: 0
+        val left = format.intOrNull("crop-left") ?: 0
+        val top = format.intOrNull("crop-top") ?: 0
+        val right = format.intOrNull("crop-right") ?: (codedWidth - 1)
+        val bottom = format.intOrNull("crop-bottom") ?: (codedHeight - 1)
+        outputSize = if (left >= 0 && top >= 0 && right in left until codedWidth && bottom in top until codedHeight)
+            (right - left + 1) to (bottom - top + 1) else null
+        report("output format decoderInit=${width}x${height} " +
             "coded=${format.intOrNull(MediaFormat.KEY_WIDTH)}x${format.intOrNull(MediaFormat.KEY_HEIGHT)} " +
             "crop=${format.intOrNull("crop-left")},${format.intOrNull("crop-top")}," +
             "${format.intOrNull("crop-right")},${format.intOrNull("crop-bottom")} " +
@@ -1622,6 +1655,7 @@ private class VideoDecoder(
             decoder = null
             // The output thread returns from dequeueOutputBuffer within its timeout and then sees no codec.
             awaitNotDequeuing(codec)
+            outputSize = null
         }
         configuredRate = 0
         configuredMtkMode = MtkDecoderMode.NONE
@@ -1988,11 +2022,16 @@ private class AudioRenderer(
                 "usage=${trackAttributes?.usage} contentType=${trackAttributes?.contentType} " +
                 "attributesSource=${if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) "track" else "configured"}"
         }.getOrDefault("api=${Build.VERSION.SDK_INT} trackMetadata=unavailable")
+        val callRoute = if (format.audioType == "telephony") {
+            runCatching {
+                " callSpeaker=$speakerphoneCall ${PhoneAudioRoute.diagnosticState()}"
+            }.getOrDefault(" callRoute=unavailable")
+        } else ""
         report("Audio: ready audioType=${format.audioType} codec=${format.codec} " +
             "rate=${format.sampleRate} channels=${format.channels} " +
             "route=$routeLabel " +
             "bufferMs=${capacityBytes * 1000L / bytesPerSecond} startMs=${startThresholdBytes * 1000L / bytesPerSecond} " +
-            trackMetadata)
+            trackMetadata + callRoute)
         Log.i(
             TAG,
             "audio track prepared type=${format.payloadType} audioType=${format.audioType} " +
@@ -2105,7 +2144,7 @@ private class AudioRenderer(
             Log.i(TAG, "audio focus skipped channel=NAVIGATION; overlays without ducking")
             return
         }
-        track?.let { audioFocusCoordinator.acquire(it, channel, attributes) }
+        track?.let { audioFocusCoordinator.acquire(it, channel, attributes, call = format.audioType == "telephony") }
     }
 
     private fun abandonAudioFocus() {

@@ -170,7 +170,6 @@ class CarPlayController(
     private val clearPairRecord: () -> Unit = {},
     private val locationProvider: Iap2LocationProvider? = null,
     private val vehicleStatusProvider: com.shilapi.xcertplay.transport.VehicleStatusProvider? = null,
-    private val autoPlaybackOptions: () -> AutoPlaybackOptions = { AutoPlaybackOptions() },
 ) : Closeable {
     init {
         require(!config.locationReportingEnabled || locationProvider != null) {
@@ -264,11 +263,48 @@ class CarPlayController(
     /** Command kind and transport outcome only; never phone numbers, names or protocol bodies. */
     @Volatile var keyCommandListener: ((String) -> Unit)? = null
 
-    fun mediaAttachmentToken(): Any? =
+    /** Current attached phone for reattaching a UI; event readiness is checked before each write. */
+    fun activeAirPlaySession(): AirPlaySession? =
         activeSession?.takeIf { !closed && !it.isClosed && activeSession === it }
+
+    fun mediaAttachmentToken(): Any? = activeAirPlaySession()
 
     fun mediaControlSessionToken(): Any? =
         activeSession?.takeIf { !closed && it.isEventReady() && activeSession === it }
+
+    private val carPlayModes = com.shilapi.xcertplay.airplay.CarPlayModes()
+    @Volatile private var modesSession: AirPlaySession? = null
+
+    private fun currentModes(): com.shilapi.xcertplay.airplay.CarPlayModes? =
+        carPlayModes.takeIf { val session = activeSession; session != null && modesSession === session }
+
+    /** The iPhone reports a call in CarPlay's app states; covers calls without an iAP2 call update. */
+    fun carPlayPhoneCallActive(): Boolean = !closed && currentModes()?.phoneCall == true
+
+    /** For the report: who owns the car's main audio, and the iPhone's phone-call state. */
+    fun carPlayModesReport(): String = currentModes()?.let {
+        "mainAudio=${it.mainAudio?.name?.lowercase() ?: "unreported"} phoneCall=${it.phoneCall ?: "unreported"}"
+    } ?: "mainAudio=unreported phoneCall=unreported"
+
+    private fun onModesChanged(session: AirPlaySession, params: Map<String, Any?>) {
+        if (closed || session.isClosed) return
+        val current = activeSession
+        if (current != null && current !== session) return
+        synchronized(carPlayModes) {
+            if (modesSession !== session) {
+                carPlayModes.clear()
+                modesSession = session
+            }
+            carPlayModes.accept(params)
+        }
+        val line = "modes ${carPlayModesReportFor()} ${carPlayModes.describe(params)}"
+        debugLog("CarPlay $line")
+        com.shilapi.xcertplay.media.PlaybackDiagnostics.note("session=${session.diagnosticId} phase=modes $line")
+        runCatching { keyCommandListener?.invoke(line) }
+    }
+
+    private fun carPlayModesReportFor(): String =
+        "mainAudio=${carPlayModes.mainAudio?.name?.lowercase() ?: "unreported"} phoneCall=${carPlayModes.phoneCall ?: "unreported"}"
 
     /** Video in car; set before [start] to offer it to the iPhone (with AirPlayConfig.videoInCar). */
     @Volatile var videoListener: CarPlayVideoListener? = null
@@ -291,42 +327,29 @@ class CarPlayController(
     private val startupTimer = java.util.concurrent.ScheduledThreadPoolExecutor(1) { task ->
         Thread(task, "diplay-first-tcp-timeout").apply { isDaemon = true }
     }.apply { removeOnCancelPolicy = true }
-    @Volatile private var autoPlaybackStopped = false
-    private val autoPlayback = ConnectionAutoPlayback<AirPlaySession>(
-        options = autoPlaybackOptions,
-        state = ::autoPlaybackState,
-        schedule = { delay, action ->
-            val future = startupTimer.schedule({ action() }, delay, TimeUnit.MILLISECONDS)
-            Closeable { future.cancel(false) }
-        },
-        execute = { action -> touchExecutor.execute { action() } },
-        now = android.os.SystemClock::elapsedRealtime,
-        openApp = { session, url -> session.requestUi(url) },
-        play = { session -> session.sendMedia(com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY) },
-        log = { debugLog("auto playback: $it") },
-    )
+    @Volatile private var mediaCommandsStopped = false
+    private val mediaCommandGeneration = AtomicInteger()
+    private val mediaQueueGeneration = AtomicInteger()
+    @Volatile private var statusSession: AirPlaySession? = null
+    @Volatile private var statusSeen = false
 
-    private fun autoPlaybackState(session: AirPlaySession): ConnectionAutoPlayback.State? {
-        if (closed || autoPlaybackStopped || activeSession !== session || session.isClosed) return null
+    private fun mediaCommandsAllowed(session: AirPlaySession): Boolean {
+        if (closed || mediaCommandsStopped || activeSession !== session || session.isClosed) return false
         val mode = appContext.getSystemService(android.media.AudioManager::class.java)?.mode
-        return ConnectionAutoPlayback.State(
-            stream = session.mainScreenSessionToken(),
-            ready = session.isEventReady(),
-            playing = nowPlayingSnapshot().playing,
-            inCall = BydNavigationOutputs.carPlayCall() != null ||
-                (mode != null && mode != android.media.AudioManager.MODE_NORMAL),
-        )
+        return BydNavigationOutputs.carPlayCall() == null && !carPlayPhoneCallActive() &&
+            (mode == null || mode == android.media.AudioManager.MODE_NORMAL)
     }
 
-    /** Accepted means scheduled, not that iOS opened the URL or started playback. */
-    fun tryAutoPlayback(): Boolean = activeSession?.let(autoPlayback::tryOnce) ?: false
+    /** Cancels queued media presses and any press waiting for the iPhone to take main audio. */
+    fun cancelPendingMediaCommands() {
+        mediaQueueGeneration.incrementAndGet()
+        mediaCommandGeneration.incrementAndGet()
+    }
 
-    fun cancelAutoPlayback() = autoPlayback.cancel()
-
-    /** Called before asynchronous teardown, so a queued command cannot outlive Disconnect. */
-    fun stopAutoPlayback() {
-        autoPlaybackStopped = true
-        autoPlayback.cancel()
+    /** Called before asynchronous teardown, so media commands cannot outlive Disconnect. */
+    fun stopPendingMediaCommands() {
+        mediaCommandsStopped = true
+        cancelPendingMediaCommands()
     }
 
     @Volatile private var wirelessDiagnostics: WirelessStartupDiagnostics? = null
@@ -378,7 +401,6 @@ class CarPlayController(
             }
             activeSession = session
             mediaControlListener?.invoke()
-            autoPlayback.onSessionActive(session)
             val btPrefs = appContext.getSharedPreferences("xcertplay_airplay", android.content.Context.MODE_PRIVATE)
             if (btPrefs.getBoolean("bt_suspend_during_carplay", false)) {
                 // close() marks [closed], and a closing session marks itself before onSessionEnded
@@ -403,8 +425,14 @@ class CarPlayController(
         override fun onSessionEnded(session: AirPlaySession) {
             if (activeSession === session) {
                 activeSession = null
+                synchronized(carPlayModes) {
+                    if (modesSession === session) {
+                        carPlayModes.clear()
+                        modesSession = null
+                    }
+                }
                 mediaControlListener?.invoke()
-                autoPlayback.cancel()
+                cancelPendingMediaCommands()
                 synchronized(albumReplayLock) { initialArtworkReplay = null }
                 BydNavigationOutputs.endNow(preserveTurnOverlay = !closed && config.transport == CarPlayTransport.WIRELESS)
                 BydBluetoothSuspend.resume(appContext, this@CarPlayController) { debugLog(it) }
@@ -461,6 +489,7 @@ class CarPlayController(
             debugLog(
                 "AirPlay command type=$type params=${params.keys.sorted().joinToString(",")}",
             )
+            if (type == "modesChanged") onModesChanged(session, params)
             if (
                 config.transport == CarPlayTransport.WIRELESS &&
                 !closed &&
@@ -565,6 +594,131 @@ class CarPlayController(
         }
     }
 
+    @Volatile private var shortcutTapGeneration = 0L
+    @Volatile private var manualTouchStream: Pair<AirPlaySession, Any>? = null
+
+    @Synchronized fun cancelShortcutTaps() { shortcutTapGeneration++ }
+
+    /** Called before a physical DOWN is queued, and after the final physical UP/CANCEL is queued. */
+    @Synchronized fun updateManualTouch(active: Boolean) {
+        val session = activeSession
+        val stream = if (active) session?.mainScreenSessionToken() else null
+        manualTouchStream = if (session != null && stream != null) session to stream else null
+        if (active) cancelShortcutTaps()
+    }
+
+    private fun manualTouchHeld(session: AirPlaySession, stream: Any): Boolean {
+        val touch = manualTouchStream ?: return false
+        return touch.first === session && touch.second === stream
+    }
+
+    private fun shortcutTouchStreamCurrent(session: AirPlaySession, expectedSession: Any, expectedStream: Any): Boolean =
+        activeSession === session && session === expectedSession && !session.isClosed &&
+            session.isEventReady() && session.mainScreenSessionToken() === expectedStream
+
+    /** One CarPlay HID tap, bound to the phone and primary stream that accepted the shortcut. */
+    fun sendShortcutTap(x: Double, y: Double, expectedSession: Any, expectedStream: Any): Boolean {
+        if (!x.isFinite() || !y.isFinite() || x !in 0.0..1.0 || y !in 0.0..1.0) return false
+        val session = activeSession ?: return false
+        val generation = shortcutTapGeneration
+        fun current() = !closed && !manualTouchHeld(session, expectedStream) && generation == shortcutTapGeneration &&
+            shortcutTouchStreamCurrent(session, expectedSession, expectedStream)
+        if (!current()) return false
+        return try {
+            touchExecutor.execute {
+                if (current()) {
+                    var interrupted = false
+                    try {
+                        if (session.sendTouch(listOf(AirPlayContact(0, x, y, down = true))) && current()) Thread.sleep(60)
+                    } catch (_: InterruptedException) {
+                        interrupted = true
+                    } catch (_: Exception) {
+                        // Transport failure is local to this queued tap.
+                    } finally {
+                        runCatching {
+                            if (shortcutTouchStreamCurrent(session, expectedSession, expectedStream)) {
+                                session.sendTouch(listOf(AirPlayContact(0, x, y, down = false)))
+                            }
+                        }
+                        if (interrupted) Thread.currentThread().interrupt()
+                    }
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * A 300 ms, fixed-centre two-contact gesture on the captured primary stream. True means queued;
+     * [onOutcome] runs on the touch worker with written/cancelled/failed, after both contacts release.
+     * Rejected submissions return false without invoking the callback.
+     */
+    fun sendShortcutPinch(
+        zoomIn: Boolean,
+        centerX: Double,
+        centerY: Double,
+        expectedSession: Any,
+        expectedStream: Any,
+        pinchScale: Double = DEFAULT_SHORTCUT_PINCH_SCALE,
+        onOutcome: (String) -> Unit,
+    ): Boolean {
+        if (!centerX.isFinite() || !centerY.isFinite() || centerX !in 0.05..0.95 || centerY !in 0.05..0.95 ||
+            !pinchScale.isFinite() || pinchScale !in SHORTCUT_PINCH_SCALE_RANGE) return false
+        val session = activeSession ?: return false
+        val generation = shortcutTapGeneration
+        fun current() = !closed && !manualTouchHeld(session, expectedStream) && generation == shortcutTapGeneration &&
+            shortcutTouchStreamCurrent(session, expectedSession, expectedStream)
+        if (!current()) return false
+        val outerRadius = minOf(0.18, centerX * 0.9, (1.0 - centerX) * 0.9)
+        val innerRadius = outerRadius / pinchScale
+        return try {
+            touchExecutor.execute {
+                var outcome = "cancelled"
+                var lastContacts: List<AirPlayContact>? = null
+                var interrupted = false
+                try {
+                    for (frame in 0 until 12) {
+                        if (!current()) return@execute
+                        val progress = frame / 11.0
+                        val radius = innerRadius + (outerRadius - innerRadius) * if (zoomIn) progress else 1.0 - progress
+                        val contacts = listOf(
+                            AirPlayContact(0, centerX - radius, centerY, down = true),
+                            AirPlayContact(1, centerX + radius, centerY, down = true),
+                        )
+                        lastContacts = contacts
+                        if (!session.sendTouch(contacts)) {
+                            outcome = "failed"
+                            return@execute
+                        }
+                        Thread.sleep(25)
+                    }
+                    if (current()) outcome = "written"
+                } catch (_: InterruptedException) {
+                    interrupted = true
+                } catch (_: Exception) {
+                    outcome = "failed"
+                } finally {
+                    val contacts = lastContacts
+                    if (contacts != null) {
+                        if (runCatching { shortcutTouchStreamCurrent(session, expectedSession, expectedStream) }.getOrDefault(false)) {
+                            val released = runCatching { session.sendTouch(contacts.map { it.copy(down = false) }) }.getOrDefault(false)
+                            if (!released) outcome = "failed"
+                        } else if (outcome == "written") {
+                            outcome = "cancelled"
+                        }
+                    }
+                    if (interrupted) Thread.currentThread().interrupt()
+                    runCatching { onOutcome(outcome) }
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /** Moves CarPlay on the main screen to its declared view area [index], for example another dock edge. */
     fun showViewArea(index: Int): Boolean {
         if (closed) return false
@@ -606,6 +760,7 @@ class CarPlayController(
         val next = visible && !closed
         if (dashboardMapOutputVisible == next) return
         dashboardMapOutputVisible = next
+        if (!next) windowAutoZoom.cancel()
         dashboardMapEpoch.incrementAndGet()
     }
 
@@ -632,6 +787,7 @@ class CarPlayController(
     fun zoomDashboardMap(zoomIn: Boolean): Boolean {
         val route = dashboardMapRoute() ?: return false
         val session = activeSession ?: return false
+        windowAutoZoom.manual(session, session.clusterContentRoute()?.first ?: 0)
         return try {
             touchExecutor.execute {
                 if (activeSession === session && dashboardMapRoute() == route) session.changeMapZoomLevel(zoomIn)
@@ -642,11 +798,54 @@ class CarPlayController(
         }
     }
 
+    private val windowAutoZoom = WindowMapAutoZoom()
+    private val autoZoomLock = Any()
+    private var dashboardAutoZoomPoll: java.util.concurrent.ScheduledFuture<*>? = null
+    private val autoZoomQueued = AtomicBoolean(false)
+
+    /** Only the custom map window supplies eligibility. Options are frozen per phone session. */
+    fun setCustomMapAutoZoom(steps: Int, visible: Boolean) {
+        synchronized(autoZoomLock) {
+            windowAutoZoom.configure(steps, visible && !closed)
+            if (closed || !visible) {
+                dashboardAutoZoomPoll?.cancel(false)
+                dashboardAutoZoomPoll = null
+                return
+            }
+            if (dashboardAutoZoomPoll != null) return
+            dashboardAutoZoomPoll = try {
+                startupTimer.scheduleWithFixedDelay({
+                    if (autoZoomQueued.compareAndSet(false, true)) {
+                        try {
+                            touchExecutor.execute {
+                                try { checkDashboardAutoZoom() } finally { autoZoomQueued.set(false) }
+                            }
+                        } catch (_: java.util.concurrent.RejectedExecutionException) { autoZoomQueued.set(false) }
+                    }
+                }, 100, 100, TimeUnit.MILLISECONDS)
+            } catch (_: java.util.concurrent.RejectedExecutionException) { null }
+        }
+    }
+
+    private fun checkDashboardAutoZoom() {
+        if (closed) return
+        val session = activeSession
+        val stream = session?.clusterContentRoute()?.first ?: 0
+        val route = dashboardMapRoute()
+        val step = windowAutoZoom.next(session, stream, route, android.os.SystemClock.elapsedRealtime()) ?: return
+        if (session != null && activeSession === session && session.isEventReady() &&
+            dashboardMapRoute() == step.route && windowAutoZoom.current(step)) {
+            val sent = runCatching { session.changeMapZoomLevel(step.zoomIn) }.getOrDefault(false)
+            debugLog("Custom map initial zoom: stream=$stream in=${step.zoomIn} written=$sent")
+            if (!sent) windowAutoZoom.cancel()
+        } else windowAutoZoom.cancel()
+    }
+
     /** Sends the car command requestUI with [url]. The log names only the URL scheme, never its parameters. */
     fun requestUi(url: String): Boolean {
         if (closed) return false
         val session = activeSession ?: return false
-        autoPlayback.cancel()
+        cancelPendingMediaCommands()
         return try {
             touchExecutor.execute {
                 if (!closed && activeSession === session) {
@@ -661,7 +860,7 @@ class CarPlayController(
 
     /** Opens Siri on the iPhone, as the car's voice button does in CarPlay. */
     fun requestSiri(): Boolean {
-        autoPlayback.cancel()
+        cancelPendingMediaCommands()
         return enqueueKeyCommand("siri") { it.invokeSiri() }
     }
 
@@ -671,31 +870,151 @@ class CarPlayController(
     /** Ends the current call or declines the ringing one (telephony Drop). */
     fun endCall(): Boolean = sendTelephony(TELEPHONY_DROP)
 
-    private fun sendTelephony(index: Int): Boolean =
-        enqueueKeyCommand("telephony:$index") { it.sendTelephony(index) }
-
-    fun sendMediaButton(index: Int): Boolean {
-        autoPlayback.cancel()
-        return enqueueKeyCommand("media:$index") { it.sendMedia(index) }
+    private fun sendTelephony(index: Int): Boolean {
+        cancelPendingMediaCommands()
+        return enqueueKeyCommand("telephony:$index") { it.sendTelephony(index) }
     }
 
-    private fun enqueueKeyCommand(kind: String, send: (AirPlaySession) -> Boolean): Boolean {
+    fun sendMediaButton(index: Int): Boolean =
+        sendMediaPress(index, MAIN_AUDIO_WAIT_MILLIS, forceAfterTimeout = false, onDone = null)
+
+    /**
+     * A shortcut's media press. It waits longer than a wheel press for the iPhone to take main audio,
+     * still sends an explicit PLAY when the iPhone did not (at worst the iPhone ignores it), and reports
+     * the transport outcome exactly once through [onDone], on any thread. True means queued.
+     */
+    fun sendShortcutMedia(index: Int, onDone: (String) -> Unit): Boolean = sendMediaPress(index,
+        SHORTCUT_MAIN_AUDIO_WAIT_MILLIS, forceAfterTimeout = index == com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY,
+        onDone = onDone)
+
+    private fun sendMediaPress(index: Int, waitMillis: Long, forceAfterTimeout: Boolean, onDone: ((String) -> Unit)?): Boolean {
+        mediaCommandGeneration.incrementAndGet()
+        val reported = AtomicBoolean(false)
+        val done: ((String) -> Unit)? = onDone?.let { callback ->
+            { result -> if (reported.compareAndSet(false, true)) runCatching { callback(result) } }
+        }
+        val forced: ((AirPlaySession) -> Boolean)? = if (forceAfterTimeout) { owner ->
+            keyCommandDiagnostic("command=media:$index actualIndex=$index ownershipConfirmed=false forced=true")
+            owner.sendMedia(index)
+        } else null
+        val queued = enqueueKeyCommand("media:$index", done) { session ->
+            afterMainAudio(session, "media:$index", waitMillis, forced, done) { owner, claimed ->
+                // Before the iPhone owned main audio it was not playing CarPlay audio, so the wheel's
+                // play/pause toggle means play; a toggle could pause a player that release resumed.
+                val sent = if (claimed && index == com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY_PAUSE) {
+                    com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY
+                } else index
+                keyCommandDiagnostic("command=media:$index actualIndex=$sent ownershipConfirmed=true")
+                owner.sendMedia(sent)
+            }
+        }
+        if (!queued) done?.invoke("not_queued")
+        return queued
+    }
+
+    /**
+     * Runs [send] once the iPhone owns the car's main audio. Without it the iPhone ignores media
+     * presses. Returns null when [send] waits for that, otherwise its result. After [waitMillis]
+     * without ownership, [onTimeout] may still write the press. [done] gets the outcome of a wait.
+     */
+    private fun afterMainAudio(session: AirPlaySession, kind: String,
+        waitMillis: Long = MAIN_AUDIO_WAIT_MILLIS, onTimeout: ((AirPlaySession) -> Boolean)? = null,
+        done: ((String) -> Unit)? = null, send: (AirPlaySession, Boolean) -> Boolean): Boolean? {
+        val generation = mediaCommandGeneration.get()
+        val screen = session.mainScreenSessionToken()
+        if (!mediaCommandsAllowed(session)) return false
+        if (currentModes()?.iphoneOwnsMainAudio() == true) return send(session, false)
+        val released = session.releaseMainAudio()
+        keyCommandDiagnostic("command=$kind ${carPlayModesReport()} releaseMainAudio=$released")
+        if (!released) return false
+        val started = android.os.SystemClock.elapsedRealtime()
+        fun attempt() {
+            val waited = android.os.SystemClock.elapsedRealtime() - started
+            if (generation != mediaCommandGeneration.get() || session.mainScreenSessionToken() !== screen) {
+                keyCommandDiagnostic("command=$kind dropped=cancelled_or_screen_changed")
+                done?.invoke("cancelled")
+                return
+            }
+            if (closed || activeSession !== session || session.isClosed) {
+                keyCommandDiagnostic("command=$kind dropped=stale_session")
+                done?.invoke("stale_session")
+                return
+            }
+            if (currentModes()?.iphoneOwnsMainAudio() != true && waited < waitMillis) {
+                try {
+                    startupTimer.schedule({ attempt() }, MAIN_AUDIO_POLL_MILLIS, TimeUnit.MILLISECONDS)
+                } catch (_: java.util.concurrent.RejectedExecutionException) {
+                    keyCommandDiagnostic("command=$kind dropped=closing")
+                    done?.invoke("closing")
+                }
+                return
+            }
+            try {
+                touchExecutor.execute {
+                    if (closed || activeSession !== session || session.isClosed || !session.isEventReady()) {
+                        keyCommandDiagnostic("command=$kind dropped=stale_session")
+                        done?.invoke("stale_session")
+                        return@execute
+                    }
+                    if (generation != mediaCommandGeneration.get() || session.mainScreenSessionToken() !== screen ||
+                        !mediaCommandsAllowed(session)) {
+                        keyCommandDiagnostic("command=$kind dropped=cancelled_or_call")
+                        done?.invoke("cancelled_or_call")
+                        return@execute
+                    }
+                    if (currentModes()?.iphoneOwnsMainAudio() != true) {
+                        val forced = onTimeout?.let { runCatching { it(session) }.getOrDefault(false) }
+                        keyCommandDiagnostic("command=$kind written=${forced ?: false} reason=ownership_timeout " +
+                            "${carPlayModesReport()} waitedMs=$waited")
+                        done?.invoke(if (forced == true) "written_without_main_audio" else "ownership_timeout")
+                        return@execute
+                    }
+                    val written = runCatching { send(session, true) }.getOrDefault(false)
+                    keyCommandDiagnostic("command=$kind written=$written ${carPlayModesReport()} waitedMs=$waited")
+                    done?.invoke(if (written) "written" else "not_written")
+                }
+            } catch (_: java.util.concurrent.RejectedExecutionException) {
+                keyCommandDiagnostic("command=$kind dropped=closing")
+                done?.invoke("closing")
+            }
+        }
+        attempt()
+        return null
+    }
+
+    private fun enqueueKeyCommand(kind: String, done: ((String) -> Unit)? = null, send: (AirPlaySession) -> Boolean?): Boolean {
         val session = activeSession
+        val mediaCommand = kind.startsWith("media:")
+        val generation = mediaQueueGeneration.get()
         if (closed || session == null) {
             keyCommandDiagnostic("command=$kind rejected=${if (closed) "controller_closed" else "no_session"}")
             return false
         }
+        if (mediaCommand && mediaCommandsStopped) {
+            keyCommandDiagnostic("command=$kind rejected=media_stopped")
+            return false
+        }
         return try {
             touchExecutor.execute {
+                if (mediaCommand && (mediaCommandsStopped || generation != mediaQueueGeneration.get())) {
+                    keyCommandDiagnostic("command=$kind dropped=cancelled")
+                    done?.invoke("cancelled")
+                    return@execute
+                }
                 if (closed || activeSession !== session || session.isClosed) {
                     keyCommandDiagnostic("command=$kind dropped=stale_session")
+                    done?.invoke("stale_session")
                 } else if (!session.isEventReady()) {
                     keyCommandDiagnostic("command=$kind written=false reason=event_not_ready")
+                    done?.invoke("event_not_ready")
                 } else {
                     try {
-                        keyCommandDiagnostic("command=$kind written=${send(session)}")
+                        val written = send(session)
+                        keyCommandDiagnostic("command=$kind written=${written ?: "after_main_audio"}")
+                        if (written != null) done?.invoke(if (written) "written" else "not_written")
                     } catch (error: Exception) {
                         keyCommandDiagnostic("command=$kind written=false error=${error.javaClass.simpleName}")
+                        done?.invoke("error")
                     }
                 }
             }
@@ -707,6 +1026,7 @@ class CarPlayController(
     }
 
     private fun keyCommandDiagnostic(message: String) {
+        com.shilapi.xcertplay.media.PlaybackDiagnostics.note("session=${activeSession?.diagnosticId} key_control $message")
         debugLog("key control: $message")
         runCatching { keyCommandListener?.invoke(message) }
     }
@@ -720,7 +1040,7 @@ class CarPlayController(
             dashboardMapOutputVisible = false
         }
         mediaControlListener?.invoke()
-        stopAutoPlayback()
+        stopPendingMediaCommands()
         firstTcpWatchdog?.terminate()
         BydBluetoothSuspend.resume(appContext, this) { debugLog(it) }
         startupTimer.shutdownNow()
@@ -873,12 +1193,23 @@ class CarPlayController(
         com.shilapi.xcertplay.glance.CarPlayGlance.onFrame(frame)
         synchronized(playbackStatus) {
             val previousPlaying = playbackStatus.playing
-            playbackStatus.acceptUpdate(frame)?.let { it to (it.playing != previousPlaying) }
+            val update = playbackStatus.acceptUpdate(frame)
+            runCatching { com.shilapi.xcertplay.media.LyricsDiagnostics.observe(this, frame, playbackStatus.nowPlaying) }
+            if (frame.messageId == com.shilapi.xcertplay.media.CarPlayPlaybackStatus.NOW_PLAYING_UPDATE) runCatching {
+                val status = com.shilapi.xcertplay.iap2.body.Iap2BodyReader.of(frame).optionalGroup(1)?.optionalU8(0)
+                if (status != null) {
+                    val session = activeSession
+                    if (statusSession !== session || !statusSeen || previousPlaying != playbackStatus.playing) {
+                        com.shilapi.xcertplay.media.PlaybackDiagnostics.note("session=${session?.diagnosticId} phase=phone_status raw=$status playing=${playbackStatus.playing} elapsed=${playbackStatus.nowPlaying.elapsedMillis}")
+                    }
+                    statusSession = session; statusSeen = true
+                }
+            }
+            update?.let { it to (it.playing != previousPlaying) }
         }?.let { (update, playingChanged) ->
             nowPlayingListener?.invoke(update)
             if (playingChanged) playbackListener?.invoke(update.playing)
         }
-        if (BydNavigationOutputs.carPlayCall() != null || nowPlayingSnapshot().playing) autoPlayback.cancel()
     }
 
     enum class InitialAlbumRefreshResult { SENT, FAILED, CLOSED, INACTIVE_SESSION, CANCELLED, CHANNEL_UNAVAILABLE }
@@ -3128,9 +3459,18 @@ class CarPlayController(
 
     companion object {
         const val CONNECTION_DIAGNOSTIC_PREFIX = "CONNECTION_DIAGNOSTIC"
+        const val DEFAULT_SHORTCUT_PINCH_SCALE = 4.0
+        val SHORTCUT_PINCH_SCALE_RANGE = 1.1..8.0
         // Indices in the telephony HID report (AirPlayHid.telephonyDescriptor).
         private const val TELEPHONY_HOOK_SWITCH = 1
         private const val TELEPHONY_DROP = 3
+        /** After releasing main audio, how long a press waits for the iPhone to report it took it. */
+        private const val MAIN_AUDIO_WAIT_MILLIS = 1_000L
+        /** A shortcut press is not latency-sensitive; an opened app can take a few seconds to claim audio. */
+        const val SHORTCUT_MAIN_AUDIO_WAIT_MILLIS = 3_000L
+        private const val MAIN_AUDIO_POLL_MILLIS = 50L
+        const val MAX_DASHBOARD_AUTO_ZOOM_STEPS = 5
+
         private val diagnosticAttempts = AtomicInteger()
         private const val IAP2_IPHONE_UUID = "00000000-deca-fade-deca-deafdecacafe"
         // BluetoothProfile.A2DP_SINK and HEADSET_CLIENT, hidden from the public SDK.

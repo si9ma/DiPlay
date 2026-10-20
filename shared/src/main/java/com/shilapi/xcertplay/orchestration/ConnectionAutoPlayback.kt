@@ -27,7 +27,7 @@ internal class ConnectionAutoPlayback<T : Any>(
     private val execute: (() -> Unit) -> Unit,
     private val now: () -> Long,
     private val openApp: (T, String) -> Boolean,
-    private val play: (T) -> Boolean,
+    private val play: (T) -> Boolean?,
     private val log: (String) -> Unit = {},
 ) {
     data class State(val stream: Any?, val ready: Boolean, val playing: Boolean, val inCall: Boolean)
@@ -118,7 +118,11 @@ internal class ConnectionAutoPlayback<T : Any>(
             enqueue(attempt)
         } else if (pending.compareAndSet(attempt, null)) {
             attempt.timer.getAndSet(null)?.close()
-            log(if (play(attempt.owner)) "PLAY sent" else "PLAY failed")
+            log(when (play(attempt.owner)) {
+                true -> "PLAY sent"
+                false -> "PLAY failed"
+                null -> "PLAY awaiting main audio"
+            })
         }
     }
 

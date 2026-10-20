@@ -27,6 +27,26 @@ data class CarPlayNightSchedule(val startMinute: Int = 18 * 60, val endMinute: I
     }
 }
 
+/** A saved preference reaches the current host even while Settings has paused its Activity. */
+internal object CarPlayNightModeRuntime {
+    private class Observer(val dispatch: (() -> Unit) -> Unit, val changed: () -> Unit)
+    private val lock = Any()
+    private var observer: Observer? = null
+
+    fun observe(dispatch: (() -> Unit) -> Unit, changed: () -> Unit): () -> Unit {
+        val next = Observer(dispatch, changed)
+        synchronized(lock) { observer = next }
+        return { synchronized(lock) { if (observer === next) observer = null } }
+    }
+
+    fun settingsChanged() {
+        val current = synchronized(lock) { observer } ?: return
+        current.dispatch {
+            if (synchronized(lock) { observer === current }) current.changed()
+        }
+    }
+}
+
 internal data class NightTimeSnapshot(val minuteOfDay: Int, val millisUntilNextMinute: Long)
 
 internal interface NightTimeSource {
@@ -92,7 +112,9 @@ internal class CarPlayNightModeController(
         threshold: AmbientLightThreshold = AmbientLightThreshold(),
         delaySeconds: Int = 2,
         schedule: CarPlayNightSchedule = CarPlayNightSchedule(),
+        force: Boolean = false,
     ) {
+        val previousNight = night
         stopListening()
         this.mode = mode
         this.systemNight = systemNight
@@ -100,6 +122,7 @@ internal class CarPlayNightModeController(
         this.delaySeconds = delaySeconds.coerceIn(0, 60)
         this.schedule = schedule
         applyMode()
+        if (force && night == previousNight) onNightChanged(night)
     }
 
     fun resume(systemNight: Boolean) {

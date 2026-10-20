@@ -251,6 +251,7 @@ internal object ClusterActivityOutput {
     }
 
     fun bind(owner: Any, taskId: Int, callback: (Surface?) -> Unit) {
+        ClusterTransparencyProbe.stop("adb_projection_started")
         if (hostOwner !== owner && !hasConfirmedRoute() && previewHost.get() == null) {
             ++generation
             launchToken = null

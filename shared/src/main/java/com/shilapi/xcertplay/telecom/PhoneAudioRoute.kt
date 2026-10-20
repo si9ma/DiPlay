@@ -52,9 +52,12 @@ internal class PhoneAudioRouteController(
 ) {
     private val lock = Any()
     private val wanted = mutableSetOf<PhoneAudioReason>()
-    private var held = false // scheduler thread
+    @Volatile private var held = false // written on the scheduler thread; read for diagnostics
     private var cancelRelease: (() -> Unit)? = null // scheduler thread
     @Volatile private var failedAt = NEVER
+
+    fun diagnosticState(): String =
+        "carPhoneAudio=${enabled(PhoneAudioReason.CARPLAY_CALL)} telecomHeld=$held refusedRecently=${failedRecently()}"
 
     fun setWanted(reason: PhoneAudioReason, value: Boolean) {
         synchronized(lock) { if (value) wanted += reason else wanted -= reason }
@@ -179,6 +182,9 @@ object PhoneAudioRoute {
      * run its own canceller or the platform effects on the call microphone.
      */
     fun carPlayCallsUseCarAudio(): Boolean = controller?.carPlayCallsUseCarAudio() == true
+
+    /** For the audio report: whether the car's phone audio state is wanted, held or recently refused. */
+    fun diagnosticState(): String = controller?.diagnosticState() ?: "carPhoneAudio=unattached"
 
     /** DiPlay's own call microphone shows up in the recording list; it is not another app's call. */
     internal fun ownCarPlayCallActive(): Boolean = carPlayCallActive

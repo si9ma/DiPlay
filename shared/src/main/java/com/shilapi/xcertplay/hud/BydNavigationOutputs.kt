@@ -33,8 +33,9 @@ object BydNavigationOutputs {
     private val fceCluster = NavigationOutputWorker("diplay-fce-cluster-output", FceClusterBridge::clear)
 
     /** The host reports whether its CarPlay map window is on the cluster (see [BydClusterMapPause]). */
-    fun setClusterMapShown(shown: Boolean) {
-        BydClusterMapPause.clusterMapShown = shown
+    fun setClusterMapShown(shown: Boolean, independentWindow: Boolean = false) {
+        // A custom window does not follow the OEM wheel-menu projection visibility.
+        BydClusterMapPause.clusterMapShown = shown && !independentWindow
         BydClusterBridge.setMapShown(shown)
     }
 
@@ -138,6 +139,9 @@ object BydNavigationOutputs {
 
     /** The dashboard song setting changed; applies at once. */
     fun clusterSongChanged(enabled: Boolean) = BydClusterSong.settingChanged(enabled)
+
+    /** Song text output through the OEM instrument API, separate from the projection overlay. */
+    fun clusterSongDiagnosticReport(): List<String> = BydClusterSong.diagnosticReport()
 
     /** The CarPlay call setting changed; applies at once. */
     fun carPlayCallsChanged(enabled: Boolean) = BydCarPlayCall.settingChanged(enabled)

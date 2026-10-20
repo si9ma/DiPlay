@@ -52,6 +52,17 @@ internal class ClusterMapPresentation(
     var mapVisible = true
         private set
 
+    override fun onStart() {
+        ClusterTransparencyProbe.stop("normal_projection_started")
+        synchronized(openWindows) { openWindows.add(this) }
+        super.onStart()
+    }
+
+    override fun onStop() {
+        synchronized(openWindows) { openWindows.remove(this) }
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val size = sizeOf(display)
@@ -199,6 +210,8 @@ internal class ClusterMapPresentation(
 
     companion object {
         const val TAG = "DiPlay-Cluster"
+        private val openWindows = mutableSetOf<ClusterMapPresentation>()
+        fun hasOpenWindow(): Boolean = synchronized(openWindows) { openWindows.isNotEmpty() }
 
         /** Keep the 5/5.1 selection order, then try the measured DiLink 4 projection display. */
         fun findDisplay(context: Context, theme: DiLink51ClusterLayout.Theme = DiLink51ClusterLayout.theme(context)): Display? {

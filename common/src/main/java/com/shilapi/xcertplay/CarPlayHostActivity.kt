@@ -508,6 +508,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private var ambientDelaySeconds = 2
     private var nightModeDiagnosticSource = ThemeModeDiagnostics.Source.CARPLAY_MODE
     private var lastSystemNight: Boolean? = null
+    private var stopNightSettingsObserver: (() -> Unit)? = null
 
     /** Held so teardown can tell this host's registration from a newer one's. */
     private val mapDestinationEvent: (String) -> Unit = { message ->
@@ -537,7 +538,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 refreshAppAppearance()
                 paintWaitingScreen()
                 applyClusterTurnOverlay()
-                appendLog("CarPlay switched to ${if (night) "night" else "day"} mode")
+                systemNightOrNull(resources.configuration)?.let { customWindows?.setNightMode(it) }
+                appendLog("CarPlay night target=$night mode=${carPlayNightMode.key}")
                 logThemeState(nightModeDiagnosticSource, resources.configuration)
                 syncAirPlayDarkMode(nightModeDiagnosticSource)
             },
@@ -545,7 +547,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
     private val themeDiagnostics = ThemeModeDiagnostics()
     private var lastConfiguration: Configuration? = null
-    private var activeAirPlaySession: AirPlaySession? = null
+    @Volatile private var activeAirPlaySession: AirPlaySession? = null
     private val activeScreenStreamTypes = mutableSetOf<Int>()
     private var handshakeResetInProgress = false
     private var startAfterHandshakeReset = false
@@ -774,6 +776,10 @@ class CarPlayHostActivity : ComponentActivity() {
             resources.getBoolean(R.bool.config_advanced_audio_channel_mapping)
         airPlayIdentity = AirPlayPersistence.loadIdentity(this)
         loadPersistedSettings()
+        stopNightSettingsObserver = CarPlayNightModeRuntime.observe(
+            dispatch = { callback -> runOnUiThread { callback() } },
+            changed = { if (!isDestroyed) reloadNightModeSettings(force = true) },
+        )
         locationPermissionAvailable = hasFineLocationPermission()
         overlayMode = ProjectionOverlay.wanted(this)
         setContentView(buildContentView())
@@ -821,6 +827,21 @@ class CarPlayHostActivity : ComponentActivity() {
         } else {
             microphonePermission.launch(Manifest.permission.RECORD_AUDIO)
         }
+    }
+
+    private fun reloadNightModeSettings(force: Boolean = false) {
+        val savedMode = AirPlayPersistence.loadCarPlayNightMode(this)
+        val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
+        val savedDelay = AirPlayPersistence.loadAmbientDelaySeconds(this)
+        val savedSchedule = AirPlayPersistence.loadCarPlayNightSchedule(this)
+        if (!force && savedMode == carPlayNightMode && savedThreshold == ambientLightThreshold &&
+            savedDelay == ambientDelaySeconds && savedSchedule == nightSchedule) return
+        carPlayNightMode = savedMode
+        ambientLightThreshold = savedThreshold
+        ambientDelaySeconds = savedDelay
+        nightSchedule = savedSchedule
+        nightModeController.configure(carPlayNightMode, systemNightOrNull(resources.configuration) ?: false,
+            ambientLightThreshold, ambientDelaySeconds, nightSchedule, force = true)
     }
 
     private fun loadPersistedSettings() {
@@ -1073,21 +1094,8 @@ class CarPlayHostActivity : ComponentActivity() {
         WheelKeyService.restoreIfNeeded(this)
         hostAppearanceResumed = true
         updateCallPopupGuard()
-        val savedNightMode = AirPlayPersistence.loadCarPlayNightMode(this)
-        val savedThreshold = AirPlayPersistence.loadAmbientLightThreshold(this)
-        val savedDelay = AirPlayPersistence.loadAmbientDelaySeconds(this)
-        val savedSchedule = AirPlayPersistence.loadCarPlayNightSchedule(this)
-        val systemNight = systemNightOrNull(resources.configuration) ?: false
-        if (savedNightMode != carPlayNightMode || savedThreshold != ambientLightThreshold ||
-            savedDelay != ambientDelaySeconds || savedSchedule != nightSchedule) {
-            carPlayNightMode = savedNightMode
-            ambientLightThreshold = savedThreshold
-            ambientDelaySeconds = savedDelay
-            nightSchedule = savedSchedule
-            nightModeController.configure(carPlayNightMode, systemNight, ambientLightThreshold, ambientDelaySeconds,
-                nightSchedule)
-        }
-        nightModeController.resume(systemNight)
+        reloadNightModeSettings()
+        nightModeController.resume(systemNightOrNull(resources.configuration) ?: false)
         AppAppearanceRuntime.publishHost(this, darkMode)
         refreshAppAppearance()
         if (!menuOpen) {
@@ -1174,6 +1182,7 @@ class CarPlayHostActivity : ComponentActivity() {
             // Already streaming: CarPlay is in the overlay, so let the car UI be the foreground app.
             if (activeScreenStreamTypes.isNotEmpty() && !menuOpen) mainHandler.post { moveProjectionToBack() }
         }
+        beginShortcutTouchRecording()
     }
 
 
@@ -1202,6 +1211,10 @@ class CarPlayHostActivity : ComponentActivity() {
         val previous = detectedCluster
         if (state != previous) appendLog("Cluster map: detected theme=${state.theme} mapVisible=${state.mapVisible} smallWindow=${state.smallWindow}")
         detectedCluster = state
+        if (ClusterWindowSettings.load(this).enabled) {
+            ensureClusterPresentation()
+            return
+        }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) { dismissClusterPresentation(); return }
         ensureClusterPresentation()
         if (AirPlayPersistence.loadClusterSmallWindowMode(this) == CLUSTER_SMALL_WINDOW_AUTO &&
@@ -1229,7 +1242,116 @@ class CarPlayHostActivity : ComponentActivity() {
         else -> false
     }
 
+    private var customWindows: CustomClusterWindows? = null
+    private var customWindowSignature: String? = null
+    private var customWindowSession: Any? = null
+    private var customDisplayUnavailable = false
+    private var stopCustomWindowSettings: (() -> Unit)? = null
+
+    private fun customMapEnabled(): Boolean = ClusterWindowSettings.load(this).let {
+        if (it.enabled) it.map else AirPlayPersistence.loadClusterMapEnabled(this)
+    }
+
+    private fun ensureCustomWindows(settings: ClusterWindowConfig) {
+        val windowSession = controller?.mediaAttachmentToken()
+        if (windowSession == null || shuttingDown.get()) {
+            dismissCustomWindows(if (shuttingDown.get()) "shutdown" else "session_disconnected")
+            return
+        }
+        val display = CustomClusterWindows.findDisplay(this, settings) ?: run {
+            dismissCustomWindows("display_unavailable")
+            if (!customDisplayUnavailable) ClusterMusicState.note("custom windows unavailable reason=no_display")
+            customDisplayUnavailable = true
+            return
+        }
+        customDisplayUnavailable = false
+        val size = controller?.configuredClusterSize() ?: (960 to 540)
+        val elevated = settings.elevated && CustomClusterWindows.canElevate(this)
+        val signature = "${display.displayId}:${settings.music}:${settings.map}:${settings.elevated}:$elevated:$size"
+        if (customWindows?.isShowing == true && customWindowSignature == signature && customWindowSession === windowSession) {
+            customWindows?.apply(settings)
+            systemNightOrNull(resources.configuration)?.let { customWindows?.setNightMode(it) }
+            customWindows?.setStreamActive(SCREEN_TYPE_ALT in activeScreenStreamTypes)
+            updateClusterMapShown()
+            return
+        }
+        dismissCustomWindows("configuration_or_session_changed")
+        if (settings.elevated && !elevated) {
+            ClusterMusicState.note("custom window fallback backend=presentation requested=2038 actual=uncreated display=${display.displayId} reason=overlay_unavailable")
+        }
+        fun show(raise: Boolean): Boolean {
+            var candidate: CustomClusterWindows? = null
+            var phase = "construct"
+            return try {
+                lateinit var next: CustomClusterWindows
+                next = CustomClusterWindows(this, display, raise, size.first, size.second, settings,
+                    onVisibilityChanged = { if (customWindows === next) updateClusterMapShown() }) { surface ->
+                    runOnUiThread { if (customWindows === next) onClusterSurface(surface) }
+                }
+                candidate = next
+                ClusterWindowVisibility.attach(windowSession, next)
+                customWindows = next
+                next.setOnDismissListener {
+                    if (customWindows === next) {
+                        customWindows = null; customWindowSignature = null; customWindowSession = null
+                        updateClusterMapShown()
+                    }
+                }
+                phase = "show"
+                next.setNightMode(systemNightOrNull(resources.configuration) ?: darkMode)
+                next.show()
+                customWindowSignature = signature
+                customWindowSession = windowSession
+                next.setStreamActive(SCREEN_TYPE_ALT in activeScreenStreamTypes)
+                updateClusterMapShown()
+                true
+            } catch (error: RuntimeException) {
+                val details = candidate?.diagnosticState() ?: "backend=${if (raise) "overlay_dialog" else "presentation"} " +
+                    "requested=${CustomClusterWindows.windowType(display, settings.elevated)} actual=uncreated display=${display.displayId}"
+                ClusterMusicState.note("custom window failed $details phase=$phase ${CustomClusterWindows.failureSummary(error)}")
+                candidate?.let { failed ->
+                    ClusterWindowVisibility.detach(failed)
+                    failed.setOnDismissListener(null)
+                    failed.outputSurface?.let { surface -> if (clusterSurface === surface) onClusterSurface(null) }
+                    runCatching { failed.dismiss("show_failed") }
+                }
+                customWindows = null; customWindowSignature = null; customWindowSession = null
+                updateClusterMapShown()
+                false
+            }
+        }
+        if (!show(elevated) && elevated) {
+            ClusterMusicState.note("custom window fallback backend=presentation requested=2038 " +
+                "contextType=${CustomClusterWindows.windowType(display, false)} actual=uncreated display=${display.displayId} reason=overlay_failed")
+            show(false)
+        }
+    }
+
+    private fun dismissCustomWindows() = dismissCustomWindows("owner_cleanup")
+
+    private fun dismissCustomWindows(reason: String) {
+        val old = customWindows ?: return
+        customWindows = null; customWindowSignature = null; customWindowSession = null
+        ClusterWindowVisibility.detach(old)
+        old.setOnDismissListener(null)
+        old.outputSurface?.let { surface -> if (clusterSurface === surface) onClusterSurface(null) }
+        runCatching { old.dismiss(reason) }.onFailure {
+            ClusterMusicState.note("custom window dismiss failed ${old.diagnosticState()} ${CustomClusterWindows.failureSummary(it)}")
+        }
+        updateClusterMapShown()
+    }
+
     private fun ensureClusterPresentation() {
+        if (stopCustomWindowSettings == null) stopCustomWindowSettings = ClusterWindowSettings.observe(this) {
+            mainHandler.post { if (!isDestroyed) ensureClusterPresentation() }
+        }
+        val custom = ClusterWindowSettings.load(this)
+        if (custom.enabled) {
+            if (clusterPresentation != null || clusterLayers.isNotEmpty() || ClusterActivityOutput.hasConfirmedRoute()) dismissClusterPresentation()
+            ensureCustomWindows(custom)
+            return
+        }
+        dismissCustomWindows("settings_disabled")
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) {
             clusterLaunchGate.reset()
             dismissClusterPresentation()
@@ -1387,6 +1509,7 @@ class CarPlayHostActivity : ComponentActivity() {
         }
     }
     private fun dismissClusterPresentation() {
+        dismissCustomWindows()
         ClusterActivityOutput.stop(this)
         val presentations = (clusterLayers.values + listOfNotNull(clusterPresentation)).distinct()
         clusterLayers.clear()
@@ -1425,7 +1548,9 @@ class CarPlayHostActivity : ComponentActivity() {
     // finish after the session has already asked for the virtual fallback stream.
     private val clusterDisplayListener = object : android.hardware.display.DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {
-            if (isDestroyed || !AirPlayPersistence.loadClusterMapEnabled(this@CarPlayHostActivity)) return
+            if (isDestroyed) return
+            if (ClusterWindowSettings.load(this@CarPlayHostActivity).enabled) { ensureClusterPresentation(); return }
+            if (!AirPlayPersistence.loadClusterMapEnabled(this@CarPlayHostActivity)) return
             val display = ClusterMapPresentation.findDisplay(this@CarPlayHostActivity, effectiveClusterTheme())
             if (display?.displayId != displayId) return
             appendLog("Cluster map: display ${display.name} appeared")
@@ -1434,14 +1559,63 @@ class CarPlayHostActivity : ComponentActivity() {
                 reconnectAfterLoss("Cluster display appeared; requesting its stream")
             }
         }
-        override fun onDisplayRemoved(displayId: Int) = Unit
-        override fun onDisplayChanged(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) {
+            if (customWindows?.display?.displayId == displayId) dismissCustomWindows("display_removed")
+        }
+        override fun onDisplayChanged(displayId: Int) {
+            if (!isDestroyed && ClusterWindowSettings.load(this@CarPlayHostActivity).enabled) {
+                val current = customWindows
+                if (current == null || current.display.displayId == displayId) ensureClusterPresentation()
+            }
+        }
     }
 
     private fun clusterDisplayConfig(): AirPlayDisplayConfig? {
         adbClusterConfigured = false
         clusterStreamOnDisplay = false
         requestedSmallWindowForStream = null
+        val custom = ClusterWindowSettings.load(this)
+        if (custom.enabled) {
+            if (!custom.map) return null
+            val display = CustomClusterWindows.findDisplay(this, custom)
+            val size = display?.let(ClusterMapPresentation::sizeOf) ?: android.graphics.Point(1920, 720)
+            val rect = custom.mapRect.pixels(size.x, size.y)
+            fun aligned(value: Int, min: Int, max: Int) = ((value.coerceIn(min, max) + 7) / 8) * 8
+            val width = aligned(rect.width(), 320, 1280)
+            val height = aligned(rect.height(), 180, 720)
+            clusterStreamOnDisplay = display != null
+            fun canvas(w: Int, h: Int) = CarPlayClusterDisplay.config(w, h, 100,
+                content = custom.mapContent, baseSafeArea = custom.safeArea)
+            val panelCrop = custom.mapDisplayMode == ClusterMapDisplayMode.PANEL_CROP
+            val baselineScale = minOf(1.0, 1280.0 / size.x.coerceAtLeast(1), 720.0 / size.y.coerceAtLeast(1))
+            val windowCanvas = if (panelCrop) canvas(
+                (size.x * baselineScale).toInt().coerceAtLeast(8), (size.y * baselineScale).toInt().coerceAtLeast(8))
+                else canvas(width, height)
+            val selected = custom.mapCanvas
+            val requested = if (selected.independent) canvas(selected.width, selected.height) else windowCanvas
+            val rejected = mutableListOf<String>()
+            val effective = selected.candidates().firstNotNullOfOrNull { preset ->
+                val candidate = canvas(preset.width, preset.height)
+                val support = largerCanvasSupport(candidate)
+                appendLog("Custom cluster canvas check ${preset.name}: ${support.details}")
+                if (support.supported) candidate else {
+                    rejected.add("${preset.name}:${support.reason}")
+                    null
+                }
+            } ?: windowCanvas
+            val summary = "Custom cluster canvas: selected=$selected " +
+                "window=${rect.width()}x${rect.height()} requested=${requested.widthPixels}x${requested.heightPixels} " +
+                "effective=${effective.widthPixels}x${effective.heightPixels} " +
+                "fallback=${rejected.joinToString(",").ifEmpty { "none" }} fps=${effective.fps} " +
+                "safeArea=${effective.safeArea} content=${custom.mapContent} " +
+                "displayMode=${custom.mapDisplayMode} reference=${size.x}x${size.y}"
+            DisplayDiagnosticSnapshot.record(this, displayDiagnosticAttempt, summary)
+            appendLog(summary)
+            return effective.also {
+                MapMirrors.streamAspect = it.widthPixels.toDouble() / it.heightPixels
+                appendLog("Custom cluster map: requesting ${it.widthPixels}x${it.heightPixels} content=${custom.mapContent}")
+            }
+        }
         if (!AirPlayPersistence.loadClusterMapEnabled(this)) return null
         if (AdbClusterRouter.enabled(this) && ClusterActivityOutput.hasConfirmedRoute()) {
             adbClusterConfigured = true
@@ -1527,6 +1701,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // Hardware navigation belongs to the iPhone-rendered CarPlay UI, not Android View focus.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (OriginalKeyReplayGuard.matches(event)) return super.dispatchKeyEvent(event)
         WheelKeyLog.input("carplay-window", event) {
             "windowSession=${activeAirPlaySession != null} menu=$menuOpen " +
                 "assignedSiri=${WheelZoomSettings.isSiriKey(this, WheelKey.of(event))} " + WheelKeyService.routingState(this)
@@ -1547,6 +1722,7 @@ class CarPlayHostActivity : ComponentActivity() {
             }
             return true
         }
+        if (CarPlayShortcuts.consumeOwnedKey(event)) return true
         if (!menuOpen &&
             (AndroidTvInputMode.shouldUseKnobAsPrimaryInput(this) ||
                 CarPlayRemoteKeys.fromExternalController(event, AirPlayPersistence.loadExternalController(this))) &&
@@ -1559,6 +1735,8 @@ class CarPlayHostActivity : ComponentActivity() {
             }
             return true
         }
+
+        if (CarPlayShortcuts.onLearningKey(this, event)) return true
 
         // During a CarPlay call the wheel's call key answers on the iPhone instead of opening BYD's phone app.
         if (CarPlayCallKeys.onKey(this, event.keyCode, event.action == KeyEvent.ACTION_DOWN, controller)) return true
@@ -1580,6 +1758,8 @@ class CarPlayHostActivity : ComponentActivity() {
         } else WheelZoomKeys.Action.PASS
         if (assignedAction != WheelZoomKeys.Action.PASS) return true
         if (downOrUp && assignedKey) return super.dispatchKeyEvent(event)
+        if (!menuOpen && !CarPlayMediaButton.opensSiri(event.keyCode) &&
+            !CarPlayMediaButton.opensSiriWhileCarPlay(event.keyCode) && CarPlayShortcuts.onKey(this, event)) return true
 
         // Steering-wheel next/previous, claimed by the CarPlay screen itself. BYD gives these keys to
         // whichever window is in front, and this is the only route that reaches CarPlay without the
@@ -1594,8 +1774,8 @@ class CarPlayHostActivity : ComponentActivity() {
             // on the press. The release is swallowed rather than passed on, or BYD's own player would
             // receive an unpaired key.
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                val sent = controller?.sendMediaButton(mediaPress) == true
-                appendLog("Media: wheel key ${event.keyCode} -> CarPlay $mediaPress sent=$sent")
+                CarPlayMediaKeys.onWheelMediaKey(mediaPress, "carplay-window:${event.keyCode}")
+                appendLog("Media: wheel key ${event.keyCode} -> CarPlay $mediaPress")
             }
             return true
         }
@@ -1632,6 +1812,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        cancelShortcutRecordingForExit()
         hostInFront = false
         updateProjectionOverlay()
         hostAppearanceResumed = false
@@ -1703,18 +1884,23 @@ class CarPlayHostActivity : ComponentActivity() {
 
     // The dashboard map pause must not stop the stream while a copy of the map is on screen.
     private fun updateClusterMapShown() {
-        com.shilapi.xcertplay.hud.BydNavigationOutputs.setClusterMapShown((clusterPresentation != null ||
-            (ClusterActivityOutput.hasConfirmedRoute() && clusterSurface != null)) && !MapMirrors.any)
+        val independent = customWindows?.let { it.isShowing && it.hasMap } == true
+        val custom = customWindows?.let { it.isShowing && it.mapVisible && it.outputSurface?.isValid == true } == true
+        com.shilapi.xcertplay.hud.BydNavigationOutputs.setClusterMapShown((custom || clusterPresentation != null ||
+            (ClusterActivityOutput.hasConfirmedRoute() && clusterSurface != null)) && !MapMirrors.any, independentWindow = independent)
         // Wheel zoom needs a physical map; centre-screen copies must not suppress that eligibility.
         val surface = clusterSurface?.takeIf { it.isValid }
         val presentation = clusterPresentation
         val presented = surface != null && presentation?.isShowing == true && presentation.mapVisible &&
             presentation.outputSurface === surface
         val direct = surface != null && adbClusterConfigured && ClusterActivityOutput.hasConfirmedRoute()
-        controller?.setDashboardMapOutputVisible(presented || direct)
+        controller?.setDashboardMapOutputVisible(custom || presented || direct)
+        controller?.setCustomMapAutoZoom(ClusterWindowSettings.load(this).autoZoomSteps,
+            custom && customWindows?.mapActive == true)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
+        cancelShortcutRecordingForExit()
         super.onConfigurationChanged(newConfig)
         refreshConfiguration(newConfig, ThemeModeDiagnostics.Source.CALLBACK)
         applyFullscreenMode()
@@ -1738,6 +1924,8 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        stopNightSettingsObserver?.invoke(); stopNightSettingsObserver = null
+        stopCustomWindowSettings?.invoke(); stopCustomWindowSettings = null
         discardLastPicture()
         if (pictureCopyThreadStarted) pictureCopyThread.quitSafely()
         resetSidePanel()
@@ -1781,6 +1969,7 @@ class CarPlayHostActivity : ComponentActivity() {
             MapMirrors.setStreamActive(false)
         }
         if (MapMirrors.onChanged === mirrorsChanged) MapMirrors.onChanged = null
+        dismissCustomWindows("activity_destroyed")
         dismissClusterPresentation()
         mainHandler.removeCallbacks(applyDisplaySize)
         mainHandler.removeCallbacks(expireOldLogLines)
@@ -4809,6 +4998,9 @@ class CarPlayHostActivity : ComponentActivity() {
             mainBufferedAudio = AirPlayPersistence.loadMainBufferedAudio(this),
             speechWithout8And16Khz = AirPlayPersistence.loadSpeechWithout8And16Khz(this),
             disableAudioOutput = carBluetoothAudio,
+            iphoneOwnsMainAudio = AirPlayPersistence.loadCarPlayOwnsMainAudio(this).also {
+                if (it) appendLog("Main audio: iPhone owns it from connection")
+            },
         )
     }
 
@@ -5053,6 +5245,7 @@ class CarPlayHostActivity : ComponentActivity() {
                     }
                     activeAirPlaySession = session
                     CarPlayBackgroundSession.active = true
+                    ensureClusterPresentation()
                     showConnectionHelp(null)
                     callPopupSessionReady = true
                     updateCallPopupGuard()
@@ -5096,6 +5289,7 @@ class CarPlayHostActivity : ComponentActivity() {
                     startupRetryBudget.disconnected()
                     activeAirPlaySession = null
                     CarPlayBackgroundSession.active = false
+                    dismissCustomWindows("session_disconnected")
                     callPopupSessionReady = false
                     updateCallPopupGuard()
                     if (menuOpen) {
@@ -5206,6 +5400,7 @@ class CarPlayHostActivity : ComponentActivity() {
         updateClusterMapShown()
         sink = snapshot.sink
         sessionDisplay = snapshot.display
+        if (ClusterWindowSettings.load(this).enabled) ensureClusterPresentation()
         resetSidePanel()
         if (snapshot.display.viewAreas?.let { it.kindOf(it.current) == CarPlayViewAreas.Kind.SIDE_PANEL } == true) {
             // The live stream can outlast its Activity. Restore the Android view covering its
@@ -5242,6 +5437,8 @@ class CarPlayHostActivity : ComponentActivity() {
             createSessionListener(generation),
             createStatusReporter(generation),
         )
+        activeAirPlaySession = snapshot.controller.activeAirPlaySession()
+        if (activeAirPlaySession != null) syncAirPlayDarkMode(ThemeModeDiagnostics.Source.SESSION_ACTIVE)
         snapshot.sink.setScreenStreamActiveChangedListener { type, active ->
             onScreenStreamStateChanged(restartGeneration, type, active)
         }
@@ -5328,10 +5525,8 @@ class CarPlayHostActivity : ComponentActivity() {
         val pairings = AirPlayPersistence.loadPairings(this) { id, key ->
             AirPlayPersistence.savePairing(this, id, key)
         }
-        val playbackContext = applicationContext
         val next = CarPlayController(
             context = this,
-            autoPlaybackOptions = { AirPlayPersistence.loadAutoPlayback(playbackContext) },
             config = config,
             airPlayConfig = airPlayConfig,
             identity = airPlayIdentity,
@@ -5388,6 +5583,7 @@ class CarPlayHostActivity : ComponentActivity() {
         if (configChanged) lastConfiguration = Configuration(newConfig)
         // Evaluated every poll: BYD's night key and UiModeManager change without a configuration change.
         val systemNight = systemNightOrNull(newConfig)
+        systemNight?.let { customWindows?.setNightMode(it) }
         if (!configChanged && systemNight == lastSystemNight) {
             logThemeState(source, newConfig)
             return
@@ -5421,27 +5617,21 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun syncAirPlayDarkMode(source: ThemeModeDiagnostics.Source, night: Boolean = darkMode) {
         val session = activeAirPlaySession
-        if (session == null) {
-            appendLog("THEME_DIAGNOSTIC request source=${source.label} applied=${if (night) "dark" else "light"} sessionActive=false")
-            return
-        }
+        appendLog("THEME_DIAGNOSTIC target source=${source.label} target=$night mode=${carPlayNightMode.key} " +
+            "sessionActive=${session != null}")
+        if (session == null) return
         airPlayCommandExecutor.execute {
+            if (isDestroyed || activeAirPlaySession !== session) return@execute
             try {
-                // false = the event channel is not open yet; the session sends it once the channel opens.
-                val sent = session.setNightMode(night)
-                // A successful write does not prove the iPhone changed its appearance.
-                appendLog(
-                    "THEME_DIAGNOSTIC send source=${source.label} applied=${if (night) "dark" else "light"} commandWritten=$sent",
-                )
-                Log.i(
-                    TAG,
-                    "AirPlay dark mode=${if (night) "dark" else "light"} eventChannelReady=$sent",
-                )
+                val delivery = session.setNightModeWithDelivery(night)
+                appendLog("THEME_DIAGNOSTIC write source=${source.label} target=$night " +
+                    "session=${session.diagnosticId} result=${delivery.name.lowercase(Locale.ROOT)} appearance=unconfirmed")
             } catch (error: Throwable) {
                 val failureClass = error.javaClass.simpleName.take(64)
                     .filter { it.isLetterOrDigit() || it == '_' || it == '$' }
                     .ifEmpty { "unknown" }
-                appendLog("THEME_DIAGNOSTIC send source=${source.label} failureClass=$failureClass")
+                appendLog("THEME_DIAGNOSTIC write source=${source.label} target=$night " +
+                    "session=${session.diagnosticId} result=failed failureClass=$failureClass")
                 Log.w(TAG, "Could not send AirPlay dark mode update", error)
             }
         }
@@ -5776,7 +5966,7 @@ class CarPlayHostActivity : ComponentActivity() {
         updateCallPopupGuard()
         val oldController = controller
         val oldSink = sink
-        oldController?.stopAutoPlayback()
+        oldController?.stopPendingMediaCommands()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController, keepOwner = true)
         controller = null
@@ -5823,6 +6013,11 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun openSettingsMenu() {
+        if (shortcutRecordingToken != null) {
+            ShortcutEditor.cancelTouchTransfer(shortcutRecordingToken!!)
+            returnFromShortcutRecording()
+            return
+        }
         if (menuOpen) return
         controller?.sendTouch(emptyList())
         loadPersistedSettings()
@@ -5972,6 +6167,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun shutdown(terminateProcess: Boolean, reason: String, completion: () -> Unit = {}) {
         if (!shuttingDown.compareAndSet(false, true)) { completion(); return }
+        dismissCustomWindows("shutdown")
         callPopupSessionReady = false
         updateCallPopupGuard()
         resetSidePanel()
@@ -5981,7 +6177,7 @@ class CarPlayHostActivity : ComponentActivity() {
         mainHandler.removeCallbacks(applyDisplaySize)
         val oldController = controller
         val oldSink = sink
-        oldController?.stopAutoPlayback()
+        oldController?.stopPendingMediaCommands()
         CarPlayMediaKeys.detach(oldController)
         CarPlayBackgroundSession.clear(oldController)
         controller = null
@@ -6151,15 +6347,106 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun attachSurface(surface: Surface) {
         sink?.setSurface(SCREEN_TYPE_MAIN, surface)
-        if (AirPlayPersistence.loadClusterMapEnabled(this)) {
+        if (customMapEnabled() || ClusterWindowSettings.load(this).enabled) {
             clusterSurface?.let { sink?.setSurface(SCREEN_TYPE_ALT, it) }
         } else {
             sink?.setSurface(SCREEN_TYPE_ALT, surface)
         }
     }
 
+    private var shortcutRecordingToken: String? = null
+    private var shortcutRecordingBar: View? = null
+    private val shortcutTapTracker = ShortcutTapTracker()
+
+    private fun beginShortcutTouchRecording() {
+        val token = intent.getStringExtra(ShortcutEditor.RECORD_TOKEN) ?: return
+        intent.removeExtra(ShortcutEditor.RECORD_TOKEN)
+        if (shortcutRecordingToken != null) {
+            android.widget.Toast.makeText(this, R.string.shortcut_unavailable, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        shortcutRecordingToken = token
+        if (menuOpen || !ShortcutEditor.startTouchRecording(token) { returnFromShortcutRecording() }) {
+            ShortcutEditor.cancelTouchTransfer(token)
+            android.widget.Toast.makeText(this, R.string.shortcut_unavailable, android.widget.Toast.LENGTH_LONG).show()
+            returnFromShortcutRecording()
+            return
+        }
+        shortcutTapTracker.reset()
+        val bar = LinearLayout(appDialogContext()).apply {
+            tag = "shortcut_touch_recording_bar"
+            orientation = LinearLayout.VERTICAL
+            isClickable = true
+            setBackgroundColor(DiPlayPalette.of(appNight).surface)
+            addView(TextView(context).apply {
+                setText(R.string.shortcut_record_taps)
+                setTextColor(DiPlayPalette.of(appNight).primaryText)
+                gravity = Gravity.CENTER
+            }, LinearLayout.LayoutParams(-1, -2))
+            val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
+            fun button(label: Int, click: () -> Unit) = DiPlayButton(context).apply {
+                setText(label)
+                style(DiPlayButtonKind.SECONDARY, DiPlayPalette.of(appNight), overlay = false)
+                setOnClickListener { click() }
+            }
+            buttons.addView(button(R.string.shortcut_record_accept) { CarPlayShortcuts.stopRecording() },
+                LinearLayout.LayoutParams(0, dp(com.shilapi.xcertplay.settings.SettingsControlMetrics.HEIGHT_DP), 1f))
+            buttons.addView(button(android.R.string.cancel) {
+                ShortcutEditor.cancelTouchTransfer(token)
+                returnFromShortcutRecording()
+            }, LinearLayout.LayoutParams(0, dp(com.shilapi.xcertplay.settings.SettingsControlMetrics.HEIGHT_DP), 1f))
+            addView(buttons, LinearLayout.LayoutParams(-1, -2))
+        }
+        shortcutRecordingBar = bar
+        val shown = if (overlayMode) ProjectionOverlay.showShortcutRecordingBar(bar) else {
+            (videoView?.parent as? FrameLayout)?.let {
+                it.addView(bar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP)); true
+            } ?: false
+        }
+        if (!shown) {
+            ShortcutEditor.cancelTouchTransfer(token)
+            returnFromShortcutRecording()
+        }
+    }
+
+    private fun removeShortcutRecordingBar() {
+        shortcutTapTracker.reset()
+        shortcutRecordingBar?.let { (it.parent as? ViewGroup)?.removeView(it) }
+        shortcutRecordingBar = null
+    }
+
+    private fun returnFromShortcutRecording() {
+        if (shortcutRecordingToken == null) return
+        shortcutRecordingToken = null
+        removeShortcutRecordingBar()
+        if (!isFinishing && !isDestroyed) showDiPlayHome("settings")
+    }
+
+    private fun cancelShortcutRecordingForExit() {
+        val token = shortcutRecordingToken ?: return
+        shortcutRecordingToken = null
+        removeShortcutRecordingBar()
+        ShortcutEditor.cancelTouchTransfer(token)
+    }
+
     private fun onHostTouch(view: View, event: MotionEvent): Boolean {
-        if (menuOpen) return true
+        val owner = controller
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            owner?.updateManualTouch(true)
+            CarPlayShortcuts.onManualTouch(owner)
+        }
+        return try {
+            forwardHostTouch(view, event)
+        } finally {
+            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                owner?.updateManualTouch(false)
+            }
+        }
+    }
+
+    private fun forwardHostTouch(view: View, event: MotionEvent): Boolean {
+        if (menuOpen) { shortcutTapTracker.reset(); return true }
+        if (event.pointerCount != 1 || event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) shortcutTapTracker.reset()
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -6182,6 +6469,7 @@ class CarPlayHostActivity : ComponentActivity() {
         }
 
         if (gestureSequenceActive) {
+            shortcutTapTracker.reset()
             if (event.actionMasked == MotionEvent.ACTION_POINTER_UP || event.pointerCount != gestureFingerCount) {
                 gestureTracking = false
             }
@@ -6217,6 +6505,7 @@ class CarPlayHostActivity : ComponentActivity() {
             touchOutsideContent = !content.contains(event.x, event.y)
         }
         if (touchOutsideContent) {
+            shortcutTapTracker.reset()
             // Ignore the entire touch sequence when it starts in a letterbox bar.
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
                 touchOutsideContent = false
@@ -6225,6 +6514,10 @@ class CarPlayHostActivity : ComponentActivity() {
         }
         val contacts = CarPlayTouchMapper.contacts(event, content)
         val queued = controller?.sendTouch(contacts) ?: false
+        if (CarPlayShortcuts.isTouchRecording()) {
+            shortcutTapTracker.observe(event, contacts.singleOrNull(), queued && content.contains(event.x, event.y),
+                android.view.ViewConfiguration.get(this).scaledTouchSlop)?.let { CarPlayShortcuts.recordTap(it.x, it.y) }
+        } else shortcutTapTracker.reset()
         // A calibration records the driver's real taps, which are forwarded as usual so the map reacts.
         if (event.actionMasked == MotionEvent.ACTION_UP && event.pointerCount == 1) {
             recordGuidanceStopTap(contacts.firstOrNull(), event)
@@ -6282,6 +6575,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 Log.i(ClusterMapPresentation.TAG, "cluster stream active=$active")
                 appendLog("Cluster map: stream active=$active")
                 clusterPresentation?.setStreamActive(active)
+                customWindows?.setStreamActive(active)
+                updateClusterMapShown()
                 ClusterActivityOutput.setStreamActive(active)
                 MapMirrors.setStreamActive(active)
                 if (active) {
@@ -6385,6 +6680,7 @@ class CarPlayHostActivity : ComponentActivity() {
         "${SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date(nowMillis))}  $message"
 
     private fun initializeSessionLog() {
+        ClusterWindowDiagnostics.attachContext(applicationContext)
         val logFile = File(File(filesDir, "logs"), "diplay.log")
         val activeLog = SessionLogFile(logFile)
         runCatching {
@@ -6538,7 +6834,7 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun moveProjectionToBack() {
-        if (!overlayMode || !hostInFront || menuOpen || activeScreenStreamTypes.isEmpty() || !ProjectionOverlay.shown) return
+        if (shortcutRecordingToken != null || !overlayMode || !hostInFront || menuOpen || activeScreenStreamTypes.isEmpty() || !ProjectionOverlay.shown) return
         val moved = moveTaskToBack(true)
         appendLog("CarPlay shown in the overlay; DiPlay screen moved to the back=$moved")
     }

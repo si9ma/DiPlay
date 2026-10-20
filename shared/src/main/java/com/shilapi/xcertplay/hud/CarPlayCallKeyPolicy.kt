@@ -30,12 +30,16 @@ object CarPlayCallKeyPolicy {
      * call and is kept otherwise (BYD's phone app would open over CarPlay); the hang-up keys end the call
      * or decline it. Both halves of a press are kept, the action runs on release.
      *
-     * Wheels without call keys, such as the 2022 Song Pro DM-i's, send only next and previous track. While
-     * a call rings those keys have nothing to skip, so next answers and previous declines (#272).
+     * Wheels without call keys, such as the 2022 Song Pro DM-i's and the Di150VCP's, send only next and
+     * previous track. While a call rings next answers and previous declines (#272); during a connected or
+     * outgoing call previous hangs up and next is kept, so neither skips a song on the iPhone.
+     *
+     * [phoneCall] is CarPlay's own phone-call app state. Some calls arrive without an iAP2 call update
+     * (no [call]); then previous ends the call and next is kept: answering needs the ringing state.
      */
-    fun onKey(keyCode: Int, down: Boolean, call: CarPlayCallCard?, session: Boolean): Action {
-        if (!session || call == null) return Action.PASS
-        val ringing = call.phase == CarPlayCallCard.Phase.RINGING
+    fun onKey(keyCode: Int, down: Boolean, call: CarPlayCallCard?, session: Boolean, phoneCall: Boolean = false): Action {
+        if (!session || (call == null && !phoneCall)) return Action.PASS
+        val ringing = call?.phase == CarPlayCallCard.Phase.RINGING
         return when {
             isAnswerKey(keyCode) -> when {
                 down -> Action.CONSUME
@@ -43,15 +47,15 @@ object CarPlayCallKeyPolicy {
                 else -> Action.CONSUME
             }
             isEndKey(keyCode) -> if (down) Action.CONSUME else Action.END
-            ringing && keyCode == KeyEvent.KEYCODE_MEDIA_NEXT -> if (down) Action.CONSUME else Action.ANSWER
-            ringing && keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (down) Action.CONSUME else Action.END
+            keyCode == KeyEvent.KEYCODE_MEDIA_NEXT -> if (!down && ringing) Action.ANSWER else Action.CONSUME
+            keyCode == KeyEvent.KEYCODE_MEDIA_PREVIOUS -> if (down) Action.CONSUME else Action.END
             else -> Action.PASS
         }
     }
 
     /** BYD's hang-up broadcast, sent when the hang-up or multifunction key is released. */
-    fun onHangUpBroadcast(keyCode: Int, call: CarPlayCallCard?, session: Boolean): Action =
-        if (session && call != null && (keyCode == KEYCODE_BYD_HANG_UP || keyCode == KEYCODE_BYD_MULTIPLEXING)) {
+    fun onHangUpBroadcast(keyCode: Int, call: CarPlayCallCard?, session: Boolean, phoneCall: Boolean = false): Action =
+        if (session && (call != null || phoneCall) && (keyCode == KEYCODE_BYD_HANG_UP || keyCode == KEYCODE_BYD_MULTIPLEXING)) {
             Action.END
         } else {
             Action.PASS

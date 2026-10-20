@@ -50,6 +50,13 @@ object ProjectionOverlay {
 
     val shown: Boolean get() = root != null
 
+    internal fun showShortcutRecordingBar(bar: View): Boolean {
+        val parent = content ?: return false
+        (bar.parent as? ViewGroup)?.removeView(bar)
+        parent.addView(bar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        return true
+    }
+
     fun permitted(context: Context): Boolean = Settings.canDrawOverlays(context)
 
     /** Overlay mode applies only below full width and needs "draw over other apps". */
@@ -273,7 +280,7 @@ object ProjectionOverlay {
             true
         }
         return try {
-            if (suppressed) icon.visibility = View.GONE
+            if (suppressed || hostMenuOpen) icon.visibility = View.GONE
             windows.addView(icon, layout); bubble = icon; true
         } catch (error: RuntimeException) {
             Log.w(TAG, "bubble failed", error); false

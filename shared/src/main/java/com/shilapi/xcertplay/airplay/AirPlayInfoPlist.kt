@@ -20,7 +20,8 @@ object AirPlayInfoPlist {
 
     private const val RESOURCE_SCREEN = 1
     private const val RESOURCE_AUDIO = 2
-    private const val TRANSFER_TAKE = 1
+    private const val TRANSFER_TAKE = CarPlayModes.TRANSFER_TAKE
+    private const val TRANSFER_UNTAKE = CarPlayModes.TRANSFER_UNTAKE
     private const val PRIORITY_NICE_TO_HAVE = 100
     private const val CONSTRAINT_ANYTIME = 100
 
@@ -46,7 +47,7 @@ object AirPlayInfoPlist {
             "rightHandDrive" to config.rightHandDrive,
             "keepAliveLowPower" to false,
             "keepAliveSendStatsAsBody" to false,
-            "modes" to modes(),
+            "modes" to modes(config.iphoneOwnsMainAudio),
         )
         if (!config.disableAudioOutput) {
             info["audioLatencies"] = audioLatencies()
@@ -84,17 +85,19 @@ object AirPlayInfoPlist {
         return info
     }
 
-    private fun resource(resourceId: Int): Map<String, Any?> = linkedMapOf(
+    private fun resource(resourceId: Int, take: Boolean = true): Map<String, Any?> = linkedMapOf<String, Any?>(
         "resourceID" to resourceId,
-        "transferType" to TRANSFER_TAKE,
-        "transferPriority" to PRIORITY_NICE_TO_HAVE,
-        "takeConstraint" to CONSTRAINT_ANYTIME,
-        "borrowConstraint" to CONSTRAINT_ANYTIME,
-        "unborrowConstraint" to CONSTRAINT_ANYTIME,
-    )
+        "transferType" to if (take) TRANSFER_TAKE else TRANSFER_UNTAKE,
+    ).apply {
+        if (take) {
+            put("transferPriority", PRIORITY_NICE_TO_HAVE)
+            put("takeConstraint", CONSTRAINT_ANYTIME)
+            put("borrowConstraint", CONSTRAINT_ANYTIME)
+        }
+    }
 
-    private fun modes(): Map<String, Any?> = linkedMapOf(
-        "resources" to listOf(resource(RESOURCE_SCREEN), resource(RESOURCE_AUDIO)),
+    private fun modes(iphoneOwnsMainAudio: Boolean): Map<String, Any?> = linkedMapOf(
+        "resources" to listOf(resource(RESOURCE_SCREEN), resource(RESOURCE_AUDIO, take = !iphoneOwnsMainAudio)),
         "appStates" to listOf(
             linkedMapOf("appStateID" to 2, "state" to false),
             linkedMapOf("appStateID" to 1, "speechMode" to -1),

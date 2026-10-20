@@ -47,6 +47,7 @@ object AirPlayPersistence {
     private const val KEY_AUDIO_FOCUS_ENABLED = "audio_focus_enabled"
     private const val KEY_AUDIO_FOCUS_AUTO_YIELD = "audio_focus_auto_yield"
     private const val KEY_DISABLE_MEDIA_KEY_AUDIO_FOCUS = "disable_media_key_audio_focus"
+    private const val KEY_CARPLAY_OWNS_MAIN_AUDIO = "carplay_owns_main_audio"
     private const val KEY_MEDIA_AUDIO_CHANNEL = "media_audio_channel"
     private const val KEY_NAVIGATION_AUDIO_CHANNEL = "navigation_audio_channel"
     private const val KEY_NAVIGATION_AUDIO_ATTENUATION = "navigation_audio_attenuation_db"
@@ -74,8 +75,6 @@ object AirPlayPersistence {
     private const val KEY_MEDIA_BUFFER_MS = "media_buffer_ms" // wireless; was shared by both transports
     private const val KEY_WIRED_MEDIA_BUFFER_MS = "wired_media_buffer_ms"
     private const val KEY_MAIN_BUFFERED_AUDIO = "main_buffered_audio"
-    private const val KEY_AUTO_PLAYBACK = "auto_playback"
-    private const val KEY_AUTO_PLAYBACK_URL = "auto_playback_url"
     private const val KEY_SPEECH_WITHOUT_8_16_KHZ = "speech_without_8_16_khz"
     private const val KEY_CAR_BLUETOOTH_AUDIO = "car_bluetooth_audio"
     private const val KEY_CALL_ECHO_CANCELLATION = "call_echo_cancellation"
@@ -183,6 +182,7 @@ object AirPlayPersistence {
     fun saveAmbientDelaySeconds(context: Context, seconds: Int) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt("ambient_delay_seconds", seconds.coerceIn(0, 60)).apply()
+        CarPlayNightModeRuntime.settingsChanged()
     }
 
     fun loadDisplayScalePercent(context: Context): Int =
@@ -304,6 +304,17 @@ object AirPlayPersistence {
     fun saveDisableMediaKeyAudioFocus(context: Context, disabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(KEY_DISABLE_MEDIA_KEY_AUDIO_FOCUS, disabled)
+            .apply()
+    }
+
+    /** The iPhone, not the car, owns main audio from connection, so wheel media keys work at once. */
+    fun loadCarPlayOwnsMainAudio(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_CARPLAY_OWNS_MAIN_AUDIO, false)
+
+    fun saveCarPlayOwnsMainAudio(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_CARPLAY_OWNS_MAIN_AUDIO, enabled)
             .apply()
     }
 
@@ -588,6 +599,7 @@ object AirPlayPersistence {
     internal fun saveNightSource(context: Context, source: HeadUnitNightMode.Source) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_NIGHT_SOURCE, source.key).apply()
+        CarPlayNightModeRuntime.settingsChanged()
     }
 
     /** Reads the destination's coordinates from the head unit's map log; needs ADB over the network. */
@@ -849,6 +861,7 @@ object AirPlayPersistence {
     fun saveAmbientLightThreshold(context: Context, threshold: AmbientLightThreshold) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(KEY_AMBIENT_LUX_THRESHOLD, threshold.lux).apply()
+        CarPlayNightModeRuntime.settingsChanged()
     }
 
     fun loadAppAppearance(context: Context): AppAppearance = AppAppearance.fromKey(
@@ -867,6 +880,7 @@ object AirPlayPersistence {
     fun saveCarPlayNightMode(context: Context, mode: CarPlayNightMode) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString(KEY_CARPLAY_NIGHT_MODE, mode.key).apply()
+        CarPlayNightModeRuntime.settingsChanged()
     }
 
     fun loadCarPlayNightSchedule(context: Context): CarPlayNightSchedule {
@@ -885,6 +899,7 @@ object AirPlayPersistence {
             .putInt(KEY_CARPLAY_NIGHT_START, schedule.startMinute)
             .putInt(KEY_CARPLAY_NIGHT_END, schedule.endMinute)
             .apply()
+        CarPlayNightModeRuntime.settingsChanged()
     }
 
     fun loadFps(context: Context): Int = AirPlayDisplaySettings.sanitizeFps(
@@ -979,23 +994,6 @@ object AirPlayPersistence {
                 .putInt(KEY_WIRED_MEDIA_BUFFER_MS, com.shilapi.xcertplay.media.MediaAudioBuffer.sanitizeWired(millis))
                 .apply()
         }
-    }
-
-    fun loadAutoPlayback(context: Context): com.shilapi.xcertplay.orchestration.AutoPlaybackOptions {
-        val values = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).all
-        return com.shilapi.xcertplay.orchestration.AutoPlaybackOptions(
-            enabled = values[KEY_AUTO_PLAYBACK] as? Boolean ?: false,
-            appUrl = values[KEY_AUTO_PLAYBACK_URL]?.let { it as? String ?: "invalid" } ?: "",
-        )
-    }
-
-    fun saveAutoPlayback(context: Context, enabled: Boolean) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_AUTO_PLAYBACK, enabled).apply()
-    }
-
-    fun saveAutoPlaybackUrl(context: Context, url: String) {
-        val validated = requireNotNull(com.shilapi.xcertplay.orchestration.AutoPlaybackOptions.validatedUrl(url))
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(KEY_AUTO_PLAYBACK_URL, validated).apply()
     }
 
     /** DiPlay's own experimental echo canceller on CarPlay call audio; opt-in, applies at reconnect. */
@@ -1104,6 +1102,7 @@ object AirPlayPersistence {
 
     fun saveClusterMapEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_CLUSTER_MAP, enabled).apply()
+        ClusterMusicState.note("settings mapEnabled=$enabled user=${android.os.Process.myUid() / 100_000}")
     }
 
     /** The dashboard map as a card on the centre screen while DiPlay is in the background. */

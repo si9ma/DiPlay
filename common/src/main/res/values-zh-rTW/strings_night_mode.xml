@@ -18,7 +18,7 @@
     <string name="carplay_night_end">夜間結束</string>
     <string name="carplay_night_schedule_hint">使用車機的當地時間。開始與結束時間須不同，可設定跨午夜時段。</string>
     <string name="carplay_night_schedule_same_time">開始與結束時間不能相同。</string>
-    <string name="carplay_night_hint">儲存後返回 CarPlay 即可套用。「跟隨車機」優先讀車機自己的日夜設定，其次是 Android 的夜間模式。</string>
+    <string name="carplay_night_hint">儲存後立即同步目前的 CarPlay 連線，無需重新連線。「跟隨車機」優先讀車機自己的日夜設定，其次是 Android 的夜間模式。</string>
     <string name="carplay_night_time_note">在 CarPlay 內的外觀設定選擇「自動」時，也會參考 iPhone 時間。即使選擇固定日間，在夜間仍可能顯示深色外觀。</string>
     <string name="carplay_night_source">依據哪個來源</string>
     <string name="carplay_night_source_auto">自動</string>

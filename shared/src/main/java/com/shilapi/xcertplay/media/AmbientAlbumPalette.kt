@@ -28,8 +28,8 @@ object AmbientAlbumPalette {
     }
 
     /** Keeps the existing colored-hue selection first, then accepts a majority white cover. */
-    fun albumColor(pixels: IntArray): Int? {
-        dominantRgb(pixels)?.let { return bydColor(it) }
+    fun albumColor(pixels: IntArray, palette: AmbientPalette = AmbientPalette.LEGACY31): Int? {
+        dominantRgb(pixels)?.let { return palette.albumCode(it) }
         if (pixels.isEmpty()) return null
         var whiteCount = 0
         var red = 0L; var green = 0L; var blue = 0L
@@ -42,7 +42,7 @@ object AmbientAlbumPalette {
         }
         if (whiteCount.toLong() * 2 < pixels.size || whiteCount == 0) return null
         // A small blue/cyan cast selects OEM cold white; neutral and warm whites use white.
-        return if (blue - red >= whiteCount.toLong() * 8 && blue >= green) 30 else 29
+        return palette.white(cold = blue - red >= whiteCount.toLong() * 8 && blue >= green)
     }
 
     // OEM CarSetting.apk light_ambient_color_{1..31}_all.png: same lamp-strip pixel
@@ -60,13 +60,15 @@ object AmbientAlbumPalette {
         return (0xff shl 24) or bydPreviewRgb[index - 1]
     }
 
-    private fun colorHue(rgb: Int) = hue((rgb ushr 16) and 255, (rgb ushr 8) and 255, rgb and 255)
-    private fun saturation(rgb: Int): Double {
+    private fun colorHue(rgb: Int) = hueOf(rgb)
+    private fun saturation(rgb: Int): Double = saturationOf(rgb)
+    internal fun hueOf(rgb: Int) = hue((rgb ushr 16) and 255, (rgb ushr 8) and 255, rgb and 255)
+    internal fun saturationOf(rgb: Int): Double {
         val r = (rgb ushr 16) and 255; val g = (rgb ushr 8) and 255; val b = rgb and 255
         val high = maxOf(r, g, b)
         return if (high == 0) 0.0 else (high - minOf(r, g, b)).toDouble() / high
     }
-    private fun hueDistance(a: Double, b: Double): Double = abs(a - b).let { minOf(it, 360 - it) }
+    internal fun hueDistance(a: Double, b: Double): Double = abs(a - b).let { minOf(it, 360 - it) }
 
     fun bydColor(rgb: Int): Int {
         val target = colorHue(rgb)
@@ -97,8 +99,9 @@ object AmbientAlbumPalette {
     }
 }
 
-internal fun ambientColorPalette(source: AmbientColorSource, selected: List<Int>, albumColor: Int?): List<Int> {
-    if (source == AmbientColorSource.SELECTED) return normalizeAmbientPalette(selected)
-    val center = albumColor?.takeIf { it in 1..31 } ?: return (1..31).toList()
-    return AmbientAlbumPalette.neighbors(center)
+internal fun ambientColorPalette(source: AmbientColorSource, selected: List<Int>, albumColor: Int?,
+    palette: AmbientPalette = AmbientPalette.LEGACY31): List<Int> {
+    if (source == AmbientColorSource.SELECTED) return normalizeAmbientPalette(selected, range = palette.colors)
+    val center = albumColor?.takeIf { it in palette.colors } ?: return palette.colors.toList()
+    return palette.neighbors(center)
 }

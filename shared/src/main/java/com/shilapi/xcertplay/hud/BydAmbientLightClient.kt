@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 /** Async API for UI/music callers. All ADB startup, reads, writes and restore waits run on its executor. */
-internal class BydAmbientLightClient(context: Context) : AutoCloseable {
+internal class BydAmbientLightClient(context: Context, private val diagnostic: ((String) -> Unit)? = null) : AutoCloseable {
     data class State(val frontColor: Int, val backColor: Int, val frontBrightness: Int, val backBrightness: Int, val area: Int)
     enum class Phase { IDLE, STARTING, ACTIVE, RESTORING, FAILED, CLOSED }
     data class Status(val phase: Phase, val generation: Long, val lastError: String? = null)
@@ -36,14 +36,16 @@ internal class BydAmbientLightClient(context: Context) : AutoCloseable {
     fun read(): CompletableFuture<State> = submit {
         val ticket = generation.get()
         ensure(ticket)
-        val result = parseState(exchange("read")?.takeIf { it.startsWith("state=") }?.removePrefix("state=") ?: error("worker-read-failed"))
+        log("stage=read result=start expectedSupport=1 expectedColor=1..31 expectedBrightness=1..6 expectedArea=1..3")
+        val result = parseState(exchange("read")?.takeIf { it.startsWith("state=") }?.removePrefix("state=") ?: error("worker-read-failed"),
+            requireRestorable = false)
         check(ticket == generation.get()) { "stale-generation" }
         result
     }
 
     /** Takes the sole restoration snapshot for this session; it is never refreshed by later applies. */
     fun begin(restoreSeed: State? = null): CompletableFuture<State> = submit {
-        require(restoreSeed == null || BydAmbientLightPolicy.validSnapshot(restoreSeed.snapshot())) { "invalid-restore-seed" }
+        require(restoreSeed == null || BydAmbientLightPolicy.canRestore(restoreSeed.snapshot(), WIDEST)) { "invalid-restore-seed" }
         check(status.phase == Phase.IDLE || status.phase == Phase.FAILED) { "session-already-active" }
         val ticket = generation.incrementAndGet()
         status = Status(Phase.STARTING, ticket)
@@ -70,7 +72,7 @@ internal class BydAmbientLightClient(context: Context) : AutoCloseable {
 
     /** Latest-value queue, capped at 5 Hz. A replaced apply completes with CancellationException. */
     fun apply(area: Int, color: Int, rawBrightness: Int): CompletableFuture<State> {
-        require(BydAmbientLightPolicy.validApply(area, color, rawBrightness))
+        require(BydAmbientLightPolicy.validApply(area, color, rawBrightness, WIDEST))
         val result = CompletableFuture<State>()
         val ticket = generation.get()
         executor.execute {
@@ -189,18 +191,34 @@ internal class BydAmbientLightClient(context: Context) : AutoCloseable {
     private fun ensure(ticket: Long) {
         check(ticket == generation.get() && !closed) { "stale-generation" }
         if (stream != null) return
+        log("stage=adb-key result=start")
         val client = LocalAdb(AdbKeys.load(app)); adb = client
-        check(client.connect(mayAsk = false) == LocalAdb.Access.READY) { "adb-unavailable" }
+        log("stage=adb-connect result=start mayAsk=false")
+        val access = client.connect(mayAsk = false)
+        log("stage=adb-connect result=$access")
+        check(access == LocalAdb.Access.READY) { "adb-unavailable" }
         val next = ByteArray(16).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
         token = next
         val apk = "'" + app.applicationInfo.sourceDir.replace("'", "'\\''") + "'"
+        log("stage=worker-launch result=start")
         stream = client.openShell("CLASSPATH=$apk app_process /system/bin ${BydAmbientLightTool::class.java.name} --stdin $next")
+        log("stage=worker-launch result=${if (stream != null) "ok" else "failed"}")
         check(stream != null) { "worker-launch-failed" }
         check(exchange("ping", 10000) == "ready") { "worker-not-ready" }
     }
 
-    private fun exchange(command: String, timeout: Int = 5000): String? =
-        BydAmbientLightWorkerProtocol.reply(token?.let { stream?.exchangeBounded("$it $command", timeout) })
+    private fun log(message: String) { runCatching { diagnostic?.invoke(message) } }
+
+    private fun exchange(command: String, timeout: Int = 5000): String? {
+        val started = System.nanoTime()
+        val op = command.substringBefore(' ')
+        if (diagnostic != null) log("stage=exchange op=$op result=start timeoutMs=$timeout")
+        val output = token?.let { stream?.exchangeBounded("$it $command", timeout) { response ->
+            if (diagnostic != null) BydAmbientLightWorkerProtocol.diagnostics(response).forEach { log("worker $it") }
+        } }
+        if (diagnostic != null) log("stage=exchange op=$op reply=${BydAmbientLightWorkerProtocol.replySummary(output)} elapsedMs=${(System.nanoTime() - started) / 1_000_000}")
+        return BydAmbientLightWorkerProtocol.reply(output)
+    }
 
     private fun fail(ticket: Long, reason: String) {
         if (generation.get() != ticket) return
@@ -217,12 +235,15 @@ internal class BydAmbientLightClient(context: Context) : AutoCloseable {
         try { oldStream?.close() } finally { oldAdb?.close() }
     }
 
-    private fun parseState(value: String): State {
-        val fields = value.trim().split(',').map { it.toInt() }
-        require(fields.size == 5)
-        val s = State(fields[0], fields[1], fields[2], fields[3], fields[4])
-        check(BydAmbientLightPolicy.validSnapshot(BydAmbientLightPolicy.Snapshot(s.frontColor, s.backColor, s.frontBrightness, s.backBrightness, s.area)))
-        return s
+    private fun parseState(value: String, requireRestorable: Boolean = true): State {
+        val s = BydAmbientLightPolicy.parseSnapshot(value)
+        // The worker already enforced this head unit's own range before replying.
+        if (requireRestorable) check(BydAmbientLightPolicy.canRestore(s, WIDEST)) { "unverified-restore-state" }
+        return State(s.frontColor, s.backColor, s.frontBrightness, s.backBrightness, s.area)
+    }
+
+    private companion object {
+        val WIDEST = BydAmbientLightPolicy.OEM127_COLORS
     }
 
     private fun State.snapshot() = BydAmbientLightPolicy.Snapshot(frontColor, backColor, frontBrightness, backBrightness, area)

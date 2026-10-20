@@ -27,6 +27,8 @@ internal class ClusterMusicView(context: Context) : View(context) {
     private var lastTrackRevision: Long? = null
     private val expire = Runnable { updateVisibility() }
     private var captionVisible = false
+    private var lastDiagnostic: String? = null
+    private var drewArtwork = false
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val textPaint = android.text.TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
@@ -37,6 +39,7 @@ internal class ClusterMusicView(context: Context) : View(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        ClusterMusicState.note("view attached display=${display?.displayId} ${ClusterMusicSettings.diagnosticReport(context)}")
         stopSettings = ClusterMusicSettings.observe(context) {
             visibleUntil = SystemClock.elapsedRealtime() + TEMPORARY_MILLIS
             updateVisibility()
@@ -52,6 +55,7 @@ internal class ClusterMusicView(context: Context) : View(context) {
     }
 
     override fun onDetachedFromWindow() {
+        ClusterMusicState.note("view detached display=${display?.displayId} drewArtwork=$drewArtwork")
         stopState?.invoke(); stopState = null
         stopSettings?.invoke(); stopSettings = null
         main.removeCallbacksAndMessages(null)
@@ -59,16 +63,31 @@ internal class ClusterMusicView(context: Context) : View(context) {
         snapshot = ClusterMusicState.Snapshot()
         lastTrackRevision = null
         captionVisible = false
+        lastDiagnostic = null
+        drewArtwork = false
         super.onDetachedFromWindow()
     }
 
     private fun updateVisibility() {
         main.removeCallbacks(expire)
         val hasTrack = !snapshot.info.title.isNullOrBlank() || !snapshot.info.artist.isNullOrBlank()
+        val enabled = ClusterMusicSettings.enabled(context)
         val permanent = ClusterMusicSettings.permanent(context)
         val remaining = visibleUntil - SystemClock.elapsedRealtime()
-        captionVisible = ClusterMusicSettings.enabled(context) && hasTrack && remaining > 0
-        visibility = if (ClusterMusicSettings.enabled(context) && hasTrack && (permanent || captionVisible)) VISIBLE else GONE
+        captionVisible = enabled && hasTrack && remaining > 0
+        val reason = when {
+            !enabled -> "disabled"
+            !hasTrack -> "no_metadata"
+            !permanent && !captionVisible -> "expired"
+            else -> "visible"
+        }
+        visibility = if (reason == "visible") VISIBLE else GONE
+        val diagnostic = "view display=${display?.displayId} reason=$reason permanent=$permanent " +
+            "hasArtwork=${snapshot.artwork?.isRecycled == false} windowVisibility=$windowVisibility shown=$isShown"
+        if (diagnostic != lastDiagnostic) {
+            lastDiagnostic = diagnostic
+            ClusterMusicState.note(diagnostic)
+        }
         // The caption expires even when permanent artwork keeps the view visible.
         if (visibility == VISIBLE && remaining > 0) main.postDelayed(expire, remaining)
         invalidate()
@@ -93,8 +112,14 @@ internal class ClusterMusicView(context: Context) : View(context) {
         canvas.clipPath(Path().apply { addRoundRect(artRect, radius - inset, radius - inset, Path.Direction.CW) })
         val art = snapshot.artwork?.takeUnless { it.isRecycled }
         paint.color = Color.WHITE
-        if (art != null) canvas.drawBitmap(art, null, artRect, paint)
-        else {
+        if (art != null) {
+            canvas.drawBitmap(art, null, artRect, paint)
+            if (!drewArtwork) {
+                drewArtwork = true
+                ClusterMusicState.note("view drew_artwork display=${display?.displayId} size=${width}x$height " +
+                    "rootAlpha=${rootView.alpha} shown=$isShown")
+            }
+        } else {
             paint.color = Color.rgb(28, 32, 40)
             canvas.drawRect(artRect, paint)
             textPaint.textSize = side * .40f

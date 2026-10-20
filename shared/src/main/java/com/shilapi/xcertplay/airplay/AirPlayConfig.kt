@@ -96,6 +96,12 @@ data class AirPlayConfig(
      * default stream (#148, #341). When set, 8 and 16 kHz are not offered for default and alert audio.
      */
     val speechWithout8And16Khz: Boolean = false,
+    /**
+     * Whether the iPhone owns the car's main audio from connection instead of the car. While the car
+     * owns it the iPhone ignores wheel media presses, and the iPhone did not honor DiPlay's request to
+     * give it up, so the wheel did nothing until music was started on the CarPlay screen.
+     */
+    val iphoneOwnsMainAudio: Boolean = false,
 )
 
 /** The offer, SETUP and controls must all honor the user's audio-output setting. */

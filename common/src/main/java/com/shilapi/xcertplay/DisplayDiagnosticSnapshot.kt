@@ -9,7 +9,8 @@ import java.util.UUID
 /** Small, redacted snapshot retained separately from the rotating session logs. */
 internal object DisplayDiagnosticSnapshot {
     private const val PREFS = "diplay_display_diagnostics"
-    private val fields = listOf("selection", "request", "capability", "effective", "phone", "decoder", "output")
+    private val fields = listOf("selection", "request", "capability", "effective", "phone", "decoder", "output",
+        "cluster_canvas", "cluster_decoder", "cluster_output")
     private fun stamp() = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())
 
     @Synchronized
@@ -40,6 +41,9 @@ internal object DisplayDiagnosticSnapshot {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (attempt == null || prefs.getString("attempt", null) != attempt) return
         val field = when {
+            message.startsWith("Custom cluster canvas: ") -> "cluster_canvas"
+            message.startsWith("Video[111]: decoder=") || message.startsWith("Video[111]: decoder configuration failed") -> "cluster_decoder"
+            message.startsWith("Video[111]: output format ") -> "cluster_output"
             message.startsWith("Phone display peer ") -> "phone"
             message.startsWith("Video: decoder=") || message.startsWith("Video: decoder configuration failed") -> "decoder"
             message.startsWith("Video: output format ") -> "output"

@@ -64,7 +64,8 @@ internal class AmbientLampSession(
             }
             started.whenComplete { snapshot, error -> dispatch {
                 if (client !== opening || stopping) return@dispatch
-                if (error != null || snapshot == null || !BydAmbientLightPolicy.validSnapshot(snapshot)) {
+                if (error != null || snapshot == null ||
+                    !BydAmbientLightPolicy.canRestore(snapshot, BydAmbientLightPolicy.OEM127_COLORS)) {
                     failOwned("begin")
                 } else {
                     if (original == null) original = snapshot

@@ -6,6 +6,20 @@ internal object BydAmbientLightPolicy {
     const val LEASE_MILLIS = 15_000L
     const val MIN_APPLY_INTERVAL_MILLIS = 200L
     const val READBACK_POLL_MILLIS = 50L
+    const val OBSERVED_127_FINGERPRINT = "FANGCHENGBAO/Di150VCP_IVI/Di150VCP_IVI:14/UQ1A.240205.004/1783387902.853:user/release-keys"
+
+    /**
+     * This exact firmware with COLOR_CONFIG=6 uses OEM preset codes 1..127 on the same feature ids. A parked
+     * write, read-back and restore test (2026-10-19) confirmed codes above 31 there; nothing else widens the range.
+     */
+    fun observedColorProfile(fingerprint: String?, colorConfig: Int?): String? =
+        if (fingerprint == OBSERVED_127_FINGERPRINT && colorConfig == 6) OEM127_PROFILE else null
+
+    const val OEM127_PROFILE = "oem127"
+
+    /** The color range a lamp session on this head unit may write and restore. */
+    fun sessionColors(fingerprint: String?, colorConfig: Int?): IntRange =
+        if (observedColorProfile(fingerprint, colorConfig) != null) OEM127_COLORS else LEGACY_COLORS
 
     val getNames = setOf(
         "SET_HAS_INTERIOR_ATMOSPHERE_LAMP", "SET_IAL_COLOR_CONFIG", "SET_IAL_BRIGHTNESS_CONFIG",
@@ -17,26 +31,49 @@ internal object BydAmbientLightPolicy {
         "SET_INTERIOR_ATMOSPHERE_LAMP_AREA_SET",
     )
 
+    val configNames = setOf("SET_IAL_COLOR_CONFIG", "SET_IAL_BRIGHTNESS_CONFIG", "SET_IAL_AREA_CONFIG")
+
+    /** Raw readback, not a promise that these values can safely be written or restored. */
     data class Snapshot(val frontColor: Int, val backColor: Int, val frontBrightness: Int, val backBrightness: Int, val area: Int)
     data class Values(val color: Int, val rawBrightness: Int, val area: Int)
     data class RestoreStep(val values: Values? = null, val areaOnly: Int? = null)
 
-    fun validSnapshot(s: Snapshot): Boolean =
-        s.frontColor in 1..31 && s.backColor in 1..31 &&
-            s.frontBrightness in 1..6 && s.backBrightness in 1..6 && s.area in 1..3
+    fun parseSnapshot(value: String): Snapshot {
+        val fields = value.trim().split(',').map { it.toInt() }
+        require(fields.size == 5)
+        return Snapshot(fields[0], fields[1], fields[2], fields[3], fields[4])
+    }
 
-    fun validApply(area: Int, color: Int, rawBrightness: Int): Boolean =
-        area in 1..3 && color in 1..31 && rawBrightness in 1..6
+    fun restorationFailure(s: Snapshot, colors: IntRange = LEGACY_COLORS): String? = when {
+        s.frontColor !in colors || s.backColor !in colors -> "color-unverified"
+        s.frontBrightness !in 1..6 || s.backBrightness !in 1..6 -> "brightness-unverified"
+        s.area !in 1..3 -> "area-unverified"
+        else -> null
+    }
+
+    /** The verified 31-color range, and the range of the observed OEM 127-color firmware. */
+    val LEGACY_COLORS = 1..31
+    val OEM127_COLORS = 1..127
+
+    /** Raw code 57 (OEM green), or 20 (blue) when the front row already shows green. */
+    fun writeTestColor(s: Snapshot): Int = if (s.frontColor == 57) 20 else 57
+
+    /** CONFIG values alone never widen the range; only [sessionColors] for the verified firmware does. */
+    fun canRestore(s: Snapshot, colors: IntRange = LEGACY_COLORS): Boolean = restorationFailure(s, colors) == null
+    fun validSnapshot(s: Snapshot): Boolean = canRestore(s)
+
+    fun validApply(area: Int, color: Int, rawBrightness: Int, colors: IntRange = LEGACY_COLORS): Boolean =
+        area in 1..3 && color in colors && rawBrightness in 1..6
 
     /** SDK display brightness 0 is raw 1: minimum output, not verified physical power-off. */
-    fun minimumTarget(current: Snapshot): Snapshot {
-        require(validSnapshot(current))
+    fun minimumTarget(current: Snapshot, colors: IntRange = LEGACY_COLORS): Snapshot {
+        require(canRestore(current, colors))
         return current.copy(frontBrightness = 1, backBrightness = 1)
     }
 
     /** Preserve the current zone colors, then restore the current area selection. */
-    fun minimumSteps(current: Snapshot): List<RestoreStep> {
-        val target = minimumTarget(current)
+    fun minimumSteps(current: Snapshot, colors: IntRange = LEGACY_COLORS): List<RestoreStep> {
+        val target = minimumTarget(current, colors)
         return listOf(
             RestoreStep(values = Values(target.frontColor, 1, 1)),
             RestoreStep(values = Values(target.backColor, 1, 2)),
@@ -45,7 +82,8 @@ internal object BydAmbientLightPolicy {
     }
 
     /** Equal original zones can be restored atomically with the known-good ALL-area batch. */
-    fun restoreSteps(s: Snapshot): List<RestoreStep> {
+    fun restoreSteps(s: Snapshot, colors: IntRange = LEGACY_COLORS): List<RestoreStep> {
+        require(canRestore(s, colors)) { "unverified-restore-state" }
         if (s.frontColor == s.backColor && s.frontBrightness == s.backBrightness) {
             val steps = mutableListOf(RestoreStep(values = Values(s.frontColor, s.frontBrightness, 3)))
             if (s.area != 3) steps += RestoreStep(areaOnly = s.area)
