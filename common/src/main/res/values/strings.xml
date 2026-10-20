@@ -1,4 +1,16 @@
 <resources>
+    <string name="settings_cluster_card_cover_alignment">Large-card artwork alignment</string>
+    <string name="settings_cluster_card_lyric_alignment">Lyrics / main title alignment</string>
+    <string name="settings_cluster_card_info_alignment">Track / artist info alignment</string>
+    <string name="settings_cluster_align_left">Left</string>
+    <string name="settings_cluster_align_center">Center</string>
+    <string name="settings_cluster_align_right">Right</string>
+    <string name="settings_cluster_card_info_lines">Track / artist line separation</string>
+    <string name="settings_cluster_info_lines_original">Keep original fields</string>
+    <string name="settings_cluster_info_lines_dash">Split at spaced hyphen (-)</string>
+    <string name="settings_cluster_info_lines_dot">Split at spaced middle dot (·)</string>
+    <string name="settings_cluster_info_lines_slash">Split at spaced slash (/)</string>
+    <string name="settings_cluster_card_text_hint">Large card only. Align the three areas independently. Separate track and artist fields stay on separate lines; if the app combines them, select its separator without guessing. All text wraps when too wide and fits or truncates when too tall. Lyrics/main title use the phone title field; no extra track title is invented.</string>
     <string name="shortcut_original_click">Double click: try original single click (experimental)</string>
     <string name="shortcut_original_click_hint">Park first. This replaces this double-click rule with one Android key press/release using existing ADB approval. Create and enable a separate single-click rule for the same key; it will wait about 400 ms. Test with the physical key, not the Test button. Original behaviour is not guaranteed: the car may reject synthetic keys or route them to the focused app. No automatic approval, retries or CarPlay fallback. Power, call, system-navigation and typing keys are excluded. Enable and Save only after reviewing. Continue?</string>
     <string name="settings_cluster_category">Instrument windows</string>

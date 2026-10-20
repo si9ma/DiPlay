@@ -444,32 +444,18 @@ internal class CustomClusterWindows(
                     color = colors.detail
                     textSize = musicTextSizes(height, config, resources.configuration.fontScale).second
                 }
-                val detail = listOfNotNull(snapshot.info.artist?.takeIf { it.isNotBlank() },
-                    snapshot.info.album?.takeIf { it.isNotBlank() }).distinct().joinToString("\n")
-                fun layout(text: String, paint: android.text.TextPaint, lines: Int) =
-                    android.text.StaticLayout.Builder.obtain(text, 0, text.length, paint, available)
-                        .setTextDirection(direction).setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
-                        .setMaxLines(lines).setEllipsize(TextUtils.TruncateAt.END).setIncludePad(false).build()
-                fun fitted(text: String, paint: android.text.TextPaint, maxLines: Int, budget: Float): android.text.StaticLayout {
-                    var lines = maxLines
-                    var result = layout(text, paint, lines)
-                    while (result.height > budget && lines > 1) result = layout(text, paint, --lines)
-                    if (result.height > budget) {
-                        paint.textSize *= (budget / result.height * .98f).coerceIn(.01f, 1f)
-                        result = layout(text, paint, lines)
-                    }
-                    return result
-                }
-                val gap = if (detail.isBlank()) 0f else bounds.text.height() * .035f
-                val detailBudget = if (detail.isBlank()) 0f else bounds.text.height() * .32f
-                val titleLayout = fitted(title, titlePaint, 4, bounds.text.height() - detailBudget - gap)
-                val detailLayout = fitted(detail, detailPaint, 2, detailBudget.coerceAtLeast(1f))
+                val blocks = cardTextBlocks(title, snapshot.info.artist, snapshot.info.album, config,
+                    titlePaint, detailPaint, available, bounds.text.height(), layoutDirection == LAYOUT_DIRECTION_RTL)
                 val save = canvas.save()
                 canvas.clipRect(bounds.text)
                 canvas.translate(bounds.text.left, bounds.text.top)
-                titleLayout.draw(canvas)
-                canvas.translate(0f, titleLayout.height + gap)
-                detailLayout.draw(canvas)
+                for (block in blocks) {
+                    val saved = canvas.save()
+                    canvas.translate(0f, block.top)
+                    canvas.clipRect(0f, 0f, available.toFloat(), block.height)
+                    drawAlignedText(canvas, block.layout, block.alignment)
+                    canvas.restoreToCount(saved)
+                }
                 canvas.restoreToCount(save)
                 return
             }
@@ -621,6 +607,78 @@ internal class CustomClusterWindows(
                 else PanelColors(Color.argb(alpha, 242, 246, 251), Color.rgb(22, 31, 43), Color.rgb(69, 83, 101), Color.LTGRAY)
         }
 
+        internal data class CardTextBlock(val layout: android.text.StaticLayout, val alignment: ClusterMusicAlignment,
+            val top: Float, val height: Float)
+
+        internal fun cardInformation(artist: String?, album: String?, lines: ClusterMusicInfoLines): List<String> =
+            listOfNotNull(artist?.takeIf { it.isNotBlank() }, album?.takeIf { it.isNotBlank() }).distinct()
+                .flatMap { text -> lines.separator?.let { text.split(it) } ?: listOf(text) }
+                .map(String::trim).filter(String::isNotEmpty).take(8)
+
+        internal fun cardTextLayout(text: String, paint: android.text.TextPaint, width: Int, budget: Float,
+            rtl: Boolean, maxLines: Int = 8): android.text.StaticLayout {
+            val fittedPaint = android.text.TextPaint(paint)
+            val direction = if (rtl) android.text.TextDirectionHeuristics.FIRSTSTRONG_RTL
+                else android.text.TextDirectionHeuristics.FIRSTSTRONG_LTR
+            fun layout(lines: Int) = android.text.StaticLayout.Builder.obtain(text, 0, text.length, fittedPaint, width.coerceAtLeast(1))
+                .setTextDirection(direction).setAlignment(android.text.Layout.Alignment.ALIGN_NORMAL)
+                .setBreakStrategy(android.text.Layout.BREAK_STRATEGY_SIMPLE)
+                .setMaxLines(lines).setEllipsize(TextUtils.TruncateAt.END).setIncludePad(false).build()
+            val limit = budget.coerceAtLeast(1f)
+            var lines = maxLines.coerceAtLeast(1)
+            var result = layout(lines)
+            val minimumSize = fittedPaint.textSize * .4f
+            while ((result.height > limit || (0 until result.lineCount).any { result.getEllipsisCount(it) > 0 }) &&
+                fittedPaint.textSize > minimumSize) {
+                fittedPaint.textSize = (fittedPaint.textSize * .85f).coerceAtLeast(minimumSize)
+                result = layout(lines)
+            }
+            while (result.height > limit && lines > 1) result = layout(--lines)
+            if (result.height > limit) {
+                fittedPaint.textSize *= (limit / result.height * .98f).coerceIn(.01f, 1f)
+                result = layout(lines)
+            }
+            return result
+        }
+
+        internal fun cardTextBlocks(title: String, artist: String?, album: String?, config: ClusterWindowConfig,
+            titlePaint: android.text.TextPaint, detailPaint: android.text.TextPaint, width: Int, height: Float,
+            rtl: Boolean): List<CardTextBlock> {
+            val info = cardInformation(artist, album, config.cardInfoLines)
+            val gap = if (info.isEmpty()) 0f else height * .025f
+            val detailBudget = if (info.isEmpty()) 0f else height * .36f
+            val titleBudget = height - detailBudget - gap * info.size
+            val weights = info.map { cardTextLayout(it, detailPaint, width, Float.MAX_VALUE, rtl).lineCount.coerceIn(1, 4) }
+            val weightSum = weights.sum().coerceAtLeast(1)
+            var top = 0f
+            return buildList {
+                add(CardTextBlock(cardTextLayout(title, titlePaint, width, titleBudget, rtl), config.cardLyricAlignment, top, titleBudget))
+                top += titleBudget + gap
+                for ((index, text) in info.withIndex()) {
+                    val budget = detailBudget * weights[index] / weightSum
+                    add(CardTextBlock(cardTextLayout(text, detailPaint, width, budget, rtl), config.cardInfoAlignment, top, budget))
+                    top += budget + gap
+                }
+            }
+        }
+
+        internal fun lineAlignmentOffset(layout: android.text.StaticLayout, line: Int, alignment: ClusterMusicAlignment): Float =
+            when (alignment) {
+                ClusterMusicAlignment.LEFT -> -layout.getLineLeft(line)
+                ClusterMusicAlignment.CENTER -> (layout.width - layout.getLineRight(line) - layout.getLineLeft(line)) / 2f
+                ClusterMusicAlignment.RIGHT -> layout.width - layout.getLineRight(line)
+            }
+
+        private fun drawAlignedText(canvas: Canvas, layout: android.text.StaticLayout, alignment: ClusterMusicAlignment) {
+            for (line in 0 until layout.lineCount) {
+                val save = canvas.save()
+                canvas.clipRect(0f, layout.getLineTop(line).toFloat(), layout.width.toFloat(), layout.getLineBottom(line).toFloat())
+                canvas.translate(lineAlignmentOffset(layout, line, alignment), 0f)
+                layout.draw(canvas)
+                canvas.restoreToCount(save)
+            }
+        }
+
         internal fun musicTextSizes(height: Int, config: ClusterWindowConfig, fontScale: Float): Pair<Float, Float> {
             val ratio = if (config.musicMode == ClusterMusicMode.CARD) .115f else .19f
             val base = (height * ratio * fontScale).coerceAtLeast(minOf(12f, height * ratio))
@@ -633,10 +691,15 @@ internal class CustomClusterWindows(
             val text = RectF(pad, pad, width - pad, height - pad)
             if (!config.cover || (config.text && !hasArtwork)) return MusicLayout(null, text)
             val coverScale = config.musicCardCoverSize.coerceIn(ClusterWindowSettings.CARD_COVER_SIZE_RANGE) / 100f
+            fun cardCoverLeft(side: Float) = when (config.cardCoverAlignment) {
+                ClusterMusicAlignment.LEFT -> pad
+                ClusterMusicAlignment.CENTER -> (width - side) / 2f
+                ClusterMusicAlignment.RIGHT -> width - pad - side
+            }
             if (config.musicMode == ClusterMusicMode.CARD && config.text) {
                 val side = minOf(minOf(text.width(), (text.height() - pad) * .55f) * coverScale,
                     text.width(), (text.height() - pad) * .7f)
-                val left = (width - side) / 2f
+                val left = cardCoverLeft(side)
                 val cover = RectF(left, pad, left + side, pad + side)
                 text.top = cover.bottom + pad
                 return MusicLayout(cover, text)
@@ -646,6 +709,7 @@ internal class CustomClusterWindows(
                 else if (config.musicMode == ClusterMusicMode.CARD) minOf(fullCoverSide * coverScale, fullCoverSide)
                 else fullCoverSide
             val x = when {
+                config.musicMode == ClusterMusicMode.CARD -> cardCoverLeft(side)
                 !config.text -> (width - side) / 2
                 config.coverSide == ClusterCoverSide.RIGHT -> width - pad - side
                 else -> pad

@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_cluster_card_cover_alignment">Выравнивание большой обложки</string>
+    <string name="settings_cluster_card_lyric_alignment">Выравнивание текста / заголовка</string>
+    <string name="settings_cluster_card_info_alignment">Выравнивание названия / исполнителя</string>
+    <string name="settings_cluster_align_left">Слева</string>
+    <string name="settings_cluster_align_center">По центру</string>
+    <string name="settings_cluster_align_right">Справа</string>
+    <string name="settings_cluster_card_info_lines">Название / исполнитель по строкам</string>
+    <string name="settings_cluster_info_lines_original">Сохранить исходные поля</string>
+    <string name="settings_cluster_info_lines_dash">Разделить по дефису с пробелами ( - )</string>
+    <string name="settings_cluster_info_lines_dot">Разделить по точке с пробелами ( · )</string>
+    <string name="settings_cluster_info_lines_slash">Разделить по косой черте с пробелами ( / )</string>
+    <string name="settings_cluster_card_text_hint">Только большая карточка. Три области выравниваются независимо. Название и исполнитель выводятся раздельно; для объединённого поля выберите разделитель приложения без догадок. Длинный текст переносится, при нехватке высоты уменьшается или сокращается. Текст/заголовок берётся из поля телефона; отдельное название не выдумывается.</string>
     <string name="shortcut_original_click">Двойное нажатие: исходное одиночное (эксперимент)</string>
     <string name="shortcut_original_click_hint">Сначала припаркуйтесь. Заменяет правило двойного нажатия одной парой нажатие/отпускание Android через уже разрешённый ADB. Отдельно включите одиночное нажатие той же клавиши; задержка около 400 мс. Проверяйте физической клавишей, не кнопкой теста. Автомобиль может отвергнуть синтетический ввод или направить его текущему приложению; исходная функция не гарантируется. Нет автоматического разрешения, повторов или замены действием CarPlay. Клавиши питания, звонков, системной навигации и ввода текста исключены. Затем нужно включить и сохранить. Продолжить?</string>
     <string name="settings_cluster_category">Окна приборов</string>

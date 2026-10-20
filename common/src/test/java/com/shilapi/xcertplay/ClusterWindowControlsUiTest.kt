@@ -85,7 +85,13 @@ class ClusterWindowControlsUiTest {
                     add(R.string.settings_cluster_window_cover)
                     if (musicMode == ClusterMusicMode.MINI) add(R.string.settings_cluster_cover_side)
                     add(R.string.settings_cluster_window_text)
-                    if (musicMode == ClusterMusicMode.CARD) add(R.string.settings_cluster_card_cover_size)
+                    if (musicMode == ClusterMusicMode.CARD) {
+                        add(R.string.settings_cluster_card_cover_size)
+                        add(R.string.settings_cluster_card_cover_alignment)
+                        add(R.string.settings_cluster_card_lyric_alignment)
+                        add(R.string.settings_cluster_card_info_alignment)
+                        add(R.string.settings_cluster_card_info_lines)
+                    }
                     add(R.string.settings_cluster_title_font); add(R.string.settings_cluster_artist_font)
                     add(R.string.settings_cluster_window_opacity); add(R.string.settings_cluster_night_background)
                     add(R.string.settings_cluster_window_alpha_hint)
@@ -119,6 +125,10 @@ class ClusterWindowControlsUiTest {
                 for ((resource, present) in listOf(
                     R.string.settings_cluster_cover_side to (musicMode == ClusterMusicMode.MINI),
                     R.string.settings_cluster_card_cover_size to (musicMode == ClusterMusicMode.CARD),
+                    R.string.settings_cluster_card_cover_alignment to (musicMode == ClusterMusicMode.CARD),
+                    R.string.settings_cluster_card_lyric_alignment to (musicMode == ClusterMusicMode.CARD),
+                    R.string.settings_cluster_card_info_alignment to (musicMode == ClusterMusicMode.CARD),
+                    R.string.settings_cluster_card_info_lines to (musicMode == ClusterMusicMode.CARD),
                     R.string.settings_cluster_window_crop to (mapMode == ClusterMapDisplayMode.FIT_WINDOW),
                     R.string.settings_cluster_trim_in_place to (mapMode == ClusterMapDisplayMode.FIT_WINDOW),
                     R.string.settings_cluster_viewport_x to (mapMode == ClusterMapDisplayMode.PANEL_CROP),
@@ -389,6 +399,42 @@ class ClusterWindowControlsUiTest {
             CarPlayBackgroundSession.clear(); PendingReconnect.clear()
             app.getSharedPreferences("xcertplay_airplay", 0).edit().clear().commit()
         }
+    }
+
+    @Test fun cardAlignmentChoicesSaveSeparatelyAndCancelOrMiniDoNotChangeThem() {
+        val app = RuntimeEnvironment.getApplication()
+        app.getSharedPreferences("xcertplay_airplay", 0).edit().clear().commit()
+        ClusterWindowSettings.save(app, "music_mode", "CARD")
+        val screen = Robolectric.buildActivity(DiPlayActivity::class.java).get().apply { setTheme(android.R.style.Theme_Material_NoActionBar) }
+        fun controls() = LinearLayout(screen).also {
+            ReflectionHelpers.callInstanceMethod<Unit>(screen, "customClusterControls", ReflectionHelpers.ClassParameter(LinearLayout::class.java, it))
+        }
+        fun choose(title: Int, index: Int?) {
+            views(controls()).filterIsInstance<Button>().single { it.text.startsWith(screen.getString(title) + " · ") }.performClick()
+            val dialog = ShadowAlertDialog.getLatestAlertDialog()
+            if (index == null) dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            else dialog.listView.performItemClick(dialog.listView.getChildAt(index), index, index.toLong())
+            shadowOf(Looper.getMainLooper()).idle()
+        }
+        try {
+            val base = ClusterWindowSettings.load(app)
+            choose(R.string.settings_cluster_card_cover_alignment, null)
+            assertEquals(base, ClusterWindowSettings.load(app))
+            choose(R.string.settings_cluster_card_cover_alignment, ClusterMusicAlignment.RIGHT.ordinal)
+            choose(R.string.settings_cluster_card_lyric_alignment, ClusterMusicAlignment.CENTER.ordinal)
+            choose(R.string.settings_cluster_card_info_alignment, ClusterMusicAlignment.LEFT.ordinal)
+            choose(R.string.settings_cluster_card_info_lines, ClusterMusicInfoLines.DASH.ordinal)
+            val saved = ClusterWindowSettings.load(app)
+            assertEquals(base.copy(cardCoverAlignment = ClusterMusicAlignment.RIGHT, cardLyricAlignment = ClusterMusicAlignment.CENTER,
+                cardInfoLines = ClusterMusicInfoLines.DASH), saved)
+            ClusterWindowSettings.save(app, "music_mode", "MINI")
+            for (resource in listOf(R.string.settings_cluster_card_cover_alignment, R.string.settings_cluster_card_lyric_alignment,
+                R.string.settings_cluster_card_info_alignment, R.string.settings_cluster_card_info_lines)) {
+                assertFalse(views(controls()).filterIsInstance<Button>().any { it.text.startsWith(screen.getString(resource) + " · ") })
+            }
+            ClusterWindowSettings.save(app, "music_mode", "CARD")
+            assertEquals(saved, ClusterWindowSettings.load(app))
+        } finally { app.getSharedPreferences("xcertplay_airplay", 0).edit().clear().commit() }
     }
 
     @Test fun viewportModeSavesWithConsentAndAutomaticOrFallbackCanvasNeedsReconnect() {

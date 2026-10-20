@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_cluster_card_cover_alignment">大カードのジャケット配置</string>
+    <string name="settings_cluster_card_lyric_alignment">歌詞／主タイトルの配置</string>
+    <string name="settings_cluster_card_info_alignment">曲名／アーティスト情報の配置</string>
+    <string name="settings_cluster_align_left">左揃え</string>
+    <string name="settings_cluster_align_center">中央揃え</string>
+    <string name="settings_cluster_align_right">右揃え</string>
+    <string name="settings_cluster_card_info_lines">曲名／アーティストの行分け</string>
+    <string name="settings_cluster_info_lines_original">元の項目を維持</string>
+    <string name="settings_cluster_info_lines_dash">空白付きハイフン（ - ）で分ける</string>
+    <string name="settings_cluster_info_lines_dot">空白付き中点（ · ）で分ける</string>
+    <string name="settings_cluster_info_lines_slash">空白付きスラッシュ（ / ）で分ける</string>
+    <string name="settings_cluster_card_text_hint">大カード専用です。3領域を個別に配置できます。曲名とアーティストは別行表示し、結合された情報はアプリの区切り文字を選択して分けます。推測はしません。幅を超える文字は折り返し、高さ不足なら縮小や省略をします。歌詞／主タイトルは携帯のタイトル項目で、別の曲名は生成しません。</string>
     <string name="shortcut_original_click">ダブルクリック：純正の1回押しを試す（実験的）</string>
     <string name="shortcut_original_click_hint">駐車中に操作してください。このダブルクリックのルールを、既存の ADB 承認で Android キーを1回押して放す操作に置き換えます。同じキーのシングルクリック用ルールを別に有効にしてください。約400ミリ秒待って判定します。テストボタンでなく実物のキーで確認してください。純正が合成キーを拒否したり、現在のアプリに届く場合があり、純正動作を保証しません。自動承認、再試行、CarPlay への代替送信はしません。電源、通話、システム移動、文字入力キーは対象外です。確認後も有効化と保存が必要です。続けますか？</string>
     <string name="settings_cluster_category">メーターウィンドウ</string>

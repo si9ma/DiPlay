@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_cluster_card_cover_alignment">Вирівнювання великої обкладинки</string>
+    <string name="settings_cluster_card_lyric_alignment">Вирівнювання тексту / заголовка</string>
+    <string name="settings_cluster_card_info_alignment">Вирівнювання назви / виконавця</string>
+    <string name="settings_cluster_align_left">Ліворуч</string>
+    <string name="settings_cluster_align_center">По центру</string>
+    <string name="settings_cluster_align_right">Праворуч</string>
+    <string name="settings_cluster_card_info_lines">Назва / виконавець окремими рядками</string>
+    <string name="settings_cluster_info_lines_original">Зберегти початкові поля</string>
+    <string name="settings_cluster_info_lines_dash">Розділити дефісом із пробілами ( - )</string>
+    <string name="settings_cluster_info_lines_dot">Розділити крапкою з пробілами ( · )</string>
+    <string name="settings_cluster_info_lines_slash">Розділити косою рискою з пробілами ( / )</string>
+    <string name="settings_cluster_card_text_hint">Лише велика картка. Три зони вирівнюються незалежно. Назва й виконавець відображаються окремо; для об’єднаного поля виберіть роздільник застосунку без здогадок. Широкий текст переноситься, за браку висоти зменшується або скорочується. Текст/заголовок береться з поля телефона; окрема назва не вигадується.</string>
     <string name="shortcut_original_click">Подвійне натискання: початкове одиночне (експеримент)</string>
     <string name="shortcut_original_click_hint">Спочатку припаркуйтеся. Замінює правило подвійного натискання однією парою натискання/відпускання Android через уже дозволений ADB. Окремо ввімкніть одиночне натискання тієї ж клавіші; затримка близько 400 мс. Перевіряйте фізичною клавішею, не кнопкою тесту. Авто може відхилити синтетичний ввід або надіслати його поточному застосунку; початкова функція не гарантована. Без автоматичного дозволу, повторів чи заміни дією CarPlay. Клавіші живлення, дзвінків, системної навігації й тексту виключені. Потім треба ввімкнути й зберегти. Продовжити?</string>
     <string name="settings_cluster_category">Вікна приладів</string>

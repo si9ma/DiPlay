@@ -1,4 +1,16 @@
 <resources>
+    <string name="settings_cluster_card_cover_alignment">大卡封面对齐</string>
+    <string name="settings_cluster_card_lyric_alignment">歌词／主标题对齐</string>
+    <string name="settings_cluster_card_info_alignment">曲名／作者信息对齐</string>
+    <string name="settings_cluster_align_left">左对齐</string>
+    <string name="settings_cluster_align_center">居中</string>
+    <string name="settings_cluster_align_right">右对齐</string>
+    <string name="settings_cluster_card_info_lines">曲名／作者分行</string>
+    <string name="settings_cluster_info_lines_original">保留原始字段</string>
+    <string name="settings_cluster_info_lines_dash">按空格连字符（ - ）分行</string>
+    <string name="settings_cluster_info_lines_dot">按空格间隔点（ · ）分行</string>
+    <string name="settings_cluster_info_lines_slash">按空格斜杠（ / ）分行</string>
+    <string name="settings_cluster_card_text_hint">仅大卡生效，三个区域独立对齐。曲名和作者分别提供时分行显示；若 App 合成一个信息字段，可按该 App 分隔符选择分行，不自动猜测。所有文字超宽自动换行，高度不足时适配字号或省略。歌词／主标题来自手机标题字段，没有独立曲名时不额外生成曲名。</string>
     <string name="shortcut_original_click">双击：尝试回放原车单击（实验性）</string>
     <string name="shortcut_original_click_hint">请停车。将此双击规则替换为通过已有 ADB 授权回放一次 Android 按下／抬起。为同一按键另外建立并启用单击新功能规则，单击将等待约400毫秒。必须用实体键测试，不能用“测试”按钮。原厂可能拒绝合成按键，或按键落到当前应用，不保证恢复原车功能。不自动授权、不重试、不回退发送 CarPlay 动作。电源、通话、系统导航及文字输入键不支持。确认后仍需手动启用并保存，是否继续？</string>
     <string name="settings_cluster_category">仪表小窗</string>

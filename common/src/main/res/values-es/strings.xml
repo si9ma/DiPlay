@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_cluster_card_cover_alignment">Alineación de portada grande</string>
+    <string name="settings_cluster_card_lyric_alignment">Alineación de letra / título principal</string>
+    <string name="settings_cluster_card_info_alignment">Alineación de tema / artista</string>
+    <string name="settings_cluster_align_left">Izquierda</string>
+    <string name="settings_cluster_align_center">Centro</string>
+    <string name="settings_cluster_align_right">Derecha</string>
+    <string name="settings_cluster_card_info_lines">Separar tema / artista en líneas</string>
+    <string name="settings_cluster_info_lines_original">Mantener campos originales</string>
+    <string name="settings_cluster_info_lines_dash">Separar por guion con espacios ( - )</string>
+    <string name="settings_cluster_info_lines_dot">Separar por punto con espacios ( · )</string>
+    <string name="settings_cluster_info_lines_slash">Separar por barra con espacios ( / )</string>
+    <string name="settings_cluster_card_text_hint">Solo tarjeta grande. Alinea las tres zonas por separado. Los campos de tema y artista ocupan líneas distintas; si la app los combina, elige su separador sin adivinar. El texto ancho se ajusta en líneas; si falta altura, se reduce o trunca. Letra/título usa el campo del teléfono; no se inventa otro título.</string>
     <string name="shortcut_original_click">Doble clic: probar clic original (experimental)</string>
     <string name="shortcut_original_click_hint">Aparca primero. Sustituye esta regla de doble clic por una pulsación y liberación Android mediante ADB ya autorizado. Crea y activa otra regla de clic simple para la misma tecla; esperará unos 400 ms. Prueba con la tecla física, no con Probar. El coche puede rechazar teclas sintéticas o enviarlas a la app activa; no garantiza la función original. Sin aprobación automática, reintentos ni alternativa CarPlay. No admite teclas de energía, llamadas, navegación del sistema ni escritura. Después debes activar y guardar. ¿Continuar?</string>
     <string name="settings_cluster_category">Ventanas del cuadro</string>

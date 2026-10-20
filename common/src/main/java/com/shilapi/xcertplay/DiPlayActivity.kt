@@ -4019,6 +4019,37 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         if (config.musicMode == ClusterMusicMode.CARD) {
             number("music_card_cover_size", getString(R.string.settings_cluster_card_cover_size), config.musicCardCoverSize,
                 (ClusterWindowSettings.CARD_COVER_SIZE_RANGE step 5).toList())
+            val alignments = ClusterMusicAlignment.entries
+            fun alignmentLabel(alignment: ClusterMusicAlignment) = getString(when (alignment) {
+                ClusterMusicAlignment.LEFT -> R.string.settings_cluster_align_left
+                ClusterMusicAlignment.CENTER -> R.string.settings_cluster_align_center
+                ClusterMusicAlignment.RIGHT -> R.string.settings_cluster_align_right
+            })
+            fun alignment(key: String, title: Int, current: ClusterMusicAlignment) {
+                card.addView(button(getString(title) + " · " + alignmentLabel(current), false) {
+                    appDialogBuilder().setTitle(title)
+                        .setItems(alignments.map(::alignmentLabel).toTypedArray()) { _, index ->
+                            ClusterWindowSettings.save(this, key, alignments[index].name); render()
+                        }.setNegativeButton(R.string.cancel, null).show()
+                })
+            }
+            alignment("card_cover_alignment", R.string.settings_cluster_card_cover_alignment, config.cardCoverAlignment)
+            alignment("card_lyric_alignment", R.string.settings_cluster_card_lyric_alignment, config.cardLyricAlignment)
+            alignment("card_info_alignment", R.string.settings_cluster_card_info_alignment, config.cardInfoAlignment)
+            val lineModes = ClusterMusicInfoLines.entries
+            fun lineLabel(mode: ClusterMusicInfoLines) = getString(when (mode) {
+                ClusterMusicInfoLines.ORIGINAL -> R.string.settings_cluster_info_lines_original
+                ClusterMusicInfoLines.DASH -> R.string.settings_cluster_info_lines_dash
+                ClusterMusicInfoLines.DOT -> R.string.settings_cluster_info_lines_dot
+                ClusterMusicInfoLines.SLASH -> R.string.settings_cluster_info_lines_slash
+            })
+            card.addView(button(getString(R.string.settings_cluster_card_info_lines) + " · " + lineLabel(config.cardInfoLines), false) {
+                appDialogBuilder().setTitle(R.string.settings_cluster_card_info_lines)
+                    .setItems(lineModes.map(::lineLabel).toTypedArray()) { _, index ->
+                        ClusterWindowSettings.save(this, "card_info_lines", lineModes[index].name); render()
+                    }.setNegativeButton(R.string.cancel, null).show()
+            })
+            card.addView(label(getString(R.string.settings_cluster_card_text_hint), 14, MUTED))
         }
         number("title_font", getString(R.string.settings_cluster_title_font), config.titleFont,
             (ClusterWindowSettings.MUSIC_FONT_RANGE step 5).toList())

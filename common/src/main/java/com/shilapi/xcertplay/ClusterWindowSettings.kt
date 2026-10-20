@@ -18,6 +18,10 @@ internal data class ClusterWindowRect(val x: Int, val y: Int, val width: Int, va
 
 internal enum class ClusterCoverSide { LEFT, RIGHT }
 internal enum class ClusterMusicMode { MINI, CARD }
+internal enum class ClusterMusicAlignment { LEFT, CENTER, RIGHT }
+internal enum class ClusterMusicInfoLines(val separator: String?) {
+    ORIGINAL(null), DASH(" - "), DOT(" · "), SLASH(" / ")
+}
 internal enum class ClusterMapDisplayMode { FIT_WINDOW, PANEL_CROP }
 
 internal enum class ClusterMapCanvas(val width: Int, val height: Int) {
@@ -55,6 +59,10 @@ internal data class ClusterWindowConfig(
     val mapCenterX: Int = 50, val mapCenterY: Int = 50,
     val musicCardCoverSize: Int = 100,
     val titleFont: Int = font, val artistFont: Int = font,
+    val cardCoverAlignment: ClusterMusicAlignment = ClusterMusicAlignment.CENTER,
+    val cardLyricAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
+    val cardInfoAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
+    val cardInfoLines: ClusterMusicInfoLines = ClusterMusicInfoLines.ORIGINAL,
 ) {
     val enabled get() = music || map
     val activeMusicRect get() = if (musicMode == ClusterMusicMode.CARD) musicCardRect else musicRect
@@ -114,7 +122,15 @@ internal object ClusterWindowSettings {
             mapCenterX = number("map_center_x", 50, 0..100), mapCenterY = number("map_center_y", 50, 0..100),
             musicCardCoverSize = number("music_card_cover_size", 100, CARD_COVER_SIZE_RANGE),
             titleFont = number("title_font", number("font", 100, MUSIC_FONT_RANGE), MUSIC_FONT_RANGE),
-            artistFont = number("artist_font", number("font", 100, MUSIC_FONT_RANGE), MUSIC_FONT_RANGE))
+            artistFont = number("artist_font", number("font", 100, MUSIC_FONT_RANGE), MUSIC_FONT_RANGE),
+            cardCoverAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_cover_alignment", null) }
+                ?: ClusterMusicAlignment.CENTER,
+            cardLyricAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_lyric_alignment", null) }
+                ?: ClusterMusicAlignment.LEFT,
+            cardInfoAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_info_alignment", null) }
+                ?: ClusterMusicAlignment.LEFT,
+            cardInfoLines = ClusterMusicInfoLines.entries.firstOrNull { it.name == p.getString(PREFIX + "card_info_lines", null) }
+                ?: ClusterMusicInfoLines.ORIGINAL)
     }
     fun save(context: Context, key: String, value: Boolean) {
         require(key in setOf("music", "map", "elevated", "cover", "text", "crop", "map_blend", "trim_in_place"))
@@ -141,7 +157,11 @@ internal object ClusterWindowSettings {
         prefs(context).edit().putInt(PREFIX + key, value.coerceIn(range)).apply()
     }
     fun save(context: Context, key: String, value: String) {
-        require(key in setOf("display", "content", "cover_side", "map_canvas", "music_mode", "map_display_mode"))
+        require(key in setOf("display", "content", "cover_side", "map_canvas", "music_mode", "map_display_mode",
+            "card_cover_alignment", "card_lyric_alignment", "card_info_alignment", "card_info_lines"))
+        require(key !in setOf("card_cover_alignment", "card_lyric_alignment", "card_info_alignment") ||
+            ClusterMusicAlignment.entries.any { it.name == value })
+        require(key != "card_info_lines" || ClusterMusicInfoLines.entries.any { it.name == value })
         require(key != "cover_side" || ClusterCoverSide.entries.any { it.name == value })
         require(key != "map_canvas" || ClusterMapCanvas.entries.any { it.name == value })
         require(key != "music_mode" || ClusterMusicMode.entries.any { it.name == value })

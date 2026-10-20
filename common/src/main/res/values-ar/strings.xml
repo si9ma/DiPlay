@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="settings_cluster_card_cover_alignment">محاذاة غلاف البطاقة الكبيرة</string>
+    <string name="settings_cluster_card_lyric_alignment">محاذاة الكلمات / العنوان الرئيسي</string>
+    <string name="settings_cluster_card_info_alignment">محاذاة اسم الأغنية / الفنان</string>
+    <string name="settings_cluster_align_left">يسار</string>
+    <string name="settings_cluster_align_center">وسط</string>
+    <string name="settings_cluster_align_right">يمين</string>
+    <string name="settings_cluster_card_info_lines">اسم الأغنية / الفنان بأسطر منفصلة</string>
+    <string name="settings_cluster_info_lines_original">إبقاء الحقول الأصلية</string>
+    <string name="settings_cluster_info_lines_dash">الفصل بشرطة مع مسافات ( - )</string>
+    <string name="settings_cluster_info_lines_dot">الفصل بنقطة مع مسافات ( · )</string>
+    <string name="settings_cluster_info_lines_slash">الفصل بشرطة مائلة مع مسافات ( / )</string>
+    <string name="settings_cluster_card_text_hint">للبطاقة الكبيرة فقط. حاذِ المناطق الثلاث بصورة مستقلة. يظهر اسم الأغنية والفنان بأسطر منفصلة؛ إذا جمعهما التطبيق فاختر فاصل التطبيق دون تخمين. يلتف النص العريض، ويصغر أو يختصر إذا لم يكفِ الارتفاع. الكلمات/العنوان من حقل عنوان الهاتف؛ لا نولّد اسم أغنية إضافيًا.</string>
     <string name="shortcut_original_click">نقر مزدوج: تجربة النقرة الأصلية (تجريبي)</string>
     <string name="shortcut_original_click_hint">أوقف السيارة أولًا. يستبدل قاعدة النقر المزدوج بضغطة وإفلات Android واحدة عبر ADB المصرح به. أنشئ وفعّل قاعدة نقرة واحدة للمفتاح نفسه؛ تنتظر نحو 400 مللي ثانية. اختبر بالمفتاح الفعلي لا بزر الاختبار. قد ترفض السيارة الإدخال الاصطناعي أو ترسله للتطبيق الحالي، ولا نضمن الوظيفة الأصلية. لا تصريح تلقائي أو إعادة محاولة أو بديل CarPlay. مفاتيح الطاقة والمكالمات والتنقل النظامي والكتابة مستثناة. يلزم التفعيل والحفظ بعد التأكيد. هل تريد المتابعة؟</string>
     <string name="settings_cluster_category">نوافذ العدادات</string>

@@ -1,4 +1,16 @@
 <resources>
+    <string name="settings_cluster_card_cover_alignment">大卡封面對齊</string>
+    <string name="settings_cluster_card_lyric_alignment">歌詞／主標題對齊</string>
+    <string name="settings_cluster_card_info_alignment">曲名／作者資訊對齊</string>
+    <string name="settings_cluster_align_left">靠左</string>
+    <string name="settings_cluster_align_center">置中</string>
+    <string name="settings_cluster_align_right">靠右</string>
+    <string name="settings_cluster_card_info_lines">曲名／作者分行</string>
+    <string name="settings_cluster_info_lines_original">保留原始欄位</string>
+    <string name="settings_cluster_info_lines_dash">依空格連字號（ - ）分行</string>
+    <string name="settings_cluster_info_lines_dot">依空格間隔點（ · ）分行</string>
+    <string name="settings_cluster_info_lines_slash">依空格斜線（ / ）分行</string>
+    <string name="settings_cluster_card_text_hint">僅大卡生效，三個區域獨立對齊。曲名與作者分別提供時分行顯示；若 App 合併為一個資訊欄位，可選擇該 App 的分隔符，不自動猜測。文字超寬自動換行，高度不足時調整字級或省略。歌詞／主標題取自手機標題欄位，沒有獨立曲名時不額外產生曲名。</string>
     <string name="shortcut_original_click">雙擊：嘗試重播原車單擊（實驗性）</string>
     <string name="shortcut_original_click_hint">請停車。將此雙擊規則替換為以已有 ADB 授權重播一次 Android 按下／放開。同一按鍵另建並啟用單擊新功能規則，單擊等待約400毫秒。請用實體鍵測試，不能用「測試」按鈕。原廠可能拒絕合成按鍵或將事件送到目前應用，不保證原車功能。不自動授權、不重試、不改送 CarPlay 動作。電源、通話、系統導覽與文字鍵不支援。確認後仍須啟用並儲存，是否繼續？</string>
     <string name="settings_cluster_category">儀表小視窗</string>
