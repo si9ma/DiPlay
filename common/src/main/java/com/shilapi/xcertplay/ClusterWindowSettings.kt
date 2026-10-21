@@ -57,8 +57,9 @@ internal data class ClusterWindowConfig(
     val trimInPlace: Boolean = false,
     val mapDisplayMode: ClusterMapDisplayMode = ClusterMapDisplayMode.FIT_WINDOW,
     val mapCenterX: Int = 50, val mapCenterY: Int = 50,
-    val musicCardCoverSize: Int = 100,
-    val titleFont: Int = font, val artistFont: Int = font,
+    val musicCardCoverSize: Int = 160,
+    val coverCornerPercent: Int = 15,
+    val titleFont: Int = 32, val artistFont: Int = 24,
     val cardCoverAlignment: ClusterMusicAlignment = ClusterMusicAlignment.CENTER,
     val cardLyricAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
     val cardInfoAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
@@ -70,8 +71,9 @@ internal data class ClusterWindowConfig(
 }
 
 internal object ClusterWindowSettings {
-    val CARD_COVER_SIZE_RANGE = 40..140
-    val MUSIC_FONT_RANGE = 60..180
+    val CARD_COVER_SIZE_RANGE = 60..480
+    val COVER_CORNER_RANGE = 0..50
+    val MUSIC_FONT_RANGE = 12..72
     val SAFE_AREA_RANGE = 0..40
     val TRIM_RANGE = 0..40
     val MAP_FEATHER_PERCENT_RANGE = 0..30
@@ -120,9 +122,10 @@ internal object ClusterWindowSettings {
             mapDisplayMode = ClusterMapDisplayMode.entries.firstOrNull { it.name == p.getString(PREFIX + "map_display_mode", null) }
                 ?: ClusterMapDisplayMode.FIT_WINDOW,
             mapCenterX = number("map_center_x", 50, 0..100), mapCenterY = number("map_center_y", 50, 0..100),
-            musicCardCoverSize = number("music_card_cover_size", 100, CARD_COVER_SIZE_RANGE),
-            titleFont = number("title_font", number("font", 100, MUSIC_FONT_RANGE), MUSIC_FONT_RANGE),
-            artistFont = number("artist_font", number("font", 100, MUSIC_FONT_RANGE), MUSIC_FONT_RANGE),
+            musicCardCoverSize = number("music_card_cover_size", 160, CARD_COVER_SIZE_RANGE),
+            coverCornerPercent = number("cover_corner_percent", 15, COVER_CORNER_RANGE),
+            titleFont = number("title_font", 32, MUSIC_FONT_RANGE),
+            artistFont = number("artist_font", 24, MUSIC_FONT_RANGE),
             cardCoverAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_cover_alignment", null) }
                 ?: ClusterMusicAlignment.CENTER,
             cardLyricAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_lyric_alignment", null) }
@@ -140,7 +143,7 @@ internal object ClusterWindowSettings {
         require(key in setOf("music_x", "music_y", "music_width", "music_height", "map_x", "map_y", "map_width", "map_height", "font", "opacity",
             "safe_top", "safe_bottom", "safe_left", "safe_right", "trim_top", "trim_bottom", "trim_left", "trim_right",
             "music_card_x", "music_card_y", "music_card_width", "music_card_height",
-            "music_card_cover_size", "title_font", "artist_font",
+            "music_card_cover_size", "cover_corner_percent", "title_font", "artist_font",
             "auto_zoom_steps", "map_feather_percent", "map_corner_percent", "map_center_x", "map_center_y"))
         if (key == "auto_zoom_steps" && value !in AUTO_ZOOM_STEPS) return
         val range = when {
@@ -151,6 +154,7 @@ internal object ClusterWindowSettings {
             key == "map_corner_percent" -> MAP_CORNER_PERCENT_RANGE
             key.endsWith("width") || key.endsWith("height") -> 10..95
             key == "music_card_cover_size" -> CARD_COVER_SIZE_RANGE
+            key == "cover_corner_percent" -> COVER_CORNER_RANGE
             key == "font" || key == "title_font" || key == "artist_font" -> MUSIC_FONT_RANGE
             else -> 0..100
         }

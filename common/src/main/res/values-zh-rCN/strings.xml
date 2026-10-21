@@ -11,14 +11,15 @@
     <string name="settings_cluster_info_lines_dot">按空格间隔点（ · ）分行</string>
     <string name="settings_cluster_info_lines_slash">按空格斜杠（ / ）分行</string>
     <string name="settings_cluster_card_text_hint">仅大卡生效，三个区域独立对齐。曲名和作者分别提供时分行显示；若 App 合成一个信息字段，可按该 App 分隔符选择分行，不自动猜测。所有文字超宽自动换行，高度不足时适配字号或省略。歌词／主标题来自手机标题字段，没有独立曲名时不额外生成曲名。</string>
-    <string name="shortcut_original_click">双击：尝试回放原车单击（实验性）</string>
-    <string name="shortcut_original_click_hint">请停车。将此双击规则替换为通过已有 ADB 授权回放一次 Android 按下／抬起。为同一按键另外建立并启用单击新功能规则，单击将等待约400毫秒。必须用实体键测试，不能用“测试”按钮。原厂可能拒绝合成按键，或按键落到当前应用，不保证恢复原车功能。不自动授权、不重试、不回退发送 CarPlay 动作。电源、通话、系统导航及文字输入键不支持。确认后仍需手动启用并保存，是否继续？</string>
+    <string name="shortcut_original_click">回放一次原始按键（实验性）</string>
+    <string name="shortcut_original_click_hint">请停车。将触发本规则的按键通过已有 ADB 授权回放一次 Android 按下／抬起。必须用实体键测试，不能用“测试”按钮。原厂可能拒绝合成按键，或按键落到当前应用，不保证恢复原车功能。不自动授权、不重试、不回退发送 CarPlay 动作。电源、通话、系统导航及文字输入键不支持。是否继续？</string>
     <string name="settings_cluster_category">仪表小窗</string>
     <string name="settings_cluster_category_summary">音乐与地图小窗的位置、大小、封面和文字配置。请停车调整。</string>
     <string name="settings_cluster_card_cover_size">大卡封面大小</string>
     <string name="settings_cluster_title_font">曲名／歌词字号</string>
     <string name="settings_cluster_artist_font">作者／专辑字号</string>
-    <string name="settings_cluster_music_sizes_hint" formatted="false">封面为默认边长的40–140%，受窗口边界限制，并预留文字空间；曲名与作者字号可分别调节60–180%。调整立即生效，小窗空间不足时会减少显示行数或缩小文字。不改变仪表地图内的字号。</string>
+    <string name="settings_cluster_cover_corner" formatted="false">封面圆角（短边百分比）</string>
+    <string name="settings_cluster_music_sizes_hint" formatted="false">封面为 60–480dp 边长，受窗口边界限制，并预留文字空间；曲名与作者字号可分别调节 12–72sp。调整立即生效，小窗空间不足时会减少显示行数或缩小文字。不改变仪表地图内的字号。</string>
     <string name="settings_cluster_canvas_panel_auto">自动 · 按仪表比例</string>
     <string name="settings_cluster_canvas_request_hint">控制向 iPhone 请求的视频画布，不是小窗大小。固定分辨率不随小窗改变；保存后手动重连 CarPlay。硬件检查不通过时降档，最终在适配模式回退小窗尺寸，在仪表比例裁取模式按仪表比例回退。高分辨率不保证字更大或路线更全。如黑屏或卡顿，请降低分辨率并重连。</string>
     <string name="settings_cluster_display_mode">地图显示方式</string>

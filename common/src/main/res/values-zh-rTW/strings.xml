@@ -11,14 +11,15 @@
     <string name="settings_cluster_info_lines_dot">依空格間隔點（ · ）分行</string>
     <string name="settings_cluster_info_lines_slash">依空格斜線（ / ）分行</string>
     <string name="settings_cluster_card_text_hint">僅大卡生效，三個區域獨立對齊。曲名與作者分別提供時分行顯示；若 App 合併為一個資訊欄位，可選擇該 App 的分隔符，不自動猜測。文字超寬自動換行，高度不足時調整字級或省略。歌詞／主標題取自手機標題欄位，沒有獨立曲名時不額外產生曲名。</string>
-    <string name="shortcut_original_click">雙擊：嘗試重播原車單擊（實驗性）</string>
-    <string name="shortcut_original_click_hint">請停車。將此雙擊規則替換為以已有 ADB 授權重播一次 Android 按下／放開。同一按鍵另建並啟用單擊新功能規則，單擊等待約400毫秒。請用實體鍵測試，不能用「測試」按鈕。原廠可能拒絕合成按鍵或將事件送到目前應用，不保證原車功能。不自動授權、不重試、不改送 CarPlay 動作。電源、通話、系統導覽與文字鍵不支援。確認後仍須啟用並儲存，是否繼續？</string>
+    <string name="shortcut_original_click">重播一次原始按鍵（實驗性）</string>
+    <string name="shortcut_original_click_hint">請停車。將觸發本規則的按鍵以已有 ADB 授權重播一次 Android 按下／放開。請用實體鍵測試，不能用「測試」按鈕。原廠可能拒絕合成按鍵或將事件送到目前應用，不保證原車功能。不自動授權、不重試、不改送 CarPlay 動作。電源、通話、系統導覽與文字鍵不支援。是否繼續？</string>
     <string name="settings_cluster_category">儀表小視窗</string>
     <string name="settings_cluster_category_summary">音樂與地圖小視窗的位置、大小、封面與文字設定。請停車調整。</string>
     <string name="settings_cluster_card_cover_size">大卡封面大小</string>
     <string name="settings_cluster_title_font">曲名／歌詞字級</string>
     <string name="settings_cluster_artist_font">作者／專輯字級</string>
-    <string name="settings_cluster_music_sizes_hint" formatted="false">封面為預設邊長的40–140%，受視窗邊界限制並保留文字空間；曲名與作者字級可分別調整60–180%。立即生效，空間不足時會減少行數或縮小文字。不改變儀表地圖內的字級。</string>
+    <string name="settings_cluster_cover_corner" formatted="false">封面圓角（短邊百分比）</string>
+    <string name="settings_cluster_music_sizes_hint" formatted="false">封面為 60–480dp 邊長，受視窗邊界限制並保留文字空間；曲名與作者字級可分別調整 12–72sp。立即生效，空間不足時會減少行數或縮小文字。不改變儀表地圖內的字級。</string>
     <string name="settings_cluster_canvas_panel_auto">自動 · 依儀表比例</string>
     <string name="settings_cluster_canvas_request_hint">控制向 iPhone 要求的影片畫布，不是小視窗大小。固定解析度不隨小視窗變更；儲存後手動重新連線 CarPlay。硬體檢查未通過時降低解析度，最終在適配模式改用小視窗尺寸，在儀表比例裁取模式依儀表比例回退。高解析度不保證字較大或路線較完整。若黑畫面或卡頓，請降低解析度並重新連線。</string>
     <string name="settings_cluster_display_mode">地圖顯示方式</string>

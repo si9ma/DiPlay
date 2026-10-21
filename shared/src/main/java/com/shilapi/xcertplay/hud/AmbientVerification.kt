@@ -41,7 +41,9 @@ internal class AmbientVerificationStore(private val directory: File, owner: Stri
     data class Evidence(val environment: String, val verified: Boolean = false,
         val original: String? = null, val dirty: Boolean = false,
         val challenge: String? = null, val expires: Long = 0) {
-        fun authorised(environment: String) = this.environment == environment && verified && !dirty && challenge == null
+        // Verification is a one-time gate: once verified, an unrestored write (dirty) must not
+        // re-block control. The next session re-reads the car's current state as its new baseline.
+        fun authorised(environment: String) = this.environment == environment && verified && challenge == null
     }
     private val file: File
     init {

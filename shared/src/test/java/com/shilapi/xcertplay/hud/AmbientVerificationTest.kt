@@ -58,7 +58,7 @@ class AmbientVerificationTest {
             assertFalse(store.status(different))
         }
     }
-    @Test fun interruptedSessionRetainsRecoveryAcrossProcessAndInstallationChanges() {
+    @Test fun verifiedAuthorisationSurvivesAnInterruptedSession() {
         val dir = directory()
         val store = AmbientVerificationStore(dir, owner, secure = false)
         val env = environment()
@@ -69,7 +69,9 @@ class AmbientVerificationTest {
         assertFalse(other.status(environment(contract = "new-install")))
         assertEquals(original, other.read()?.original)
         assertEquals(true, other.read()?.dirty)
-        assertFalse(other.status(env))
+        // A verified session stays authorised even while dirty: the next begin re-reads the
+        // car's current state as its baseline instead of requiring a manual restore.
+        assertTrue(other.status(env))
         store.settled(env, original, false, false)
         assertFalse(store.status(env))
     }

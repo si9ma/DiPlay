@@ -12,14 +12,15 @@
     <string name="settings_cluster_info_lines_dot">空白付き中点（ · ）で分ける</string>
     <string name="settings_cluster_info_lines_slash">空白付きスラッシュ（ / ）で分ける</string>
     <string name="settings_cluster_card_text_hint">大カード専用です。3領域を個別に配置できます。曲名とアーティストは別行表示し、結合された情報はアプリの区切り文字を選択して分けます。推測はしません。幅を超える文字は折り返し、高さ不足なら縮小や省略をします。歌詞／主タイトルは携帯のタイトル項目で、別の曲名は生成しません。</string>
-    <string name="shortcut_original_click">ダブルクリック：純正の1回押しを試す（実験的）</string>
-    <string name="shortcut_original_click_hint">駐車中に操作してください。このダブルクリックのルールを、既存の ADB 承認で Android キーを1回押して放す操作に置き換えます。同じキーのシングルクリック用ルールを別に有効にしてください。約400ミリ秒待って判定します。テストボタンでなく実物のキーで確認してください。純正が合成キーを拒否したり、現在のアプリに届く場合があり、純正動作を保証しません。自動承認、再試行、CarPlay への代替送信はしません。電源、通話、システム移動、文字入力キーは対象外です。確認後も有効化と保存が必要です。続けますか？</string>
+    <string name="shortcut_original_click">元のキー押下を1回再現（実験的）</string>
+    <string name="shortcut_original_click_hint">駐車中に操作してください。このルールを発動したキーを、既存の ADB 承認で Android キーを1回押して放す操作として再現します。テストボタンでなく実物のキーで確認してください。純正が合成キーを拒否したり、現在のアプリに届く場合があり、純正動作を保証しません。自動承認、再試行、CarPlay への代替送信はしません。電源、通話、システム移動、文字入力キーは対象外です。続けますか？</string>
     <string name="settings_cluster_category">メーターウィンドウ</string>
     <string name="settings_cluster_category_summary">音楽と地図の位置、サイズ、ジャケット、文字を設定します。駐車中に調整してください。</string>
     <string name="settings_cluster_card_cover_size">大カードのジャケットサイズ</string>
     <string name="settings_cluster_title_font">曲名／歌詞の文字サイズ</string>
     <string name="settings_cluster_artist_font">アーティスト／アルバムの文字サイズ</string>
-    <string name="settings_cluster_music_sizes_hint" formatted="false">ジャケットは標準辺長の40–140%で、枠内に収めて文字領域を残します。曲名とアーティストの文字は各60–180%で個別設定できます。即座に反映されます。狭い枠では行数や文字サイズを減らします。メーター地図内の文字は変わりません。</string>
+    <string name="settings_cluster_cover_corner" formatted="false">カバーの角の丸み（短辺に対する割合 %）</string>
+    <string name="settings_cluster_music_sizes_hint" formatted="false">ジャケットは 60–480dp の辺長で、枠内に収めて文字領域を残します。曲名とアーティストの文字は各 12–72sp で個別設定できます。即座に反映されます。狭い枠では行数や文字サイズを減らします。メーター地図内の文字は変わりません。</string>
     <string name="settings_cluster_canvas_panel_auto">自動 · メーター比率</string>
     <string name="settings_cluster_canvas_request_hint">iPhone に要求する映像キャンバスで、ウィンドウサイズではありません。固定解像度はウィンドウに依存しません。保存後に CarPlay を手動で再接続してください。ハードウェア検査に失敗すると低い解像度に戻り、最後は適配モードではウィンドウサイズ、メーター切り抜きではメーター比率を使います。高解像度でも文字やルートが見やすくなるとは限りません。黒画面やカクつきがあれば解像度を下げて再接続してください。</string>
     <string name="settings_cluster_display_mode">地図の表示方式</string>

@@ -12,14 +12,15 @@
     <string name="settings_cluster_info_lines_dot">Separar por punto con espacios ( · )</string>
     <string name="settings_cluster_info_lines_slash">Separar por barra con espacios ( / )</string>
     <string name="settings_cluster_card_text_hint">Solo tarjeta grande. Alinea las tres zonas por separado. Los campos de tema y artista ocupan líneas distintas; si la app los combina, elige su separador sin adivinar. El texto ancho se ajusta en líneas; si falta altura, se reduce o trunca. Letra/título usa el campo del teléfono; no se inventa otro título.</string>
-    <string name="shortcut_original_click">Doble clic: probar clic original (experimental)</string>
-    <string name="shortcut_original_click_hint">Aparca primero. Sustituye esta regla de doble clic por una pulsación y liberación Android mediante ADB ya autorizado. Crea y activa otra regla de clic simple para la misma tecla; esperará unos 400 ms. Prueba con la tecla física, no con Probar. El coche puede rechazar teclas sintéticas o enviarlas a la app activa; no garantiza la función original. Sin aprobación automática, reintentos ni alternativa CarPlay. No admite teclas de energía, llamadas, navegación del sistema ni escritura. Después debes activar y guardar. ¿Continuar?</string>
+    <string name="shortcut_original_click">Reproducir la pulsación original de tecla (experimental)</string>
+    <string name="shortcut_original_click_hint">Aparca primero. Reproduce la tecla que disparó esta regla como una pulsación y liberación Android mediante ADB ya autorizado. Prueba con la tecla física, no con Probar. El coche puede rechazar teclas sintéticas o enviarlas a la app activa; no garantiza la función original. Sin aprobación automática, reintentos ni alternativa CarPlay. No admite teclas de energía, llamadas, navegación del sistema ni escritura. ¿Continuar?</string>
     <string name="settings_cluster_category">Ventanas del cuadro</string>
     <string name="settings_cluster_category_summary">Posición, tamaño, portada y texto de las ventanas de música y mapa. Ajusta aparcado.</string>
     <string name="settings_cluster_card_cover_size">Portada de la tarjeta grande</string>
     <string name="settings_cluster_title_font">Tamaño de título / letra</string>
     <string name="settings_cluster_artist_font">Tamaño de artista / álbum</string>
-    <string name="settings_cluster_music_sizes_hint" formatted="false">Portada: 40–140% del lado predeterminado, limitada por la ventana y reservando texto. Título y artista: 60–180%, independientes. Cambios inmediatos; con poco espacio se reducen líneas o texto. No afecta al texto del mapa del cuadro.</string>
+    <string name="settings_cluster_cover_corner" formatted="false">Radio de las esquinas de la portada (% del lado corto)</string>
+    <string name="settings_cluster_music_sizes_hint" formatted="false">Portada: 60–480 dp de lado, limitada por la ventana y reservando texto. Título y artista: 12–72 sp, independientes. Cambios inmediatos; con poco espacio se reducen líneas o texto. No afecta al texto del mapa del cuadro.</string>
     <string name="settings_cluster_canvas_panel_auto">Automático · proporción del cuadro</string>
     <string name="settings_cluster_canvas_request_hint">Define el lienzo de vídeo solicitado al iPhone, no el tamaño de la ventana. Las resoluciones fijas son independientes. Guarda y reconecta CarPlay manualmente. Si falla la comprobación del hardware, se reduce la resolución; el último recurso sigue la ventana en modo Ajustar o la proporción del cuadro en modo Recortar. Más resolución no garantiza textos mayores ni toda la ruta. Si hay pantalla negra o tirones, baja la resolución y reconecta.</string>
     <string name="settings_cluster_display_mode">Modo de visualización del mapa</string>

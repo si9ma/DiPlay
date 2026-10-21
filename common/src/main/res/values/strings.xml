@@ -11,14 +11,15 @@
     <string name="settings_cluster_info_lines_dot">Split at spaced middle dot (·)</string>
     <string name="settings_cluster_info_lines_slash">Split at spaced slash (/)</string>
     <string name="settings_cluster_card_text_hint">Large card only. Align the three areas independently. Separate track and artist fields stay on separate lines; if the app combines them, select its separator without guessing. All text wraps when too wide and fits or truncates when too tall. Lyrics/main title use the phone title field; no extra track title is invented.</string>
-    <string name="shortcut_original_click">Double click: try original single click (experimental)</string>
-    <string name="shortcut_original_click_hint">Park first. This replaces this double-click rule with one Android key press/release using existing ADB approval. Create and enable a separate single-click rule for the same key; it will wait about 400 ms. Test with the physical key, not the Test button. Original behaviour is not guaranteed: the car may reject synthetic keys or route them to the focused app. No automatic approval, retries or CarPlay fallback. Power, call, system-navigation and typing keys are excluded. Enable and Save only after reviewing. Continue?</string>
+    <string name="shortcut_original_click">Replay the original key press (experimental)</string>
+    <string name="shortcut_original_click_hint">Park first. Replays the key that triggered this rule as one Android key press/release using existing ADB approval. Test with the physical key, not the Test button. Original behaviour is not guaranteed: the car may reject synthetic keys or route them to the focused app. No automatic approval, retries or CarPlay fallback. Power, call, system-navigation and typing keys are excluded. Continue?</string>
     <string name="settings_cluster_category">Instrument windows</string>
     <string name="settings_cluster_category_summary">Music and map windows: position, size, artwork and text. Adjust while parked.</string>
     <string name="settings_cluster_card_cover_size">Large-card artwork size</string>
     <string name="settings_cluster_title_font">Title / lyrics font size</string>
     <string name="settings_cluster_artist_font">Artist / album font size</string>
-    <string name="settings_cluster_music_sizes_hint" formatted="false">Artwork: 40–140% of the default side length, limited by the window with room kept for text. Title and artist fonts: 60–180%, adjusted independently. Changes apply immediately; small windows may show fewer lines or smaller text. Instrument map labels are not affected.</string>
+    <string name="settings_cluster_cover_corner" formatted="false">Cover corner radius (% of short edge)</string>
+    <string name="settings_cluster_music_sizes_hint" formatted="false">Artwork: 60–480 dp side length, limited by the window with room kept for text. Title and artist fonts: 12–72 sp, adjusted independently. Changes apply immediately; small windows may show fewer lines or smaller text. Instrument map labels are not affected.</string>
     <string name="settings_cluster_canvas_panel_auto">Automatic · panel aspect</string>
     <string name="settings_cluster_canvas_request_hint">Sets the video canvas requested from iPhone, not the window size. Fixed resolutions are independent of the window. Save, then reconnect CarPlay manually. If hardware checks fail, a lower resolution is used; the final fallback follows window size in Fit mode or panel aspect in Panel crop mode. Higher resolution does not guarantee larger labels or more route coverage. If video is black or stutters, lower the resolution and reconnect.</string>
     <string name="settings_cluster_display_mode">Map display mode</string>

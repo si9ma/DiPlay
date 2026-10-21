@@ -47,9 +47,7 @@ internal object ShortcutCodec {
         rule.clickCount in 1..4 && (rule.event != ShortcutEvent.CONNECTED || rule.clickCount == 1) &&
         (!rule.enabled || rule.steps.none { it.action.legacyWindow || it.action == ShortcutAction.KEY_PRESS }) &&
         (rule.steps.none { it.action == ShortcutAction.ORIGINAL_CLICK } ||
-            rule.event == ShortcutEvent.KEY && rule.clickCount == 2 &&
-                com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(rule.keyCode) &&
-                rule.steps == listOf(ShortcutStep(ShortcutAction.ORIGINAL_CLICK))) &&
+            rule.event == ShortcutEvent.KEY && com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(rule.keyCode)) &&
         rule.steps.size in 1..MAX_STEPS && rule.steps.sumOf { it.waitMs } in 0..120_000 &&
         rule.steps.withIndex().all { (index, step) ->
             ((step.keyCode == -1 && step.scanCode == -1) ||

@@ -4018,7 +4018,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         toggle(card, getString(R.string.settings_cluster_window_text), "", config.text) { ClusterWindowSettings.save(this, "text", it) }
         if (config.musicMode == ClusterMusicMode.CARD) {
             number("music_card_cover_size", getString(R.string.settings_cluster_card_cover_size), config.musicCardCoverSize,
-                (ClusterWindowSettings.CARD_COVER_SIZE_RANGE step 5).toList())
+                (ClusterWindowSettings.CARD_COVER_SIZE_RANGE step 10).toList())
             val alignments = ClusterMusicAlignment.entries
             fun alignmentLabel(alignment: ClusterMusicAlignment) = getString(when (alignment) {
                 ClusterMusicAlignment.LEFT -> R.string.settings_cluster_align_left
@@ -4052,9 +4052,11 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(label(getString(R.string.settings_cluster_card_text_hint), 14, MUTED))
         }
         number("title_font", getString(R.string.settings_cluster_title_font), config.titleFont,
-            (ClusterWindowSettings.MUSIC_FONT_RANGE step 5).toList())
+            (ClusterWindowSettings.MUSIC_FONT_RANGE step 2).toList())
         number("artist_font", getString(R.string.settings_cluster_artist_font), config.artistFont,
-            (ClusterWindowSettings.MUSIC_FONT_RANGE step 5).toList())
+            (ClusterWindowSettings.MUSIC_FONT_RANGE step 2).toList())
+        number("cover_corner_percent", getString(R.string.settings_cluster_cover_corner), config.coverCornerPercent,
+            ClusterWindowSettings.COVER_CORNER_RANGE.toList())
         card.addView(label(getString(R.string.settings_cluster_music_sizes_hint), 14, MUTED))
         number("opacity", getString(R.string.settings_cluster_window_opacity), config.opacity, (0..100 step 5).toList())
         card.addView(label(getString(R.string.settings_cluster_night_background), 14, MUTED))

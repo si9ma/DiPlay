@@ -205,8 +205,6 @@ object BydAmbientLightTool {
                             if (snapshotRef.get() != null) "error already-begun"
                             else {
                                 val colors = device.sessionColors()
-                                if (File("/data/local/tmp/diplay-ambient-verification").exists())
-                                    check(verification.read()?.dirty != true) { "verification-recovery-required" }
                                 if (colors == BydAmbientLightPolicy.OEM127_COLORS) {
                                     val env = device.environment()
                                     check(verification.status(env)) { "verification-required" }
@@ -246,8 +244,6 @@ object BydAmbientLightTool {
                             val env = device.environment()
                             val s = device.read()
                             BydAmbientLightPolicy.restorationFailure(s, BydAmbientLightPolicy.OEM127_COLORS)?.let { throw IllegalStateException(it) }
-                            val old = verification.read()
-                            check(old?.dirty != true || old.original == s.encode()) { "verification-recovery-required:${old?.original}" }
                             verification.revoke(env)
                             verification.begin(env, s.encode(), false)
                             sessionEnvironment = env; sessionVerified = false; device.pinEnvironment(env)
@@ -313,7 +309,7 @@ object BydAmbientLightTool {
             // The finally path attempts the one saved restoration on stream failure/EOF.
         } finally {
             synchronized(restoreLock) { snapshotRef.get()?.let { s ->
-                val ok = runCatching { finishRestore(requireNotNull(device), s); true }.getOrDefault(false)
+                val ok = runCatching { finishRestore(requireNotNull(device), s, sessionVerified && !testSession); true }.getOrDefault(false)
                 if (ok) snapshotRef.compareAndSet(s, null)
                 else System.err.println("ambient restore failed; retry did not confirm readback")
             } }

@@ -2,8 +2,6 @@ package com.shilapi.xcertplay.media
 
 /**
  * Software reference colors, not measured LED output or permission to write a preset.
- * Source: com.byd.carsettings 1.7.1.184.2607031639.349efa4, AmbientConstants.COLORS127R/G/B;
- * identical in com.byd.carsettings.fse 1.7.1.140.2607031645.349efa4. Not AmbientCarBody's table.
  */
 object Oem127Palette {
     const val SIZE = 127

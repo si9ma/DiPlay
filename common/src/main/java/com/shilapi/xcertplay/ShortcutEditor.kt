@@ -60,7 +60,7 @@ internal object ShortcutEditor {
         ShortcutAction.HIDE_CLUSTER_MAP to R.string.shortcut_hide_cluster_map,
     )
     private val selectableActions get() = ShortcutAction.entries.filterNot {
-        it.legacyWindow || it == ShortcutAction.KEY_PRESS || it == ShortcutAction.TAP || it == ShortcutAction.ORIGINAL_CLICK
+        it.legacyWindow || it == ShortcutAction.KEY_PRESS || it == ShortcutAction.TAP
     }
     private fun live(activity: Activity) = !activity.isFinishing && !activity.isDestroyed
     private fun message(activity: Activity, resource: Int) {
@@ -412,15 +412,6 @@ internal object ShortcutEditor {
                 ui.add(event, ui.button("${activity.getString(R.string.shortcut_click_count)} · ${clickLabel(activity, draft.clickCount)}",
                     "shortcut_click_count") { chooseClickCount() })
                 ui.add(event, ui.text(activity.getString(R.string.shortcut_click_hint), secondary = true))
-                if (draft.clickCount == 2) {
-                    ui.add(event, ui.button(R.string.shortcut_original_click, "shortcut_original_click") {
-                        if (!com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(draft.keyCode)) message(activity, R.string.shortcut_invalid)
-                        else confirm(R.string.shortcut_original_click_hint) {
-                            draft = draft.copy(steps = listOf(ShortcutStep(ShortcutAction.ORIGINAL_CLICK)), enabled = false)
-                            editor()
-                        }
-                    })
-                }
             }
             val steps = card(R.string.shortcut_steps)
             if (draft.steps.isEmpty()) ui.add(steps, ui.text(activity.getString(R.string.shortcut_no_steps), secondary = true))
@@ -522,7 +513,7 @@ internal object ShortcutEditor {
         }
         private fun chooseAction(index: Int?) {
             page(R.string.shortcut_add_action)
-            selectableActions.forEach { action ->
+            selectableActions.filter { it != ShortcutAction.ORIGINAL_CLICK || draft.event == ShortcutEvent.KEY }.forEach { action ->
                 ui.add(body, ui.button(labels.getValue(action), "shortcut_action_${action.name}") {
                     val previous = index?.let { draft.steps[it] }
                     fun accept(step: ShortcutStep) {
@@ -586,6 +577,10 @@ internal object ShortcutEditor {
                                 if (step == null) message(activity, R.string.shortcut_invalid) else accept(step)
                             })
                             cancelButton { chooseAction(index) }
+                        }
+                        ShortcutAction.ORIGINAL_CLICK -> {
+                            if (!com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(draft.keyCode)) message(activity, R.string.shortcut_invalid)
+                            else accept(ShortcutStep(action))
                         }
                         else -> accept(ShortcutStep(action))
                     }

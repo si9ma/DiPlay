@@ -2063,7 +2063,13 @@ private class AudioRenderer(
         val capacityBytes = built.bufferSizeInFrames * frameBytes
         startThresholdBytes = MediaAudioBuffer.startBytesFor(plan.startBytes, capacityBytes, PREBUFFER_WRITE_CHUNK_BYTES)
         // Only music plays long enough for the clocks to drift apart; calls keep their echo reference exact.
-        clockTrim = if (mappedChannel == AudioChannel.MEDIA) MediaClockTrim(format.sampleRate, (startThresholdBytes / frameBytes).toLong()) else null
+        // Target the midpoint between the start threshold and the track capacity instead of the start
+        // threshold itself, so the trim keeps the headroom that absorbs short Wi-Fi gaps rather than
+        // pinning the buffer at its lower bound (which caused music to stutter on a 300 ms buffer).
+        clockTrim = if (mappedChannel == AudioChannel.MEDIA) {
+            val targetFrames = ((startThresholdBytes + capacityBytes) / 2L) / frameBytes
+            MediaClockTrim(format.sampleRate, targetFrames)
+        } else null
         val trackMetadata = runCatching {
             "api=${Build.VERSION.SDK_INT} trackState=${built.state} trackRate=${built.sampleRate} " +
                 "usage=${trackAttributes?.usage} contentType=${trackAttributes?.contentType} " +
