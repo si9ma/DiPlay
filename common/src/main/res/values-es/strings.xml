@@ -21,6 +21,27 @@
     <string name="settings_cluster_artist_font">Tamaño de artista / álbum</string>
     <string name="settings_cluster_cover_corner" formatted="false">Radio de las esquinas de la portada (% del lado corto)</string>
     <string name="settings_cluster_music_sizes_hint" formatted="false">Portada: 60–480 dp de lado, limitada por la ventana y reservando texto. Título y artista: 12–72 sp, independientes. Cambios inmediatos; con poco espacio se reducen líneas o texto. No afecta al texto del mapa del cuadro.</string>
+    <string name="settings_cluster_title_color">Color del título / letra</string>
+    <string name="settings_cluster_info_color">Color del artista / álbum</string>
+    <string name="settings_cluster_title_weight">Grosor del título / letra</string>
+    <string name="settings_cluster_info_weight">Grosor del artista / álbum</string>
+    <string name="settings_cluster_color_auto">Automático</string>
+    <string name="settings_cluster_color_white">Blanco</string>
+    <string name="settings_cluster_color_black">Negro</string>
+    <string name="settings_cluster_color_red">Rojo</string>
+    <string name="settings_cluster_color_orange">Naranja</string>
+    <string name="settings_cluster_color_yellow">Amarillo</string>
+    <string name="settings_cluster_color_green">Verde</string>
+    <string name="settings_cluster_color_cyan">Cian</string>
+    <string name="settings_cluster_color_blue">Azul</string>
+    <string name="settings_cluster_color_purple">Morado</string>
+    <string name="settings_cluster_color_custom">Personalizado…</string>
+    <string name="settings_cluster_color_red_channel">Rojo (R)</string>
+    <string name="settings_cluster_color_green_channel">Verde (G)</string>
+    <string name="settings_cluster_color_blue_channel">Azul (B)</string>
+    <string name="settings_cluster_weight_normal">Normal</string>
+    <string name="settings_cluster_weight_medium">Medio</string>
+    <string name="settings_cluster_weight_bold">Negrita</string>
     <string name="settings_cluster_canvas_panel_auto">Automático · proporción del cuadro</string>
     <string name="settings_cluster_canvas_request_hint">Define el lienzo de vídeo solicitado al iPhone, no el tamaño de la ventana. Las resoluciones fijas son independientes. Guarda y reconecta CarPlay manualmente. Si falla la comprobación del hardware, se reduce la resolución; el último recurso sigue la ventana en modo Ajustar o la proporción del cuadro en modo Recortar. Más resolución no garantiza textos mayores ni toda la ruta. Si hay pantalla negra o tirones, baja la resolución y reconecta.</string>
     <string name="settings_cluster_display_mode">Modo de visualización del mapa</string>

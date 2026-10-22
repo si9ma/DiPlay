@@ -21,6 +21,27 @@
     <string name="settings_cluster_artist_font">Шрифт виконавця / альбому</string>
     <string name="settings_cluster_cover_corner" formatted="false">Радіус заокруглення обкладинки (% короткої сторони)</string>
     <string name="settings_cluster_music_sizes_hint" formatted="false">Обкладинка: 60–480 dp сторони, обмежена вікном із місцем для тексту. Назва та виконавець: незалежні 12–72 sp. Діє одразу; тісне вікно скорочує рядки чи розмір тексту. Шрифт карти приладів не змінюється.</string>
+    <string name="settings_cluster_title_color">Колір назви / тексту пісні</string>
+    <string name="settings_cluster_info_color">Колір виконавця / альбому</string>
+    <string name="settings_cluster_title_weight">Насиченість назви / тексту</string>
+    <string name="settings_cluster_info_weight">Насиченість виконавця / альбому</string>
+    <string name="settings_cluster_color_auto">Автоматично</string>
+    <string name="settings_cluster_color_white">Білий</string>
+    <string name="settings_cluster_color_black">Чорний</string>
+    <string name="settings_cluster_color_red">Червоний</string>
+    <string name="settings_cluster_color_orange">Помаранчевий</string>
+    <string name="settings_cluster_color_yellow">Жовтий</string>
+    <string name="settings_cluster_color_green">Зелений</string>
+    <string name="settings_cluster_color_cyan">Блакитний</string>
+    <string name="settings_cluster_color_blue">Синій</string>
+    <string name="settings_cluster_color_purple">Фіолетовий</string>
+    <string name="settings_cluster_color_custom">Власний…</string>
+    <string name="settings_cluster_color_red_channel">Червоний (R)</string>
+    <string name="settings_cluster_color_green_channel">Зелений (G)</string>
+    <string name="settings_cluster_color_blue_channel">Синій (B)</string>
+    <string name="settings_cluster_weight_normal">Звичайний</string>
+    <string name="settings_cluster_weight_medium">Середній</string>
+    <string name="settings_cluster_weight_bold">Жирний</string>
     <string name="settings_cluster_canvas_panel_auto">Автоматично · пропорції приладів</string>
     <string name="settings_cluster_canvas_request_hint">Задає відеополотно, запитуване в iPhone, а не розмір вікна. Фіксовані роздільні здатності незалежні. Збережіть і вручну перепідключіть CarPlay. За невдалої перевірки обладнання роздільна здатність знижується; останній варіант залежить від вікна в режимі вписування або пропорцій приладів у режимі обрізання. Висока якість не гарантує великих написів чи повного маршруту. За чорного екрана чи ривків зменшіть роздільну здатність і перепідключіться.</string>
     <string name="settings_cluster_display_mode">Режим відображення карти</string>

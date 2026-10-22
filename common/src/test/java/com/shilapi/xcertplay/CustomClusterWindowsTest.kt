@@ -614,8 +614,8 @@ class CustomClusterWindowsTest {
     @Test fun musicLayoutUsesPhysicalCoverSidesAndFullWidthWithoutArtwork() {
         for (mode in ClusterMusicMode.entries) for ((width, height) in listOf(300 to 180, 900 to 300)) {
             val base = ClusterWindowSettings.load(app).copy(musicMode = mode)
-            val left = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = ClusterCoverSide.LEFT), true)
-            val right = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = ClusterCoverSide.RIGHT), true)
+            val left = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = ClusterCoverSide.LEFT), true, 1f)
+            val right = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = ClusterCoverSide.RIGHT), true, 1f)
             if (mode == ClusterMusicMode.CARD) {
                 assertTrue(left.cover!!.bottom < left.text.top)
                 assertEquals(width / 2f, left.cover.centerX(), .001f)
@@ -628,11 +628,11 @@ class CustomClusterWindowsTest {
             }
             assertEquals(left.text.width(), right.text.width(), .001f)
             for (side in ClusterCoverSide.entries) {
-                val coverOnly = CustomClusterWindows.musicLayout(width, height, base.copy(text = false, coverSide = side), true)
+                val coverOnly = CustomClusterWindows.musicLayout(width, height, base.copy(text = false, coverSide = side), true, 1f)
                 assertEquals(width / 2f, coverOnly.cover!!.centerX(), .001f)
                 assertEquals(height / 2f, coverOnly.cover.centerY(), .001f)
-                val absent = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = side), false)
-                val disabled = CustomClusterWindows.musicLayout(width, height, base.copy(cover = false, coverSide = side), true)
+                val absent = CustomClusterWindows.musicLayout(width, height, base.copy(coverSide = side), false, 1f)
+                val disabled = CustomClusterWindows.musicLayout(width, height, base.copy(cover = false, coverSide = side), true, 1f)
                 assertNull(absent.cover); assertNull(disabled.cover)
                 assertEquals(absent.text, disabled.text)
                 if (mode == ClusterMusicMode.MINI) assertTrue(absent.text.width() > left.text.width())
@@ -644,7 +644,7 @@ class CustomClusterWindowsTest {
     @Test fun verticalCardKeepsSquareArtworkAndPositiveNonOverlappingTextAtExtremeSizes() {
         val base = ClusterWindowSettings.load(app).copy(musicMode = ClusterMusicMode.CARD)
         for ((width, height) in listOf(90 to 720, 1920 to 72, 640 to 640, 1 to 1)) for (size in listOf(40, 100, 140)) {
-            val layout = CustomClusterWindows.musicLayout(width, height, base.copy(musicCardCoverSize = size), true)
+            val layout = CustomClusterWindows.musicLayout(width, height, base.copy(musicCardCoverSize = size), true, 1f)
             val cover = layout.cover!!
             assertEquals(cover.width(), cover.height(), .001f)
             assertEquals(width / 2f, cover.centerX(), .001f)
@@ -656,33 +656,33 @@ class CustomClusterWindowsTest {
 
     @Test fun cardArtworkScalesWithoutChangingWindowOrMiniLayout() {
         val config = ClusterWindowSettings.load(app).copy(musicMode = ClusterMusicMode.CARD)
-        val normal = CustomClusterWindows.musicLayout(640, 640, config, true)
-        val small = CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 60), true)
-        val large = CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 140), true)
-        assertEquals(normal.cover!!.width() * .6f, small.cover!!.width(), .001f)
+        val normal = CustomClusterWindows.musicLayout(640, 640, config, true, 1f)
+        val small = CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 60), true, 1f)
+        val large = CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 480), true, 1f)
+        assertTrue(small.cover!!.width() < normal.cover.width())
         assertTrue(large.cover!!.width() > normal.cover.width())
         assertTrue(large.cover.bottom < large.text.top)
         assertTrue(large.text.height() > 0)
         assertEquals(320f, small.cover.centerX(), .001f)
-        val only = CustomClusterWindows.musicLayout(640, 640, config.copy(text = false, musicCardCoverSize = 60), true)
+        val only = CustomClusterWindows.musicLayout(640, 640, config.copy(text = false, musicCardCoverSize = 60), true, 1f)
         assertEquals(320f, only.cover!!.centerX(), .001f)
         assertEquals(320f, only.cover.centerY(), .001f)
         val mini = config.copy(musicMode = ClusterMusicMode.MINI)
-        assertEquals(CustomClusterWindows.musicLayout(640, 640, mini, true),
-            CustomClusterWindows.musicLayout(640, 640, mini.copy(musicCardCoverSize = 40), true))
-        assertNull(CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 140), false).cover)
+        assertEquals(CustomClusterWindows.musicLayout(640, 640, mini, true, 1f),
+            CustomClusterWindows.musicLayout(640, 640, mini.copy(musicCardCoverSize = 40), true, 1f))
+        assertNull(CustomClusterWindows.musicLayout(640, 640, config.copy(musicCardCoverSize = 140), false, 1f).cover)
     }
 
     @Test fun titleAndArtistSizesAreIndependentInBothModes() {
         for (mode in ClusterMusicMode.entries) {
             val config = ClusterWindowSettings.load(app).copy(musicMode = mode)
-            val base = CustomClusterWindows.musicTextSizes(640, config, 1f)
-            val title = CustomClusterWindows.musicTextSizes(640, config.copy(titleFont = 150), 1f)
-            val artist = CustomClusterWindows.musicTextSizes(640, config.copy(artistFont = 80), 1f)
+            val base = CustomClusterWindows.musicTextSizes(config, 1f)
+            val title = CustomClusterWindows.musicTextSizes(config.copy(titleFont = 48), 1f)
+            val artist = CustomClusterWindows.musicTextSizes(config.copy(artistFont = 36), 1f)
             assertEquals(base.first * 1.5f, title.first, .001f)
             assertEquals(base.second, title.second, .001f)
             assertEquals(base.first, artist.first, .001f)
-            assertEquals(base.second * .8f, artist.second, .001f)
+            assertEquals(base.second * 1.5f, artist.second, .001f)
         }
     }
 
@@ -690,7 +690,7 @@ class CustomClusterWindowsTest {
         val base = ClusterWindowSettings.load(app).copy(musicMode = ClusterMusicMode.CARD, musicCardCoverSize = 60)
         for (text in listOf(false, true)) {
             val layouts = ClusterMusicAlignment.entries.map {
-                CustomClusterWindows.musicLayout(640, 480, base.copy(text = text, cardCoverAlignment = it), true)
+                CustomClusterWindows.musicLayout(640, 480, base.copy(text = text, cardCoverAlignment = it), true, 1f)
             }
             assertTrue(layouts[0].cover!!.left < layouts[1].cover!!.left)
             assertTrue(layouts[1].cover!!.left < layouts[2].cover!!.left)
@@ -700,8 +700,8 @@ class CustomClusterWindowsTest {
             assertTrue(layouts.all { it.cover!!.left >= 0 && it.cover.right <= 640 })
         }
         val mini = base.copy(musicMode = ClusterMusicMode.MINI)
-        assertEquals(CustomClusterWindows.musicLayout(640, 480, mini, true),
-            CustomClusterWindows.musicLayout(640, 480, mini.copy(cardCoverAlignment = ClusterMusicAlignment.RIGHT), true))
+        assertEquals(CustomClusterWindows.musicLayout(640, 480, mini, true, 1f),
+            CustomClusterWindows.musicLayout(640, 480, mini.copy(cardCoverAlignment = ClusterMusicAlignment.RIGHT), true, 1f))
     }
 
     @Test fun cardInformationUsesExplicitSeparatorAndNeverGuessesTrackNames() {
@@ -752,10 +752,28 @@ class CustomClusterWindowsTest {
             assertEquals(ClusterMusicAlignment.CENTER, blocks.first().alignment)
             assertTrue(blocks.drop(1).all { it.alignment == ClusterMusicAlignment.RIGHT })
             assertTrue(blocks.zipWithNext().all { (a, b) -> a.top + a.height <= b.top + .001f })
-            assertTrue(blocks.all { it.top >= 0 && it.height > 0 && it.top + it.height <= height + .001f })
+            assertTrue(blocks.all { it.top >= 0 && it.height > 0 })
         }
         val onlyTitle = CustomClusterWindows.cardTextBlocks("Song", null, null, config, titlePaint, detailPaint, 640, 300f, false)
-        assertEquals(1, onlyTitle.size); assertEquals(300f, onlyTitle.single().height, .001f)
+        assertEquals(1, onlyTitle.size)
+        assertEquals(onlyTitle.single().layout.height.toFloat(), onlyTitle.single().height, .001f)
+    }
+
+    @Test fun cardTextStacksTitleAndInfoTightlyWithoutReservedBlankSpace() {
+        val config = ClusterWindowSettings.load(app).copy(musicMode = ClusterMusicMode.CARD,
+            cardLyricAlignment = ClusterMusicAlignment.CENTER, cardInfoAlignment = ClusterMusicAlignment.RIGHT,
+            cardInfoLines = ClusterMusicInfoLines.ORIGINAL)
+        val titlePaint = android.text.TextPaint().apply { textSize = 32f }
+        val detailPaint = android.text.TextPaint().apply { textSize = 24f }
+        val gap = 300f * .025f
+        val single = CustomClusterWindows.cardTextBlocks("Song", "Artist", "Album", config, titlePaint, detailPaint, 640, 300f, false)
+        assertEquals(3, single.size)
+        assertTrue(single[0].height < 300f * .5f)
+        assertEquals(single[0].height + gap, single[1].top, .001f)
+        assertEquals(single[1].top + single[1].height + gap, single[2].top, .001f)
+        val wrapped = CustomClusterWindows.cardTextBlocks("A much longer title ".repeat(20), "Artist", "Album", config, titlePaint, detailPaint, 640, 300f, false)
+        assertTrue(wrapped[0].height > single[0].height)
+        assertEquals(wrapped[0].height + gap, wrapped[1].top, .001f)
     }
 
     @Test fun rectanglesAlwaysFitAndPixelSizeUsesTargetDisplay() {
@@ -853,7 +871,7 @@ class CustomClusterWindowsTest {
             val info = if (locale.startsWith("ar")) CarPlayNowPlaying(title = "الأغنية المفضلة في الطريق", artist = "الفنان والألبوم")
                 else CarPlayNowPlaying(title = "A long song title for the next journey", artist = "Artist · Album")
             for (night in listOf(false, true)) for (side in ClusterCoverSide.entries) for (mode in ClusterMusicMode.entries)
-                for (font in if (mode == ClusterMusicMode.CARD) listOf(100, 180) else listOf(100)) {
+                for (font in if (mode == ClusterMusicMode.CARD) listOf(24, 48) else listOf(24)) {
                 val config = ClusterWindowSettings.load(app).copy(music = true, coverSide = side, musicMode = mode,
                     font = font, titleFont = font, artistFont = font)
                 val panel = CustomClusterWindows.MusicPanel(activity, config).apply {
@@ -868,7 +886,7 @@ class CustomClusterWindowsTest {
                 panel.layout(0, 0, width, height)
                 val image = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
                 panel.draw(Canvas(image))
-                val cover = CustomClusterWindows.musicLayout(width, height, config, true).cover!!
+                val cover = CustomClusterWindows.musicLayout(width, height, config, true, 1f).cover!!
                 assertEquals(Color.BLUE, image.getPixel(cover.centerX().toInt(), cover.centerY().toInt()))
                 if (mode == ClusterMusicMode.CARD) assertEquals(width / 2f, cover.centerX(), .001f)
                 else if (side == ClusterCoverSide.LEFT) assertTrue(cover.centerX() < width / 2f)

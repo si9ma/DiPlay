@@ -20,6 +20,27 @@
     <string name="settings_cluster_artist_font">Artist / album font size</string>
     <string name="settings_cluster_cover_corner" formatted="false">Cover corner radius (% of short edge)</string>
     <string name="settings_cluster_music_sizes_hint" formatted="false">Artwork: 60–480 dp side length, limited by the window with room kept for text. Title and artist fonts: 12–72 sp, adjusted independently. Changes apply immediately; small windows may show fewer lines or smaller text. Instrument map labels are not affected.</string>
+    <string name="settings_cluster_title_color">Title / lyrics color</string>
+    <string name="settings_cluster_info_color">Artist / album color</string>
+    <string name="settings_cluster_title_weight">Title / lyrics weight</string>
+    <string name="settings_cluster_info_weight">Artist / album weight</string>
+    <string name="settings_cluster_color_auto">Automatic</string>
+    <string name="settings_cluster_color_white">White</string>
+    <string name="settings_cluster_color_black">Black</string>
+    <string name="settings_cluster_color_red">Red</string>
+    <string name="settings_cluster_color_orange">Orange</string>
+    <string name="settings_cluster_color_yellow">Yellow</string>
+    <string name="settings_cluster_color_green">Green</string>
+    <string name="settings_cluster_color_cyan">Cyan</string>
+    <string name="settings_cluster_color_blue">Blue</string>
+    <string name="settings_cluster_color_purple">Purple</string>
+    <string name="settings_cluster_color_custom">Custom…</string>
+    <string name="settings_cluster_color_red_channel">Red (R)</string>
+    <string name="settings_cluster_color_green_channel">Green (G)</string>
+    <string name="settings_cluster_color_blue_channel">Blue (B)</string>
+    <string name="settings_cluster_weight_normal">Regular</string>
+    <string name="settings_cluster_weight_medium">Medium</string>
+    <string name="settings_cluster_weight_bold">Bold</string>
     <string name="settings_cluster_canvas_panel_auto">Automatic · panel aspect</string>
     <string name="settings_cluster_canvas_request_hint">Sets the video canvas requested from iPhone, not the window size. Fixed resolutions are independent of the window. Save, then reconnect CarPlay manually. If hardware checks fail, a lower resolution is used; the final fallback follows window size in Fit mode or panel aspect in Panel crop mode. Higher resolution does not guarantee larger labels or more route coverage. If video is black or stutters, lower the resolution and reconnect.</string>
     <string name="settings_cluster_display_mode">Map display mode</string>

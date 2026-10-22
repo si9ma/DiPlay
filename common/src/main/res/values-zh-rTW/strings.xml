@@ -20,6 +20,27 @@
     <string name="settings_cluster_artist_font">作者／專輯字級</string>
     <string name="settings_cluster_cover_corner" formatted="false">封面圓角（短邊百分比）</string>
     <string name="settings_cluster_music_sizes_hint" formatted="false">封面為 60–480dp 邊長，受視窗邊界限制並保留文字空間；曲名與作者字級可分別調整 12–72sp。立即生效，空間不足時會減少行數或縮小文字。不改變儀表地圖內的字級。</string>
+    <string name="settings_cluster_title_color">歌詞 / 曲名顏色</string>
+    <string name="settings_cluster_info_color">歌手 / 專輯顏色</string>
+    <string name="settings_cluster_title_weight">歌詞 / 曲名字重</string>
+    <string name="settings_cluster_info_weight">歌手 / 專輯字重</string>
+    <string name="settings_cluster_color_auto">自動</string>
+    <string name="settings_cluster_color_white">白色</string>
+    <string name="settings_cluster_color_black">黑色</string>
+    <string name="settings_cluster_color_red">紅色</string>
+    <string name="settings_cluster_color_orange">橙色</string>
+    <string name="settings_cluster_color_yellow">黃色</string>
+    <string name="settings_cluster_color_green">綠色</string>
+    <string name="settings_cluster_color_cyan">青色</string>
+    <string name="settings_cluster_color_blue">藍色</string>
+    <string name="settings_cluster_color_purple">紫色</string>
+    <string name="settings_cluster_color_custom">自訂…</string>
+    <string name="settings_cluster_color_red_channel">紅 (R)</string>
+    <string name="settings_cluster_color_green_channel">綠 (G)</string>
+    <string name="settings_cluster_color_blue_channel">藍 (B)</string>
+    <string name="settings_cluster_weight_normal">一般</string>
+    <string name="settings_cluster_weight_medium">中等</string>
+    <string name="settings_cluster_weight_bold">粗體</string>
     <string name="settings_cluster_canvas_panel_auto">自動 · 依儀表比例</string>
     <string name="settings_cluster_canvas_request_hint">控制向 iPhone 要求的影片畫布，不是小視窗大小。固定解析度不隨小視窗變更；儲存後手動重新連線 CarPlay。硬體檢查未通過時降低解析度，最終在適配模式改用小視窗尺寸，在儀表比例裁取模式依儀表比例回退。高解析度不保證字較大或路線較完整。若黑畫面或卡頓，請降低解析度並重新連線。</string>
     <string name="settings_cluster_display_mode">地圖顯示方式</string>

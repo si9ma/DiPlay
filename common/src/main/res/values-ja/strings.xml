@@ -21,6 +21,27 @@
     <string name="settings_cluster_artist_font">アーティスト／アルバムの文字サイズ</string>
     <string name="settings_cluster_cover_corner" formatted="false">カバーの角の丸み（短辺に対する割合 %）</string>
     <string name="settings_cluster_music_sizes_hint" formatted="false">ジャケットは 60–480dp の辺長で、枠内に収めて文字領域を残します。曲名とアーティストの文字は各 12–72sp で個別設定できます。即座に反映されます。狭い枠では行数や文字サイズを減らします。メーター地図内の文字は変わりません。</string>
+    <string name="settings_cluster_title_color">曲名 / 歌詞の色</string>
+    <string name="settings_cluster_info_color">アーティスト / アルバムの色</string>
+    <string name="settings_cluster_title_weight">曲名 / 歌詞の太さ</string>
+    <string name="settings_cluster_info_weight">アーティスト / アルバムの太さ</string>
+    <string name="settings_cluster_color_auto">自動</string>
+    <string name="settings_cluster_color_white">白</string>
+    <string name="settings_cluster_color_black">黒</string>
+    <string name="settings_cluster_color_red">赤</string>
+    <string name="settings_cluster_color_orange">オレンジ</string>
+    <string name="settings_cluster_color_yellow">黄</string>
+    <string name="settings_cluster_color_green">緑</string>
+    <string name="settings_cluster_color_cyan">シアン</string>
+    <string name="settings_cluster_color_blue">青</string>
+    <string name="settings_cluster_color_purple">紫</string>
+    <string name="settings_cluster_color_custom">カスタム…</string>
+    <string name="settings_cluster_color_red_channel">赤 (R)</string>
+    <string name="settings_cluster_color_green_channel">緑 (G)</string>
+    <string name="settings_cluster_color_blue_channel">青 (B)</string>
+    <string name="settings_cluster_weight_normal">標準</string>
+    <string name="settings_cluster_weight_medium">中</string>
+    <string name="settings_cluster_weight_bold">太字</string>
     <string name="settings_cluster_canvas_panel_auto">自動 · メーター比率</string>
     <string name="settings_cluster_canvas_request_hint">iPhone に要求する映像キャンバスで、ウィンドウサイズではありません。固定解像度はウィンドウに依存しません。保存後に CarPlay を手動で再接続してください。ハードウェア検査に失敗すると低い解像度に戻り、最後は適配モードではウィンドウサイズ、メーター切り抜きではメーター比率を使います。高解像度でも文字やルートが見やすくなるとは限りません。黒画面やカクつきがあれば解像度を下げて再接続してください。</string>
     <string name="settings_cluster_display_mode">地図の表示方式</string>

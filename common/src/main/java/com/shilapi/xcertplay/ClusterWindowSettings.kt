@@ -22,6 +22,13 @@ internal enum class ClusterMusicAlignment { LEFT, CENTER, RIGHT }
 internal enum class ClusterMusicInfoLines(val separator: String?) {
     ORIGINAL(null), DASH(" - "), DOT(" · "), SLASH(" / ")
 }
+/** AUTO follows the panel day/night theme; presets and CUSTOM are fixed in both themes. */
+internal enum class ClusterTextColor(val preset: Int?) {
+    AUTO(null), WHITE(0xFFFFFFFF.toInt()), BLACK(0xFF1A1A1A.toInt()), RED(0xFFE53935.toInt()),
+    ORANGE(0xFFFB8C00.toInt()), YELLOW(0xFFFDD835.toInt()), GREEN(0xFF43A047.toInt()),
+    CYAN(0xFF00ACC1.toInt()), BLUE(0xFF1E88E5.toInt()), PURPLE(0xFF8E24AA.toInt()), CUSTOM(null)
+}
+internal enum class ClusterTextWeight { NORMAL, MEDIUM, BOLD }
 internal enum class ClusterMapDisplayMode { FIT_WINDOW, PANEL_CROP }
 
 internal enum class ClusterMapCanvas(val width: Int, val height: Int) {
@@ -64,6 +71,12 @@ internal data class ClusterWindowConfig(
     val cardLyricAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
     val cardInfoAlignment: ClusterMusicAlignment = ClusterMusicAlignment.LEFT,
     val cardInfoLines: ClusterMusicInfoLines = ClusterMusicInfoLines.ORIGINAL,
+    val titleColor: ClusterTextColor = ClusterTextColor.AUTO,
+    val titleCustomColor: Int = 0xFFFFFFFF.toInt(),
+    val infoColor: ClusterTextColor = ClusterTextColor.AUTO,
+    val infoCustomColor: Int = 0xFFFFFFFF.toInt(),
+    val titleWeight: ClusterTextWeight = ClusterTextWeight.MEDIUM,
+    val infoWeight: ClusterTextWeight = ClusterTextWeight.MEDIUM,
 ) {
     val enabled get() = music || map
     val activeMusicRect get() = if (musicMode == ClusterMusicMode.CARD) musicCardRect else musicRect
@@ -133,7 +146,17 @@ internal object ClusterWindowSettings {
             cardInfoAlignment = ClusterMusicAlignment.entries.firstOrNull { it.name == p.getString(PREFIX + "card_info_alignment", null) }
                 ?: ClusterMusicAlignment.LEFT,
             cardInfoLines = ClusterMusicInfoLines.entries.firstOrNull { it.name == p.getString(PREFIX + "card_info_lines", null) }
-                ?: ClusterMusicInfoLines.ORIGINAL)
+                ?: ClusterMusicInfoLines.ORIGINAL,
+            titleColor = ClusterTextColor.entries.firstOrNull { it.name == p.getString(PREFIX + "title_color", null) }
+                ?: ClusterTextColor.AUTO,
+            titleCustomColor = p.getInt(PREFIX + "title_custom_color", 0xFFFFFFFF.toInt()),
+            infoColor = ClusterTextColor.entries.firstOrNull { it.name == p.getString(PREFIX + "info_color", null) }
+                ?: ClusterTextColor.AUTO,
+            infoCustomColor = p.getInt(PREFIX + "info_custom_color", 0xFFFFFFFF.toInt()),
+            titleWeight = ClusterTextWeight.entries.firstOrNull { it.name == p.getString(PREFIX + "title_weight", null) }
+                ?: ClusterTextWeight.MEDIUM,
+            infoWeight = ClusterTextWeight.entries.firstOrNull { it.name == p.getString(PREFIX + "info_weight", null) }
+                ?: ClusterTextWeight.MEDIUM)
     }
     fun save(context: Context, key: String, value: Boolean) {
         require(key in setOf("music", "map", "elevated", "cover", "text", "crop", "map_blend", "trim_in_place"))
@@ -144,8 +167,13 @@ internal object ClusterWindowSettings {
             "safe_top", "safe_bottom", "safe_left", "safe_right", "trim_top", "trim_bottom", "trim_left", "trim_right",
             "music_card_x", "music_card_y", "music_card_width", "music_card_height",
             "music_card_cover_size", "cover_corner_percent", "title_font", "artist_font",
-            "auto_zoom_steps", "map_feather_percent", "map_corner_percent", "map_center_x", "map_center_y"))
+            "auto_zoom_steps", "map_feather_percent", "map_corner_percent", "map_center_x", "map_center_y",
+            "title_custom_color", "info_custom_color"))
         if (key == "auto_zoom_steps" && value !in AUTO_ZOOM_STEPS) return
+        if (key == "title_custom_color" || key == "info_custom_color") {
+            prefs(context).edit().putInt(PREFIX + key, value).apply()
+            return
+        }
         val range = when {
             key.startsWith("safe_") -> SAFE_AREA_RANGE
             key.startsWith("trim_") -> TRIM_RANGE
@@ -162,10 +190,13 @@ internal object ClusterWindowSettings {
     }
     fun save(context: Context, key: String, value: String) {
         require(key in setOf("display", "content", "cover_side", "map_canvas", "music_mode", "map_display_mode",
-            "card_cover_alignment", "card_lyric_alignment", "card_info_alignment", "card_info_lines"))
+            "card_cover_alignment", "card_lyric_alignment", "card_info_alignment", "card_info_lines",
+            "title_color", "info_color", "title_weight", "info_weight"))
         require(key !in setOf("card_cover_alignment", "card_lyric_alignment", "card_info_alignment") ||
             ClusterMusicAlignment.entries.any { it.name == value })
         require(key != "card_info_lines" || ClusterMusicInfoLines.entries.any { it.name == value })
+        require(key !in setOf("title_color", "info_color") || ClusterTextColor.entries.any { it.name == value })
+        require(key !in setOf("title_weight", "info_weight") || ClusterTextWeight.entries.any { it.name == value })
         require(key != "cover_side" || ClusterCoverSide.entries.any { it.name == value })
         require(key != "map_canvas" || ClusterMapCanvas.entries.any { it.name == value })
         require(key != "music_mode" || ClusterMusicMode.entries.any { it.name == value })

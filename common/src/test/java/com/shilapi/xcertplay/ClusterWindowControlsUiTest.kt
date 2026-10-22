@@ -378,11 +378,11 @@ class ClusterWindowControlsUiTest {
             body = controls(); width(body, 55)
             assertFalse(views(body).filterIsInstance<Button>().any { it.text.startsWith(screen.getString(R.string.settings_cluster_cover_side)) })
             size(body, R.string.settings_cluster_card_cover_size, 70)
-            size(body, R.string.settings_cluster_title_font, 145)
-            size(body, R.string.settings_cluster_artist_font, 80)
+            size(body, R.string.settings_cluster_title_font, 48)
+            size(body, R.string.settings_cluster_artist_font, 36)
             val card = ClusterWindowSettings.load(app)
             assertEquals(70, card.musicCardCoverSize)
-            assertEquals(145, card.titleFont); assertEquals(80, card.artistFont)
+            assertEquals(48, card.titleFont); assertEquals(36, card.artistFont)
             assertEquals(27, card.musicRect.width); assertEquals(55, card.activeMusicRect.width)
             views(body).filterIsInstance<android.widget.Switch>().single {
                 it.contentDescription == screen.getString(R.string.settings_cluster_trim_in_place)
@@ -392,7 +392,7 @@ class ClusterWindowControlsUiTest {
             val mini = ClusterWindowSettings.load(app)
             assertEquals(27, mini.activeMusicRect.width); assertEquals(55, mini.musicCardRect.width)
             assertEquals(70, mini.musicCardCoverSize)
-            assertEquals(145, mini.titleFont); assertEquals(80, mini.artistFont)
+            assertEquals(48, mini.titleFont); assertEquals(36, mini.artistFont)
             assertFalse(views(controls()).filterIsInstance<TextView>().any { it.text == screen.getString(R.string.settings_cluster_card_cover_size) })
             assertFalse(PendingReconnect.isPending(session))
         } finally {

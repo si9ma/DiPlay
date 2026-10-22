@@ -4057,6 +4057,68 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             (ClusterWindowSettings.MUSIC_FONT_RANGE step 2).toList())
         number("cover_corner_percent", getString(R.string.settings_cluster_cover_corner), config.coverCornerPercent,
             ClusterWindowSettings.COVER_CORNER_RANGE.toList())
+        fun colorLabel(mode: ClusterTextColor) = getString(when (mode) {
+            ClusterTextColor.AUTO -> R.string.settings_cluster_color_auto
+            ClusterTextColor.WHITE -> R.string.settings_cluster_color_white
+            ClusterTextColor.BLACK -> R.string.settings_cluster_color_black
+            ClusterTextColor.RED -> R.string.settings_cluster_color_red
+            ClusterTextColor.ORANGE -> R.string.settings_cluster_color_orange
+            ClusterTextColor.YELLOW -> R.string.settings_cluster_color_yellow
+            ClusterTextColor.GREEN -> R.string.settings_cluster_color_green
+            ClusterTextColor.CYAN -> R.string.settings_cluster_color_cyan
+            ClusterTextColor.BLUE -> R.string.settings_cluster_color_blue
+            ClusterTextColor.PURPLE -> R.string.settings_cluster_color_purple
+            ClusterTextColor.CUSTOM -> R.string.settings_cluster_color_custom
+        })
+        fun weightLabel(weight: ClusterTextWeight) = getString(when (weight) {
+            ClusterTextWeight.NORMAL -> R.string.settings_cluster_weight_normal
+            ClusterTextWeight.MEDIUM -> R.string.settings_cluster_weight_medium
+            ClusterTextWeight.BOLD -> R.string.settings_cluster_weight_bold
+        })
+        fun pickCustomColor(key: String, title: Int, current: Int) {
+            var red = Color.red(current); var green = Color.green(current); var blue = Color.blue(current)
+            val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(12), dp(24), dp(12)) }
+            val preview = View(this).apply { setBackgroundColor(Color.rgb(red, green, blue)) }
+            container.addView(preview, LinearLayout.LayoutParams(-1, dp(56)))
+            fun channel(name: String, get: () -> Int, set: (Int) -> Unit) {
+                container.addView(label(name, 15, TEXT, true))
+                container.addView(SeekBar(this).apply {
+                    max = 255; progress = get()
+                    setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                        override fun onProgressChanged(s: SeekBar?, p: Int, fromUser: Boolean) { set(p); preview.setBackgroundColor(Color.rgb(red, green, blue)) }
+                        override fun onStartTrackingTouch(s: SeekBar?) {}
+                        override fun onStopTrackingTouch(s: SeekBar?) {}
+                    })
+                }, LinearLayout.LayoutParams(-1, -2))
+            }
+            channel(getString(R.string.settings_cluster_color_red_channel), { red }, { red = it })
+            channel(getString(R.string.settings_cluster_color_green_channel), { green }, { green = it })
+            channel(getString(R.string.settings_cluster_color_blue_channel), { blue }, { blue = it })
+            appDialogBuilder().setTitle(title).setView(container)
+                .setPositiveButton(R.string.save) { _, _ -> ClusterWindowSettings.save(this, key, Color.rgb(red, green, blue)); render() }
+                .setNegativeButton(R.string.cancel, null).show()
+        }
+        fun colorPicker(key: String, title: Int, current: ClusterTextColor, currentCustom: Int) {
+            card.addView(button(getString(title) + " · " + colorLabel(current), false) {
+                val modes = ClusterTextColor.entries
+                appDialogBuilder().setTitle(title).setItems(modes.map(::colorLabel).toTypedArray()) { _, index ->
+                    if (modes[index] == ClusterTextColor.CUSTOM) pickCustomColor(key, title, currentCustom)
+                    else { ClusterWindowSettings.save(this, key, modes[index].name); render() }
+                }.setNegativeButton(R.string.cancel, null).show()
+            })
+        }
+        fun weightPicker(key: String, title: Int, current: ClusterTextWeight) {
+            card.addView(button(getString(title) + " · " + weightLabel(current), false) {
+                val weights = ClusterTextWeight.entries
+                appDialogBuilder().setTitle(title).setItems(weights.map(::weightLabel).toTypedArray()) { _, index ->
+                    ClusterWindowSettings.save(this, key, weights[index].name); render()
+                }.setNegativeButton(R.string.cancel, null).show()
+            })
+        }
+        colorPicker("title_color", R.string.settings_cluster_title_color, config.titleColor, config.titleCustomColor)
+        colorPicker("info_color", R.string.settings_cluster_info_color, config.infoColor, config.infoCustomColor)
+        weightPicker("title_weight", R.string.settings_cluster_title_weight, config.titleWeight)
+        weightPicker("info_weight", R.string.settings_cluster_info_weight, config.infoWeight)
         card.addView(label(getString(R.string.settings_cluster_music_sizes_hint), 14, MUTED))
         number("opacity", getString(R.string.settings_cluster_window_opacity), config.opacity, (0..100 step 5).toList())
         card.addView(label(getString(R.string.settings_cluster_night_background), 14, MUTED))
