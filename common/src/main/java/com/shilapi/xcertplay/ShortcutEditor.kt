@@ -59,8 +59,10 @@ internal object ShortcutEditor {
         ShortcutAction.HIDE_CLUSTER_MUSIC to R.string.shortcut_hide_cluster_music,
         ShortcutAction.SHOW_CLUSTER_MAP to R.string.shortcut_show_cluster_map,
         ShortcutAction.HIDE_CLUSTER_MAP to R.string.shortcut_hide_cluster_map,
-        ShortcutAction.SHOW_BATTERY_CARD to R.string.shortcut_show_battery_card,
-        ShortcutAction.HIDE_BATTERY_CARD to R.string.shortcut_hide_battery_card,
+        ShortcutAction.SHOW_CENTER_BATTERY_CARD to R.string.shortcut_show_center_battery_card,
+        ShortcutAction.HIDE_CENTER_BATTERY_CARD to R.string.shortcut_hide_center_battery_card,
+        ShortcutAction.SHOW_CLUSTER_BATTERY_CARD to R.string.shortcut_show_cluster_battery_card,
+        ShortcutAction.HIDE_CLUSTER_BATTERY_CARD to R.string.shortcut_hide_cluster_battery_card,
     )
     private val vehicleLabels = mapOf(
         BydVehicleEvent.LEFT_CARD_SHOWN to R.string.shortcut_vehicle_left_card_shown,
@@ -68,12 +70,46 @@ internal object ShortcutEditor {
         BydVehicleEvent.RIGHT_CARD_SHOWN to R.string.shortcut_vehicle_right_card_shown,
         BydVehicleEvent.RIGHT_MAP_CARD_SHOWN to R.string.shortcut_vehicle_right_map_card_shown,
         BydVehicleEvent.RIGHT_CARD_HIDDEN to R.string.shortcut_vehicle_right_card_hidden,
-        BydVehicleEvent.OEM_NAVIGATION_STARTED to R.string.shortcut_vehicle_navigation_started,
+        BydVehicleEvent.CARPLAY_NAVIGATION_STARTED to R.string.shortcut_vehicle_carplay_navigation_started,
+        BydVehicleEvent.CARPLAY_NAVIGATION_ENDED to R.string.shortcut_vehicle_carplay_navigation_ended,
         BydVehicleEvent.GEAR_P to R.string.shortcut_vehicle_gear_p,
         BydVehicleEvent.GEAR_R to R.string.shortcut_vehicle_gear_r,
         BydVehicleEvent.GEAR_D to R.string.shortcut_vehicle_gear_d,
         BydVehicleEvent.CHARGING_STARTED to R.string.shortcut_vehicle_charging_started,
+        BydVehicleEvent.CHARGING_ENDED to R.string.shortcut_vehicle_charging_ended,
     )
+    private val conditionLabels = mapOf(
+        ShortcutConditionKey.GEAR to R.string.shortcut_condition_gear,
+        ShortcutConditionKey.CHARGING to R.string.shortcut_condition_charging,
+        ShortcutConditionKey.LEFT_CARD to R.string.shortcut_condition_left_card,
+        ShortcutConditionKey.RIGHT_CARD to R.string.shortcut_condition_right_card,
+        ShortcutConditionKey.CARPLAY_NAVIGATING to R.string.shortcut_condition_carplay_navigating,
+        ShortcutConditionKey.CLUSTER_MUSIC_WINDOW to R.string.shortcut_condition_cluster_music,
+        ShortcutConditionKey.CLUSTER_MAP_WINDOW to R.string.shortcut_condition_cluster_map,
+        ShortcutConditionKey.CENTER_BATTERY_CARD to R.string.shortcut_condition_center_battery,
+        ShortcutConditionKey.CLUSTER_BATTERY_CARD to R.string.shortcut_condition_cluster_battery,
+        ShortcutConditionKey.NIGHT to R.string.shortcut_condition_night,
+        ShortcutConditionKey.MEDIA_PLAYING to R.string.shortcut_condition_media_playing,
+    )
+    private fun valueLabel(activity: Activity, key: ShortcutConditionKey, value: String): String = when (value) {
+        "P", "R", "N", "D" -> value
+        "SHOWN" -> activity.getString(R.string.shortcut_value_shown)
+        "HIDDEN" -> activity.getString(if (key == ShortcutConditionKey.RIGHT_CARD) R.string.shortcut_value_none else R.string.shortcut_value_hidden)
+        "YES" -> activity.getString(R.string.shortcut_value_yes)
+        "NO" -> activity.getString(R.string.shortcut_value_no)
+        "CARD" -> activity.getString(R.string.shortcut_value_card)
+        "MAP_TURN" -> activity.getString(R.string.shortcut_value_map_turn)
+        "MAP_MINI" -> activity.getString(R.string.shortcut_value_map_mini)
+        "CHARGING" -> activity.getString(R.string.shortcut_value_charging)
+        "PAUSED" -> activity.getString(R.string.shortcut_value_paused)
+        "IDLE" -> activity.getString(R.string.shortcut_value_idle)
+        "DAY" -> activity.getString(R.string.shortcut_value_day)
+        "NIGHT" -> activity.getString(R.string.shortcut_value_night)
+        else -> value
+    }
+    private fun conditionSummary(activity: Activity, condition: ShortcutCondition): String =
+        "${activity.getString(conditionLabels.getValue(condition.key))}: " +
+            condition.key.values.filter { it in condition.values }.joinToString(" / ") { valueLabel(activity, condition.key, it) }
     private val selectableActions get() = ShortcutAction.entries.filterNot {
         it.legacyWindow || it == ShortcutAction.KEY_PRESS || it == ShortcutAction.TAP
     }
@@ -148,12 +184,12 @@ internal object ShortcutEditor {
                         ui.context.getDrawable(R.drawable.ic_dp_chevron)?.mutate()?.apply { setTint(ui.theme.accent) }, null)
                 })
                 ui.add(row, ui.text(trigger(activity, rule), secondary = true))
+                if (rule.conditions.isNotEmpty()) ui.add(row, ui.text(rule.conditions.joinToString("\n") { conditionSummary(activity, it) }, secondary = true))
                 ui.add(row, ui.text("${activity.getString(if (rule.enabled) R.string.shortcut_enabled else R.string.shortcut_disabled)} · ${activity.getString(R.string.shortcut_steps_count, rule.steps.size)}", secondary = true))
                 ui.add(list, row, BLOCK_GAP_DP)
             }
             ui.add(list, ui.button(R.string.shortcut_new, "shortcut_new", primary = true) {
-                if (CarPlayShortcuts.load(activity).size >= ShortcutCodec.MAX_RULES) message(activity, R.string.shortcut_limit)
-                else show(activity, ShortcutRule(), ::refresh)
+                show(activity, ShortcutRule(), ::refresh)
             })
             ui.add(list, ui.button(R.string.shortcut_stop, "shortcut_stop_all") {
                 CarPlayShortcuts.stop(); CarPlayShortcuts.cancelCapture()
@@ -435,6 +471,18 @@ internal object ShortcutEditor {
                     "shortcut_click_count") { chooseClickCount() })
                 ui.add(event, ui.text(activity.getString(R.string.shortcut_click_hint), secondary = true))
             }
+            val conditions = card(R.string.shortcut_conditions)
+            ui.add(conditions, ui.text(activity.getString(R.string.shortcut_conditions_hint), secondary = true))
+            if (draft.conditions.isEmpty()) ui.add(conditions, ui.text(activity.getString(R.string.shortcut_condition_none), secondary = true))
+            draft.conditions.forEachIndexed { index, condition ->
+                ui.add(conditions, ui.button(conditionSummary(activity, condition), "shortcut_condition_$index") {
+                    chooseConditionValues(index, condition.key, condition.values)
+                })
+            }
+            if (draft.conditions.size < ShortcutConditions.MAX_PER_RULE &&
+                draft.conditions.size < ShortcutConditionKey.entries.size) {
+                ui.add(conditions, ui.button(R.string.shortcut_add_condition, "shortcut_add_condition") { chooseConditionKey() })
+            }
             val steps = card(R.string.shortcut_steps)
             if (draft.steps.isEmpty()) ui.add(steps, ui.text(activity.getString(R.string.shortcut_no_steps), secondary = true))
             draft.steps.forEachIndexed { index, step ->
@@ -500,6 +548,47 @@ internal object ShortcutEditor {
             }
             cancelButton()
         }
+        private fun chooseConditionKey() {
+            page(R.string.shortcut_add_condition)
+            val used = draft.conditions.map { it.key }.toSet()
+            ShortcutConditionKey.entries.filter { it !in used }.forEach { key ->
+                ui.add(body, ui.button(conditionLabels.getValue(key), "shortcut_condition_key_${key.name}") {
+                    chooseConditionValues(null, key, emptySet())
+                })
+            }
+            cancelButton()
+        }
+        /** Values of [key] the condition accepts; any one of them holding is enough. */
+        private fun chooseConditionValues(index: Int?, key: ShortcutConditionKey, initial: Set<String>) {
+            val chosen = LinkedHashSet(initial)
+            fun render() {
+                page(conditionLabels.getValue(key))
+                ui.add(body, ui.text(activity.getString(R.string.shortcut_condition_values_hint), secondary = true))
+                key.values.forEach { value ->
+                    val selected = value in chosen
+                    ui.add(body, ui.button((if (selected) "✓ " else "") + valueLabel(activity, key, value),
+                        "shortcut_condition_value_$value", primary = selected) {
+                        if (!chosen.remove(value)) chosen.add(value)
+                        render()
+                    }.apply { isSelected = selected })
+                }
+                if (index != null) ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_condition") {
+                    draft = draft.copy(conditions = draft.conditions.filterIndexed { at, _ -> at != index }); editor()
+                })
+                addFooter(ui.button(android.R.string.ok, "shortcut_accept_condition", primary = true) {
+                    if (chosen.isEmpty()) message(activity, R.string.shortcut_invalid)
+                    else {
+                        val condition = ShortcutCondition(key, chosen.toSet())
+                        draft = draft.copy(conditions = draft.conditions.toMutableList().apply {
+                            if (index == null) add(condition) else set(index, condition)
+                        })
+                        editor()
+                    }
+                })
+                cancelButton()
+            }
+            render()
+        }
         private fun chooseClickCount() {
             page(R.string.shortcut_click_count)
             ui.add(body, ui.text(activity.getString(R.string.shortcut_click_hint), secondary = true))
@@ -517,7 +606,6 @@ internal object ShortcutEditor {
             val saved = CarPlayShortcuts.load(activity).toMutableList()
             val index = saved.indexOfFirst { it.id == draft.id }
             if (index >= 0) saved[index] = draft else saved.add(draft)
-            if (ShortcutCodec.conflicts(saved)) { message(activity, R.string.shortcut_conflict); return }
             val accept = {
                 if (CarPlayShortcuts.save(activity, saved)) finish() else message(activity, R.string.shortcut_invalid)
             }

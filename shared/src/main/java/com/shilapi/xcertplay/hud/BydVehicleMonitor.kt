@@ -13,12 +13,12 @@ import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
 /**
- * Read-only vehicle polling (autoservice getters only): cluster cards, gear, stock navigation and
- * charging for shortcut events, and battery details for the battery card. It runs only while a
- * listener is registered, reads only what its listeners asked for, and reads through the resident
- * [BydShellAgent] when it is up (its own adb shell otherwise). With the agent up, cluster changes
- * are also pushed by BYD's own listeners and evaluated at once; the poll stays the source of truth.
- * Listeners are called on the main thread.
+ * Read-only vehicle polling (autoservice getters only): cluster cards, gear and charging for
+ * shortcut events and conditions, CarPlay's own guidance, and battery details for the battery
+ * cards. It runs only while a listener is registered, reads only what its listeners asked for, and
+ * reads through the resident [BydShellAgent] when it is up (its own adb shell otherwise). With the
+ * agent up, changes are also pushed by BYD's own listeners and evaluated at once; the poll stays
+ * the source of truth. Listeners are called on the main thread.
  */
 object BydVehicleMonitor {
     fun interface EventListener { fun onVehicleEvent(event: BydVehicleEvent) }
@@ -29,6 +29,8 @@ object BydVehicleMonitor {
     /** [details] is the latest sample, null until one was read; [link] says why it may be missing. */
     data class BatteryUpdate(val details: BydBatteryDetails?, val link: Link)
 
+    private data class Interest(val events: Set<BydVehicleEvent>, val groups: Set<BydVehicleSignalGroup>)
+
     private const val TAG = "DiPlay-BYD-Vehicle"
     private const val AGENT_OWNER = "vehicle"
     // The delay after each read; through the agent a read takes tens of ms, through `service call` far more.
@@ -38,13 +40,14 @@ object BydVehicleMonitor {
 
     private val shell = BydAdbShell(TAG)
     private val main = Handler(Looper.getMainLooper())
-    private val events = ConcurrentHashMap<EventListener, Set<BydVehicleEvent>>()
+    private val events = ConcurrentHashMap<EventListener, Interest>()
     private val battery = CopyOnWriteArraySet<BatteryListener>()
     private val executor = Executors.newSingleThreadScheduledExecutor { Thread(it, "diplay-vehicle-monitor").apply { isDaemon = true } }
     private val scheduleLock = Any()
     private var future: ScheduledFuture<*>? = null
     @Volatile private var context: Context? = null
     @Volatile private var latestBattery: BatteryUpdate = BatteryUpdate(null, Link.CONNECTING)
+    @Volatile private var latestState = BydVehicleState()
     private val pushed = BydShellAgent.PushListener { device, fid, value -> executor.execute { onPush(device, fid, value) } }
 
     // Worker-thread state.
@@ -54,6 +57,7 @@ object BydVehicleMonitor {
     private var lastBatteryMillis = 0L
     private var eventSignals = emptyList<BydSignal>()
     private val latest = HashMap<BydSignal, Int?>()
+    private var carPlayNavigating: Boolean? = null
     private var subscribedGeneration = -1
     private var subscribedSignals = emptyList<BydSignal>()
     private var pushApplied = 0L
@@ -63,10 +67,18 @@ object BydVehicleMonitor {
     @Volatile internal var shellRun: (Context, String) -> String? = { app, command -> shell.run(app, command, READ_TIMEOUT_MILLIS) }
     @Volatile internal var carPlayGuidance: () -> Boolean = { BydNavigationOutputs.carPlayGuidanceActive() }
 
-    /** [wanted] are the events this listener acts on; the monitor reads only what they need. Adding again updates them. */
-    fun addEventListener(context: Context, listener: EventListener, wanted: Set<BydVehicleEvent> = BydVehicleEvent.entries.toSet()) {
+    /**
+     * [wanted] are the events this listener acts on and [conditions] the further readings it looks up
+     * through [state]; the monitor reads only what they need. Adding again replaces both.
+     */
+    fun addEventListener(context: Context, listener: EventListener, wanted: Set<BydVehicleEvent>,
+        conditions: Set<BydVehicleSignalGroup> = emptySet()) {
         this.context = context.applicationContext
-        if (events.put(listener, wanted.toSet()) != wanted) note("event listener ${events.size}: ${wanted.joinToString(",")}")
+        val interest = Interest(wanted.toSet(), conditions.toSet())
+        if (events.put(listener, interest) != interest) {
+            note("listener ${events.size}: events=${wanted.joinToString(",").ifEmpty { "none" }} " +
+                "conditions=${conditions.joinToString(",").ifEmpty { "none" }}")
+        }
         schedule()
     }
 
@@ -74,6 +86,9 @@ object BydVehicleMonitor {
         if (events.remove(listener) != null) note("event listener removed (${events.size})")
         unscheduleIfIdle()
     }
+
+    /** The latest reading of what the listeners asked for; fields nobody asked for, or that could not be read, are null. */
+    fun state(): BydVehicleState = latestState
 
     /** The listener gets the latest reading at once and then every [BATTERY_MILLIS]. */
     fun addBatteryListener(context: Context, listener: BatteryListener) {
@@ -95,7 +110,7 @@ object BydVehicleMonitor {
     fun report(): List<String> = synchronized(history) {
         listOf("Vehicle monitor: running=${future != null} eventListeners=${events.size} batteryListeners=${battery.size} " +
             "protocol=${protocol ?: if (protocolKnown) "unknown" else "unread"} battery=${latestBattery.link} " +
-            "eventRead=$readSummary pushApplied=$pushApplied",
+            "eventRead=$readSummary pushApplied=$pushApplied state=$latestState",
             "Battery sources: ${latestBattery.details?.sources?.entries?.joinToString("; ") { "${it.key}=${it.value}" } ?: "none"}") +
             history + BydShellAgent.report()
     }
@@ -122,7 +137,8 @@ object BydVehicleMonitor {
             if (synchronized(scheduleLock) { future != null }) return@execute
             detector.reset()
             protocolKnown = false
-            eventSignals = emptyList(); latest.clear()
+            eventSignals = emptyList(); latest.clear(); carPlayNavigating = null
+            latestState = BydVehicleState()
             subscribedGeneration = -1; subscribedSignals = emptyList()
             latestBattery = BatteryUpdate(null, Link.CONNECTING)
             shell.close()
@@ -133,8 +149,6 @@ object BydVehicleMonitor {
         runCatching { poll() }.onFailure { Log.w(TAG, "vehicle poll failed", it) }
     }
 
-    private fun wantedEvents(): Set<BydVehicleEvent> = events.values.flatMapTo(HashSet()) { it }
-
     /** Through the agent when it is up, else one `service call` per signal in one shell round trip. */
     private fun read(app: Context, signals: List<BydSignal>): Map<BydSignal, Int?>? {
         if (signals.isEmpty()) return emptyMap()
@@ -144,11 +158,16 @@ object BydVehicleMonitor {
 
     private fun poll() {
         val app = context ?: return
-        val wanted = wantedEvents()
+        val interests = events.values
+        val wanted = interests.flatMapTo(HashSet()) { it.events }
+        val groups = interests.flatMapTo(HashSet()) { it.groups } + wanted.mapNotNull { it.group }
         val now = SystemClock.elapsedRealtime()
+        // CarPlay's guidance is DiPlay's own state: it is followed even without adb.
+        carPlayNavigating = if (wanted.any { it.carPlay }) carPlayGuidance() else null
+        evaluate()
         val wantBattery = battery.isNotEmpty() && now - lastBatteryMillis >= BATTERY_MILLIS
-        if (wanted.isEmpty() && !wantBattery) return syncPush(emptyList())
-        if (!protocolKnown && (wantBattery || BydVehicleSignals.needsProtocol(wanted))) {
+        if (groups.isEmpty() && !wantBattery) return syncPush(emptyList())
+        if (!protocolKnown && (wantBattery || BydVehicleSignals.needsProtocol(groups))) {
             val property = shellRun(app, "getprop ro.car.protocol")?.trim()
             if (property == null) return unavailable(wantBattery, now)
             val value = property.ifEmpty { shellRun(app, "getprop sys.car.protocol")?.trim().orEmpty() }
@@ -156,12 +175,12 @@ object BydVehicleMonitor {
             protocolKnown = true
             note("protocol=${protocol ?: "unknown ($value)"}")
         }
-        val signals = BydVehicleSignals.events(protocol, wanted)
+        val signals = BydVehicleSignals.reads(protocol, groups)
         if (signals != eventSignals) {
             // Another read set: values kept from the old one would replay an old change as new.
             eventSignals = signals
             latest.clear()
-            detector.reset()
+            detector.reset(carPlayToo = false)
         }
         if (signals.isNotEmpty()) {
             val started = SystemClock.elapsedRealtime()
@@ -182,8 +201,9 @@ object BydVehicleMonitor {
     }
 
     private fun evaluate() {
-        val state = BydVehicleSignals.state(latest, protocol)
-        for (event in detector.accept(state, carPlayGuidance(), SystemClock.elapsedRealtime())) {
+        val state = BydVehicleSignals.state(latest, protocol, carPlayNavigating)
+        latestState = state
+        for (event in detector.accept(state, SystemClock.elapsedRealtime())) {
             note("event $event")
             main.post { events.keys.forEach { it.onVehicleEvent(event) } }
         }
@@ -225,8 +245,9 @@ object BydVehicleMonitor {
 
     private fun unavailable(wantBattery: Boolean, now: Long) {
         // A lost link starts a new baseline, so a change made while offline is not replayed.
-        detector.reset()
+        detector.reset(carPlayToo = false)
         latest.clear()
+        latestState = BydVehicleSignals.state(latest, protocol, carPlayNavigating)
         if (latestBattery.link != Link.NO_ADB) note("adb unavailable: ${shell.lastAccess}")
         if (wantBattery) {
             lastBatteryMillis = now

@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">إظهار بطاقة البطارية</string>
-    <string name="shortcut_hide_battery_card">إخفاء بطاقة البطارية</string>
     <string name="shortcut_vehicle_event">حدث السيارة</string>
-    <string name="shortcut_vehicle_hint">يُقرأ من السيارة عبر وصول ADB الخاص بـ DiPlay عدة مرات في الثانية، فقط أثناء اتصال CarPlay، وعادةً ما يُنفَّذ الحدث خلال نصف ثانية. تنتظر البطاقة اليمنى نحو ثانية إضافية لمعرفة هل هي الخريطة. القيمة المقروءة عند الاتصال لا تُعد حدثًا.</string>
+    <string name="shortcut_vehicle_hint">تُقرأ حالة السيارة عبر اتصال ADB الخاص بـ DiPlay، فقط أثناء اتصال CarPlay، وعادةً ما يُنفَّذ الحدث خلال نصف ثانية. تنتظر البطاقة اليمنى التي تظهر بلا خريطة نحو 0.7 ثانية لمعرفة هل هي الخريطة. لا تحتاج أحداث التنقل في CarPlay إلى ADB. القيمة المقروءة عند الاتصال ليست حدثًا.</string>
     <string name="shortcut_vehicle_left_card_shown">ظهرت البطاقة اليسرى في لوحة العدادات</string>
     <string name="shortcut_vehicle_left_card_hidden">اختفت البطاقة اليسرى في لوحة العدادات</string>
     <string name="shortcut_vehicle_right_card_shown">ظهرت البطاقة اليمنى في لوحة العدادات (ليست الخريطة)</string>
     <string name="shortcut_vehicle_right_map_card_shown">ظهرت بطاقة الخريطة اليمنى في لوحة العدادات</string>
     <string name="shortcut_vehicle_right_card_hidden">اختفت البطاقة اليمنى في لوحة العدادات</string>
-    <string name="shortcut_vehicle_navigation_started">بدأت ملاحة السيارة</string>
     <string name="shortcut_vehicle_gear_p">التبديل إلى P</string>
     <string name="shortcut_vehicle_gear_r">التبديل إلى R</string>
     <string name="shortcut_vehicle_gear_d">التبديل إلى D</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">حد الشحن</string>
     <string name="battery_field_charge_time_left">وقت الشحن المتبقي</string>
     <string name="battery_field_charged_energy">الشحن في هذه الجلسة</string>
+
+    <string name="shortcut_show_center_battery_card">إظهار بطاقة البطارية على الشاشة الوسطى</string>
+    <string name="shortcut_hide_center_battery_card">إخفاء بطاقة البطارية على الشاشة الوسطى</string>
+    <string name="shortcut_show_cluster_battery_card">إظهار بطاقة البطارية على لوحة العدادات</string>
+    <string name="shortcut_hide_cluster_battery_card">إخفاء بطاقة البطارية على لوحة العدادات</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">بدء التنقل في CarPlay</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">انتهاء التنقل في CarPlay</string>
+    <string name="shortcut_vehicle_charging_ended">انتهاء الشحن</string>
+    <string name="shortcut_condition_gear">ناقل الحركة</string>
+    <string name="shortcut_condition_charging">حالة الشحن</string>
+    <string name="shortcut_condition_left_card">البطاقة اليسرى في لوحة العدادات</string>
+    <string name="shortcut_condition_right_card">البطاقة اليمنى في لوحة العدادات</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay يوجّه الآن</string>
+    <string name="shortcut_condition_cluster_music">نافذة الموسيقى في لوحة العدادات</string>
+    <string name="shortcut_condition_cluster_map">نافذة الخريطة في لوحة العدادات</string>
+    <string name="shortcut_condition_center_battery">بطاقة البطارية في الشاشة الوسطى</string>
+    <string name="shortcut_condition_cluster_battery">بطاقة البطارية في لوحة العدادات</string>
+    <string name="shortcut_condition_night">النهار/الليل</string>
+    <string name="shortcut_condition_media_playing">الموسيقى قيد التشغيل</string>
+    <string name="shortcut_value_shown">ظاهرة</string>
+    <string name="shortcut_value_hidden">مخفية</string>
+    <string name="shortcut_value_none">لا بطاقة</string>
+    <string name="shortcut_value_yes">نعم</string>
+    <string name="shortcut_value_no">لا</string>
+    <string name="shortcut_value_card">بطاقة أخرى</string>
+    <string name="shortcut_value_map_turn">الخريطة (إرشاد الانعطاف)</string>
+    <string name="shortcut_value_map_mini">الخريطة (خريطة مصغّرة)</string>
+    <string name="shortcut_value_charging">قيد الشحن</string>
+    <string name="shortcut_value_paused">متوقف مؤقتًا</string>
+    <string name="shortcut_value_idle">لا يشحن</string>
+    <string name="shortcut_value_day">نهار</string>
+    <string name="shortcut_value_night">ليل</string>
+    <string name="shortcut_conditions">الشروط</string>
+    <string name="shortcut_conditions_hint">لا تعمل القاعدة إلا إذا تحققت كل الشروط؛ ويتحقق الشرط عندما تكون القيمة الحالية إحدى القيم المختارة. تؤخذ القيم مما يتابعه DiPlay أصلًا. قيمة السيارة التي تتعذر قراءتها لا تحقق الشرط؛ وبعد الاتصال مباشرة ينتظرها المُشغِّل حتى 1.5 ثانية. تعمل كل قواعد المُشغِّل نفسه التي تحققت شروطها بترتيب القائمة، ويقطع مُشغِّل جديد القاعدة الجارية.</string>
+    <string name="shortcut_condition_none">بلا شروط: تعمل كلما حدث المُشغِّل.</string>
+    <string name="shortcut_add_condition">إضافة شرط</string>
+    <string name="shortcut_condition_values_hint">اختر قيمة أو أكثر. يتحقق الشرط إذا كانت القيمة الحالية أيًّا منها.</string>
+    <string name="settings_battery_card_which">البطاقة المراد إعدادها</string>
 </resources>

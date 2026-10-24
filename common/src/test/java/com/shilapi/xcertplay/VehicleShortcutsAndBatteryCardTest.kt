@@ -6,8 +6,12 @@ import com.shilapi.xcertplay.hud.BydBatteryDetails
 import com.shilapi.xcertplay.hud.BydBatteryField
 import com.shilapi.xcertplay.hud.BydVehicleEvent
 import com.shilapi.xcertplay.hud.BydVehicleMonitor
+import com.shilapi.xcertplay.hud.BydVehicleSignalGroup
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,22 +25,34 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class VehicleShortcutsAndBatteryCardTest {
     private val app get() = RuntimeEnvironment.getApplication()
-    private fun rule(event: BydVehicleEvent? = BydVehicleEvent.RIGHT_MAP_CARD_SHOWN, id: String = "vehicle-rule") = ShortcutRule(
+    private fun rule(event: BydVehicleEvent? = BydVehicleEvent.RIGHT_MAP_CARD_SHOWN, id: String = "vehicle-rule",
+        conditions: List<ShortcutCondition> = emptyList()) = ShortcutRule(
         id = id, name = "Map card", enabled = true, event = ShortcutEvent.VEHICLE, vehicleEvent = event,
-        steps = listOf(ShortcutStep(ShortcutAction.HIDE_CLUSTER_MAP), ShortcutStep(ShortcutAction.SHOW_BATTERY_CARD)),
+        steps = listOf(ShortcutStep(ShortcutAction.HIDE_CLUSTER_MAP), ShortcutStep(ShortcutAction.SHOW_CLUSTER_BATTERY_CARD)),
+        conditions = conditions,
     )
 
-    @Test fun vehicleRulesRoundTripAndKeepTheEncodingVersion() {
-        val rules = listOf(rule(), rule(BydVehicleEvent.GEAR_R, "gear-rule"),
+    @Test fun rulesRoundTripWithConditionsInVersion4() {
+        val gear = ShortcutCondition(ShortcutConditionKey.GEAR, setOf("D", "R"))
+        val right = ShortcutCondition(ShortcutConditionKey.RIGHT_CARD, setOf("MAP_TURN", "MAP_MINI"))
+        val rules = listOf(rule(conditions = listOf(gear, right)), rule(BydVehicleEvent.CHARGING_ENDED, "charge-rule"),
             ShortcutRule(id = "key-rule", name = "Key", event = ShortcutEvent.KEY, keyCode = 87, scanCode = 163,
                 steps = listOf(ShortcutStep(ShortcutAction.NEXT))))
         val json = ShortcutCodec.encode(rules)!!
-        assertTrue(json.contains("\"version\":3"))
+        assertTrue(json.contains("\"version\":4"))
         assertTrue(json.contains("\"vehicle\":\"RIGHT_MAP_CARD_SHOWN\""))
+        // Values keep their catalogue order.
+        assertTrue(json.contains("\"values\":[\"R\",\"D\"]"))
         assertEquals(rules, ShortcutCodec.decode(json))
     }
 
-    @Test fun vehicleEventsAreValidatedAndConflictPerEvent() {
+    @Test fun manyRulesAndRulesSharingATriggerAreKept() {
+        val rules = (1..40).map { rule(id = "rule-$it") }
+        val json = ShortcutCodec.encode(rules)!!
+        assertEquals(40, ShortcutCodec.decode(json).size)
+    }
+
+    @Test fun vehicleRulesAndConditionsAreValidated() {
         assertTrue(ShortcutCodec.valid(rule()))
         assertFalse(ShortcutCodec.valid(rule(event = null)))
         assertFalse(ShortcutCodec.valid(rule().copy(clickCount = 2)))
@@ -44,31 +60,82 @@ class VehicleShortcutsAndBatteryCardTest {
         assertFalse(ShortcutCodec.valid(rule().copy(steps = listOf(ShortcutStep(ShortcutAction.ORIGINAL_CLICK)))))
         assertFalse(ShortcutCodec.valid(rule().copy(event = ShortcutEvent.KEY)))
         assertFalse(ShortcutCodec.valid(rule().copy(event = ShortcutEvent.CONNECTED)))
-        assertTrue(ShortcutCodec.conflicts(listOf(rule(), rule(id = "other"))))
-        assertFalse(ShortcutCodec.conflicts(listOf(rule(), rule(BydVehicleEvent.RIGHT_CARD_SHOWN, "other"))))
+        assertFalse(ShortcutCodec.valid(rule(conditions = listOf(ShortcutCondition(ShortcutConditionKey.GEAR, emptySet())))))
+        assertFalse(ShortcutCodec.valid(rule(conditions = listOf(ShortcutCondition(ShortcutConditionKey.GEAR, setOf("X"))))))
+        assertFalse(ShortcutCodec.valid(rule(conditions = List(2) { ShortcutCondition(ShortcutConditionKey.GEAR, setOf("P")) })))
         assertTrue(ShortcutCodec.executable(rule()))
     }
 
-    @Test fun anUnknownVehicleEventDropsOnlyThatRule() {
-        val json = ShortcutCodec.encode(listOf(rule(), rule(BydVehicleEvent.GEAR_P, "keep")))!!
-            .replace("RIGHT_MAP_CARD_SHOWN", "FUTURE_EVENT")
+    @Test fun anUnknownVehicleEventOrConditionDropsOnlyThatRule() {
+        val json = ShortcutCodec.encode(listOf(rule(), rule(BydVehicleEvent.GEAR_P, "keep"),
+            rule(BydVehicleEvent.GEAR_R, "future-condition", listOf(ShortcutCondition(ShortcutConditionKey.NIGHT, setOf("DAY"))))))!!
+            .replace("RIGHT_MAP_CARD_SHOWN", "FUTURE_EVENT").replace("\"NIGHT\"", "\"FUTURE_KEY\"")
         assertEquals(listOf("keep"), ShortcutCodec.decode(json).map { it.id })
     }
 
-    @Test fun batteryCardSettingsRoundTripAndClamp() {
-        BatteryCardSettings.prefs(app).edit().clear().commit()
-        assertEquals(BatteryCardSettings.DEFAULT_FIELDS, BatteryCardSettings.load(app).fields)
-        val config = BatteryCardConfig(visible = true, target = BatteryCardTarget.CLUSTER, style = BatteryCardStyle.RICH,
-            fields = listOf(BydBatteryField.POWER, BydBatteryField.SOC), scale = 140, opacity = 60, clusterX = 80, clusterY = 10)
-        BatteryCardSettings.save(app, config)
+    @Test fun earlierRulesKeepTheirMeaning() {
+        val step = { action: String -> JSONObject().put("action", action).put("waitMs", 0).put("url", "")
+            .put("keyCode", -1).put("scanCode", -1) }
+        val legacy = JSONObject().put("version", 3).put("rules", JSONArray().put(JSONObject().put("id", "old").put("name", "Old")
+            .put("enabled", true).put("event", "VEHICLE").put("keyCode", 0).put("scanCode", 0).put("clickCount", 1)
+            .put("vehicle", "OEM_NAVIGATION_STARTED")
+            .put("steps", JSONArray().put(step("SHOW_BATTERY_CARD")).put(step("HIDE_BATTERY_CARD"))))).toString()
+        val center = ShortcutCodec.decode(legacy).single()
+        assertEquals(BydVehicleEvent.CARPLAY_NAVIGATION_STARTED, center.vehicleEvent)
+        assertEquals(listOf(ShortcutAction.SHOW_CENTER_BATTERY_CARD, ShortcutAction.HIDE_CENTER_BATTERY_CARD), center.steps.map { it.action })
+        assertEquals(listOf(ShortcutAction.SHOW_CLUSTER_BATTERY_CARD, ShortcutAction.HIDE_CLUSTER_BATTERY_CARD),
+            ShortcutCodec.decode(legacy, BatteryCardTarget.CLUSTER).single().steps.map { it.action })
+    }
+
+    @Test fun conditionsHoldOnlyWhenEveryOneHolds() {
+        val gear = ShortcutCondition(ShortcutConditionKey.GEAR, setOf("D"))
+        val map = ShortcutCondition(ShortcutConditionKey.RIGHT_CARD, setOf("MAP_TURN", "MAP_MINI"))
+        fun read(vararg values: Pair<ShortcutConditionKey, String?>) = values.toMap().let { known -> { key: ShortcutConditionKey -> known[key] } }
+        assertEquals(true, ShortcutConditions.matches(emptyList(), read()))
+        assertEquals(true, ShortcutConditions.matches(listOf(gear, map),
+            read(ShortcutConditionKey.GEAR to "D", ShortcutConditionKey.RIGHT_CARD to "MAP_MINI")))
+        assertEquals(false, ShortcutConditions.matches(listOf(gear, map),
+            read(ShortcutConditionKey.GEAR to "R", ShortcutConditionKey.RIGHT_CARD to null)))
+        assertNull(ShortcutConditions.matches(listOf(gear, map), read(ShortcutConditionKey.GEAR to "D")))
+        assertEquals(setOf(BydVehicleSignalGroup.GEAR, BydVehicleSignalGroup.RIGHT_CARD),
+            ShortcutConditions.groups(listOf(rule(conditions = listOf(gear, map,
+                ShortcutCondition(ShortcutConditionKey.NIGHT, setOf("DAY")))))))
+    }
+
+    @Test fun theSingleBatteryCardBecomesTheCardOfItsDisplay() {
+        val legacy = app.getSharedPreferences("diplay_battery_card", android.content.Context.MODE_PRIVATE)
+        BatteryCardTarget.entries.forEach { app.getSharedPreferences(BatteryCardSettings.prefsName(it), 0).edit().clear().commit() }
+        legacy.edit().clear().putString("target", "CLUSTER").putBoolean("visible", true).putString("style", "RICH")
+            .putInt("scale", 140).commit()
+        val cluster = BatteryCardSettings.load(app, BatteryCardTarget.CLUSTER)
+        assertTrue(cluster.visible)
+        assertEquals(BatteryCardStyle.RICH, cluster.style)
+        assertEquals(140, cluster.scale)
+        assertEquals(BatteryCardConfig(), BatteryCardSettings.load(app, BatteryCardTarget.CENTER))
+        assertEquals(BatteryCardTarget.CLUSTER, BatteryCardSettings.legacyTarget(app))
+        legacy.edit().clear().commit()
+        BatteryCardTarget.entries.forEach { app.getSharedPreferences(BatteryCardSettings.prefsName(it), 0).edit().clear().commit() }
+    }
+
+    @Test fun batteryCardSettingsRoundTripAndClampPerCard() {
+        BatteryCardTarget.entries.forEach { BatteryCardSettings.prefs(app, it).edit().clear().commit() }
+        assertEquals(BatteryCardSettings.DEFAULT_FIELDS, BatteryCardSettings.load(app, BatteryCardTarget.CENTER).fields)
+        val config = BatteryCardConfig(visible = true, style = BatteryCardStyle.RICH,
+            fields = listOf(BydBatteryField.POWER, BydBatteryField.SOC), scale = 140, opacity = 60, clusterX = 80, clusterY = 10,
+            theme = BatteryCardTheme.NIGHT)
+        BatteryCardSettings.save(app, BatteryCardTarget.CLUSTER, config)
         // Fields keep their catalogue order, whatever order they were picked in.
-        assertEquals(config.copy(fields = listOf(BydBatteryField.SOC, BydBatteryField.POWER)), BatteryCardSettings.load(app))
-        BatteryCardSettings.prefs(app).edit().putInt("scale", 999).putString("fields", "SOC,NOT_A_FIELD").putString("style", "X").commit()
-        val loaded = BatteryCardSettings.load(app)
+        assertEquals(config.copy(fields = listOf(BydBatteryField.SOC, BydBatteryField.POWER)),
+            BatteryCardSettings.load(app, BatteryCardTarget.CLUSTER))
+        // The other card is untouched.
+        assertEquals(BatteryCardConfig(), BatteryCardSettings.load(app, BatteryCardTarget.CENTER))
+        BatteryCardSettings.prefs(app, BatteryCardTarget.CLUSTER).edit().putInt("scale", 999)
+            .putString("fields", "SOC,NOT_A_FIELD").putString("style", "X").commit()
+        val loaded = BatteryCardSettings.load(app, BatteryCardTarget.CLUSTER)
         assertEquals(160, loaded.scale)
         assertEquals(listOf(BydBatteryField.SOC), loaded.fields)
         assertEquals(BatteryCardStyle.STANDARD, loaded.style)
-        BatteryCardSettings.prefs(app).edit().clear().commit()
+        BatteryCardTarget.entries.forEach { BatteryCardSettings.prefs(app, it).edit().clear().commit() }
     }
 
     @Test fun valuesAreFormattedForTheCard() {
@@ -78,6 +145,7 @@ class VehicleShortcutsAndBatteryCardTest {
         assertEquals("1:05", BatteryCardFormat.value(BydBatteryField.CHARGE_TIME_LEFT, 65.0))
         assertEquals("32°C", BatteryCardFormat.value(BydBatteryField.TEMP_MAX, 32.0))
         assertEquals("3.332 V", BatteryCardFormat.value(BydBatteryField.CELL_VOLTAGE_MAX, 3.332))
+        assertEquals("12.5 kWh", BatteryCardFormat.value(BydBatteryField.CHARGED_ENERGY, 12.5))
         assertEquals(BatteryCardFormat.MISSING, BatteryCardFormat.value(BydBatteryField.SOH, null))
     }
 
@@ -91,7 +159,7 @@ class VehicleShortcutsAndBatteryCardTest {
         return view.measuredWidth to view.measuredHeight
     }
 
-    @Test fun everyStyleKeepsItsSizeWhileTheReadingChanges() {
+    @Test fun everyStyleKeepsItsSizeWhileTheReadingAndThemeChange() {
         val reading = BydVehicleMonitor.BatteryUpdate(BydBatteryDetails(mapOf(
             BydBatteryField.SOC to 96.0, BydBatteryField.RANGE to 654.0, BydBatteryField.POWER to -120.5,
             BydBatteryField.SOH to 98.0, BydBatteryField.TEMP_MAX to 32.0, BydBatteryField.CHARGE_LIMIT to 90.0,
@@ -100,7 +168,10 @@ class VehicleShortcutsAndBatteryCardTest {
             BydVehicleMonitor.BatteryUpdate(null, BydVehicleMonitor.Link.UNSUPPORTED), reading)
         for (style in BatteryCardStyle.entries) {
             val view = card(BatteryCardConfig(style = style, fields = BydBatteryField.entries))
-            val sizes = updates.map { update -> view.update = update; draw(view) }.toSet()
+            val sizes = updates.flatMap { update ->
+                view.update = update
+                listOf(true, false).map { night -> view.night = night; draw(view) }
+            }.toSet()
             assertEquals(style.name, 1, sizes.size)
             val (width, height) = sizes.single()
             assertTrue(style.name, width > 0 && height > 0)

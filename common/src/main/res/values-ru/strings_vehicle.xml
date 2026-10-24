@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">Показать карточку батареи</string>
-    <string name="shortcut_hide_battery_card">Скрыть карточку батареи</string>
     <string name="shortcut_vehicle_event">Событие автомобиля</string>
-    <string name="shortcut_vehicle_hint">Читается из автомобиля через ADB-доступ DiPlay несколько раз в секунду, только пока подключён CarPlay; событие обычно срабатывает за полсекунды. Правая карточка ждёт примерно на секунду дольше, чтобы понять, карта ли это. Значение при подключении событием не считается.</string>
+    <string name="shortcut_vehicle_hint">Состояние автомобиля читается через ADB-подключение DiPlay, только пока подключён CarPlay; событие обычно срабатывает за полсекунды. Правая карточка, появившаяся без карты, ждёт около 0,7 с, чтобы понять, карта ли это. Событиям навигации CarPlay ADB не нужен. Значение, прочитанное при подключении, не считается событием.</string>
     <string name="shortcut_vehicle_left_card_shown">Левая карточка приборной панели показана</string>
     <string name="shortcut_vehicle_left_card_hidden">Левая карточка приборной панели скрыта</string>
     <string name="shortcut_vehicle_right_card_shown">Правая карточка приборной панели показана (не карта)</string>
     <string name="shortcut_vehicle_right_map_card_shown">Правая карточка с картой показана</string>
     <string name="shortcut_vehicle_right_card_hidden">Правая карточка приборной панели скрыта</string>
-    <string name="shortcut_vehicle_navigation_started">Штатная навигация начала ведение</string>
     <string name="shortcut_vehicle_gear_p">Включён режим P</string>
     <string name="shortcut_vehicle_gear_r">Включён режим R</string>
     <string name="shortcut_vehicle_gear_d">Включён режим D</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">Предел зарядки</string>
     <string name="battery_field_charge_time_left">До конца зарядки</string>
     <string name="battery_field_charged_energy">Заряжено за сессию</string>
+
+    <string name="shortcut_show_center_battery_card">Показать карточку батареи на центральном экране</string>
+    <string name="shortcut_hide_center_battery_card">Скрыть карточку батареи на центральном экране</string>
+    <string name="shortcut_show_cluster_battery_card">Показать карточку батареи на приборной панели</string>
+    <string name="shortcut_hide_cluster_battery_card">Скрыть карточку батареи на приборной панели</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">Навигация CarPlay начата</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">Навигация CarPlay завершена</string>
+    <string name="shortcut_vehicle_charging_ended">Зарядка завершена</string>
+    <string name="shortcut_condition_gear">Передача</string>
+    <string name="shortcut_condition_charging">Состояние зарядки</string>
+    <string name="shortcut_condition_left_card">Левая карточка приборной панели</string>
+    <string name="shortcut_condition_right_card">Правая карточка приборной панели</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay ведёт навигацию</string>
+    <string name="shortcut_condition_cluster_music">Окно музыки на приборной панели</string>
+    <string name="shortcut_condition_cluster_map">Окно карты на приборной панели</string>
+    <string name="shortcut_condition_center_battery">Карточка батареи центрального экрана</string>
+    <string name="shortcut_condition_cluster_battery">Карточка батареи приборной панели</string>
+    <string name="shortcut_condition_night">День/ночь</string>
+    <string name="shortcut_condition_media_playing">Играет музыка</string>
+    <string name="shortcut_value_shown">Показана</string>
+    <string name="shortcut_value_hidden">Скрыта</string>
+    <string name="shortcut_value_none">Нет карточки</string>
+    <string name="shortcut_value_yes">Да</string>
+    <string name="shortcut_value_no">Нет</string>
+    <string name="shortcut_value_card">Другая карточка</string>
+    <string name="shortcut_value_map_turn">Карта (подсказка поворота)</string>
+    <string name="shortcut_value_map_mini">Карта (мини-карта)</string>
+    <string name="shortcut_value_charging">Заряжается</string>
+    <string name="shortcut_value_paused">Пауза</string>
+    <string name="shortcut_value_idle">Не заряжается</string>
+    <string name="shortcut_value_day">День</string>
+    <string name="shortcut_value_night">Ночь</string>
+    <string name="shortcut_conditions">Условия</string>
+    <string name="shortcut_conditions_hint">Правило выполняется, только если выполнены все условия; условие выполнено, когда текущее значение — одно из выбранных. Значения берутся из того, что DiPlay уже отслеживает. Непрочитанное значение автомобиля считается невыполненным; сразу после подключения срабатывание ждёт его до 1,5 с. Все правила с тем же событием, чьи условия выполнены, выполняются по порядку списка, а новое срабатывание прерывает выполняемое правило.</string>
+    <string name="shortcut_condition_none">Без условий: выполняется при каждом срабатывании.</string>
+    <string name="shortcut_add_condition">Добавить условие</string>
+    <string name="shortcut_condition_values_hint">Выберите одно или несколько значений. Условие выполнено, если текущее значение — любое из них.</string>
+    <string name="settings_battery_card_which">Какую карточку настроить</string>
 </resources>

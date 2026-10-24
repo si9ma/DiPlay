@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">顯示電池卡片</string>
-    <string name="shortcut_hide_battery_card">隱藏電池卡片</string>
     <string name="shortcut_vehicle_event">車輛事件</string>
-    <string name="shortcut_vehicle_hint">透過 DiPlay 的 ADB 連線每秒讀取數次車輛狀態，僅在 CarPlay 連線期間生效，事件一般在半秒內觸發。右側卡片要多等約一秒，以判斷是不是地圖卡片。連線時讀到的狀態不算事件。</string>
+    <string name="shortcut_vehicle_hint">車輛狀態透過 DiPlay 的 ADB 連線讀取，僅在 CarPlay 連線期間生效，事件一般在半秒內觸發。右側非地圖卡片從隱藏到顯示時會多等約 0.7 秒，以判斷是不是地圖。CarPlay 導航事件不需要 ADB。連線時讀到的狀態不算事件。</string>
     <string name="shortcut_vehicle_left_card_shown">儀表左側卡片顯示</string>
     <string name="shortcut_vehicle_left_card_hidden">儀表左側卡片隱藏</string>
     <string name="shortcut_vehicle_right_card_shown">儀表右側卡片顯示（非地圖）</string>
     <string name="shortcut_vehicle_right_map_card_shown">儀表右側地圖卡片顯示</string>
     <string name="shortcut_vehicle_right_card_hidden">儀表右側卡片隱藏</string>
-    <string name="shortcut_vehicle_navigation_started">原廠導航開始</string>
     <string name="shortcut_vehicle_gear_p">打入 P 檔</string>
     <string name="shortcut_vehicle_gear_r">打入 R 檔</string>
     <string name="shortcut_vehicle_gear_d">打入 D 檔</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">充電上限</string>
     <string name="battery_field_charge_time_left">剩餘充電時間</string>
     <string name="battery_field_charged_energy">本次已充電量</string>
+
+    <string name="shortcut_show_center_battery_card">顯示中控電池卡片</string>
+    <string name="shortcut_hide_center_battery_card">隱藏中控電池卡片</string>
+    <string name="shortcut_show_cluster_battery_card">顯示儀表電池卡片</string>
+    <string name="shortcut_hide_cluster_battery_card">隱藏儀表電池卡片</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">CarPlay 開始導航</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">CarPlay 結束導航</string>
+    <string name="shortcut_vehicle_charging_ended">結束充電</string>
+    <string name="shortcut_condition_gear">檔位</string>
+    <string name="shortcut_condition_charging">充電狀態</string>
+    <string name="shortcut_condition_left_card">儀表左側卡片</string>
+    <string name="shortcut_condition_right_card">儀表右側卡片</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay 正在導航</string>
+    <string name="shortcut_condition_cluster_music">儀表音樂小窗</string>
+    <string name="shortcut_condition_cluster_map">儀表地圖小窗</string>
+    <string name="shortcut_condition_center_battery">中控電池卡片</string>
+    <string name="shortcut_condition_cluster_battery">儀表電池卡片</string>
+    <string name="shortcut_condition_night">日夜</string>
+    <string name="shortcut_condition_media_playing">正在播放音樂</string>
+    <string name="shortcut_value_shown">顯示</string>
+    <string name="shortcut_value_hidden">隱藏</string>
+    <string name="shortcut_value_none">無卡片</string>
+    <string name="shortcut_value_yes">是</string>
+    <string name="shortcut_value_no">否</string>
+    <string name="shortcut_value_card">非地圖卡片</string>
+    <string name="shortcut_value_map_turn">地圖（轉向卡片）</string>
+    <string name="shortcut_value_map_mini">地圖（小地圖）</string>
+    <string name="shortcut_value_charging">充電中</string>
+    <string name="shortcut_value_paused">已暫停</string>
+    <string name="shortcut_value_idle">未充電</string>
+    <string name="shortcut_value_day">白天</string>
+    <string name="shortcut_value_night">夜間</string>
+    <string name="shortcut_conditions">條件</string>
+    <string name="shortcut_conditions_hint">所有條件都滿足時才執行；目前值是所選值之一，就算滿足。取值來自 DiPlay 已在追蹤的狀態。讀不到的車輛狀態算不滿足；剛連線時，觸發後最多等 1.5 秒讀取。同一觸發條件下滿足條件的規則會依清單順序全部執行，新的觸發會打斷正在執行的規則。</string>
+    <string name="shortcut_condition_none">無條件，觸發就執行。</string>
+    <string name="shortcut_add_condition">新增條件</string>
+    <string name="shortcut_condition_values_hint">可選一個或多個值，目前值是其中任一個就算滿足。</string>
+    <string name="settings_battery_card_which">要設定的卡片</string>
 </resources>

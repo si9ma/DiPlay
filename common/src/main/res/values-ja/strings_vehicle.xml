@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">バッテリーカードを表示</string>
-    <string name="shortcut_hide_battery_card">バッテリーカードを非表示</string>
     <string name="shortcut_vehicle_event">車両イベント</string>
-    <string name="shortcut_vehicle_hint">DiPlay の ADB アクセスで車両の状態を毎秒数回読み取ります。CarPlay 接続中のみ有効で、イベントは通常 0.5 秒以内に実行されます。右側のカードは地図かどうかを見分けるため、約 1 秒長く待ちます。接続時に読み取った状態はイベントになりません。</string>
+    <string name="shortcut_vehicle_hint">車両の状態は DiPlay の ADB 接続で読み取ります。CarPlay 接続中のみ有効で、イベントは通常 0.5 秒以内に実行されます。右側の地図以外のカードが現れたときは、地図かどうかを見分けるため約 0.7 秒待ちます。CarPlay のナビイベントには ADB は不要です。接続時に読み取った状態はイベントになりません。</string>
     <string name="shortcut_vehicle_left_card_shown">メーター左側のカードが表示された</string>
     <string name="shortcut_vehicle_left_card_hidden">メーター左側のカードが消えた</string>
     <string name="shortcut_vehicle_right_card_shown">メーター右側のカードが表示された（地図以外）</string>
     <string name="shortcut_vehicle_right_map_card_shown">メーター右側に地図カードが表示された</string>
     <string name="shortcut_vehicle_right_card_hidden">メーター右側のカードが消えた</string>
-    <string name="shortcut_vehicle_navigation_started">純正ナビの案内開始</string>
     <string name="shortcut_vehicle_gear_p">P に入れた</string>
     <string name="shortcut_vehicle_gear_r">R に入れた</string>
     <string name="shortcut_vehicle_gear_d">D に入れた</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">充電上限</string>
     <string name="battery_field_charge_time_left">充電残り時間</string>
     <string name="battery_field_charged_energy">今回の充電量</string>
+
+    <string name="shortcut_show_center_battery_card">中央画面のバッテリーカードを表示</string>
+    <string name="shortcut_hide_center_battery_card">中央画面のバッテリーカードを非表示</string>
+    <string name="shortcut_show_cluster_battery_card">メーターのバッテリーカードを表示</string>
+    <string name="shortcut_hide_cluster_battery_card">メーターのバッテリーカードを非表示</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">CarPlay ナビ開始</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">CarPlay ナビ終了</string>
+    <string name="shortcut_vehicle_charging_ended">充電終了</string>
+    <string name="shortcut_condition_gear">シフト</string>
+    <string name="shortcut_condition_charging">充電状態</string>
+    <string name="shortcut_condition_left_card">メーター左側カード</string>
+    <string name="shortcut_condition_right_card">メーター右側カード</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay ナビ中</string>
+    <string name="shortcut_condition_cluster_music">メーターの音楽ウィンドウ</string>
+    <string name="shortcut_condition_cluster_map">メーターの地図ウィンドウ</string>
+    <string name="shortcut_condition_center_battery">中央画面のバッテリーカード</string>
+    <string name="shortcut_condition_cluster_battery">メーターのバッテリーカード</string>
+    <string name="shortcut_condition_night">昼夜</string>
+    <string name="shortcut_condition_media_playing">音楽再生中</string>
+    <string name="shortcut_value_shown">表示</string>
+    <string name="shortcut_value_hidden">非表示</string>
+    <string name="shortcut_value_none">カードなし</string>
+    <string name="shortcut_value_yes">はい</string>
+    <string name="shortcut_value_no">いいえ</string>
+    <string name="shortcut_value_card">地図以外のカード</string>
+    <string name="shortcut_value_map_turn">地図（ターン案内）</string>
+    <string name="shortcut_value_map_mini">地図（ミニマップ）</string>
+    <string name="shortcut_value_charging">充電中</string>
+    <string name="shortcut_value_paused">一時停止</string>
+    <string name="shortcut_value_idle">充電していない</string>
+    <string name="shortcut_value_day">昼</string>
+    <string name="shortcut_value_night">夜</string>
+    <string name="shortcut_conditions">条件</string>
+    <string name="shortcut_conditions_hint">すべての条件を満たすときだけ実行します。現在の値が選んだ値のいずれかなら条件を満たします。値は DiPlay がすでに追跡している状態から取ります。読み取れない車両の状態は満たさないものとし、接続直後はトリガー後最大 1.5 秒待って読み取ります。同じトリガーで条件を満たすルールはリスト順にすべて実行され、新しいトリガーは実行中のルールを中断します。</string>
+    <string name="shortcut_condition_none">条件なし。トリガーで常に実行します。</string>
+    <string name="shortcut_add_condition">条件を追加</string>
+    <string name="shortcut_condition_values_hint">値を 1 つ以上選んでください。現在の値がいずれかであれば条件を満たします。</string>
+    <string name="settings_battery_card_which">設定するカード</string>
 </resources>

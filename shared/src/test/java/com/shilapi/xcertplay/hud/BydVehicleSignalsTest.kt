@@ -42,50 +42,49 @@ class BydVehicleSignalsTest {
         assertNull(values[absent])
     }
 
-    private fun state(left: Int? = 2, right: Int? = 2, prompts: Int? = 2, projection: Int? = 0, mirroring: Int? = 3,
-                      navi: Int? = 4, gear: Int? = 1, bms: Int? = 15) = BydVehicleSignals.state(mapOf(
+    private fun state(left: Int? = 2, right: Int? = 2, prompts: Int? = 2, gear: Int? = 1, bms: Int? = 15,
+                      carPlay: Boolean? = null) = BydVehicleSignals.state(mapOf(
         BydVehicleSignals.LEFT_CARD to left, BydVehicleSignals.RIGHT_CARD to right, BydVehicleSignals.MAP_PROMPTS to prompts,
-        BydVehicleSignals.RIGHT_PROJECTION to projection, BydVehicleSignals.MAP_MIRRORING to mirroring,
-        BydVehicleSignals.NAVI_STATUS to navi, BydVehicleSignals.GEAR to gear,
-        BydVehicleSignals.charging(BydBatteryProtocol.CANFD) to bms,
-    ), BydBatteryProtocol.CANFD)
+        BydVehicleSignals.GEAR to gear, BydVehicleSignals.charging(BydBatteryProtocol.CANFD) to bms,
+    ), BydBatteryProtocol.CANFD, carPlay)
 
-    @Test fun rightCardIsTheMapOnlyWhileThePromptOrTheProjectionSaysSo() {
-        assertEquals(BydSideCard.HIDDEN, state(right = 2, prompts = 1).right)
-        assertEquals(BydSideCard.SHOWN, state(right = 1).right)
-        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 1).right)
-        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 3).right)
-        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 2, projection = 2).right)
-        // Tai 7, door open over the map: mirroring stays 3, the prompt and the projection fall.
-        assertEquals(BydSideCard.SHOWN, state(right = 1, prompts = 2, projection = 0, mirroring = 3).right)
-        // Door closed again: the map is back.
-        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 1, projection = 2, mirroring = 3).right)
+    @Test fun rightCardIsTheMapOnlyWhileTheClusterPromptsIt() {
+        assertEquals(BydRightCard.HIDDEN, state(right = 2, prompts = 1).right)
+        assertEquals(BydRightCard.CARD, state(right = 1).right)
+        assertEquals(BydRightCard.MAP_TURN, state(right = 1, prompts = 1).right)
+        assertEquals(BydRightCard.MAP_MINI, state(right = 1, prompts = 3).right)
+        // Tai 7, door open over the map: the prompt falls to 2 while the cover stays 1.
+        assertEquals(BydRightCard.CARD, state(right = 1, prompts = 2).right)
+        // An unreadable prompt is no map.
+        assertEquals(BydRightCard.CARD, state(right = 1, prompts = null).right)
         assertNull(state(right = null).right)
         assertNull(state(right = 0).right)
-        assertEquals(false, state(navi = 4).navigating)
-        assertEquals(true, state(navi = 2).navigating)
-        assertNull(state(navi = 7).navigating)
         assertNull(state(gear = 9).gear)
-        assertEquals(false, state(bms = 15).charging)
-        assertEquals(true, state(bms = 1).charging)
+        assertEquals(BydChargingState.IDLE, state(bms = 15).charging)
+        assertEquals(BydChargingState.CHARGING, state(bms = 1).charging)
+        assertEquals(BydChargingState.PAUSED, state(bms = 13).charging)
+        assertEquals(true, state(left = 1).leftShown)
+        assertNull(state(left = 0).leftShown)
     }
 
-    @Test fun onlyTheReadsBehindTheWantedEventsAreMade() {
+    @Test fun onlyTheReadsBehindTheWantedGroupsAreMade() {
         assertEquals(listOf(BydVehicleSignals.LEFT_CARD),
-            BydVehicleSignals.events(BydBatteryProtocol.CANFD, setOf(BydVehicleEvent.LEFT_CARD_SHOWN)))
-        assertEquals(listOf(BydVehicleSignals.RIGHT_CARD, BydVehicleSignals.MAP_PROMPTS, BydVehicleSignals.RIGHT_PROJECTION),
-            BydVehicleSignals.events(BydBatteryProtocol.CANFD, setOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN)))
-        assertEquals(listOf(BydVehicleSignals.GEAR), BydVehicleSignals.events(null, setOf(BydVehicleEvent.GEAR_P, BydVehicleEvent.GEAR_D)))
-        assertFalse(BydVehicleSignals.MAP_MIRRORING in BydVehicleSignals.events(BydBatteryProtocol.CANFD))
-        assertTrue(BydVehicleSignals.needsProtocol(setOf(BydVehicleEvent.CHARGING_STARTED)))
-        assertFalse(BydVehicleSignals.needsProtocol(setOf(BydVehicleEvent.LEFT_CARD_SHOWN)))
-        assertEquals(emptyList<BydSignal>(), BydVehicleSignals.events(BydBatteryProtocol.CANFD, emptySet()))
+            BydVehicleSignals.reads(BydBatteryProtocol.CANFD, setOf(BydVehicleSignalGroup.LEFT_CARD)))
+        assertEquals(listOf(BydVehicleSignals.RIGHT_CARD, BydVehicleSignals.MAP_PROMPTS),
+            BydVehicleSignals.reads(BydBatteryProtocol.CANFD, setOf(BydVehicleSignalGroup.RIGHT_CARD)))
+        assertEquals(listOf(BydVehicleSignals.GEAR), BydVehicleSignals.reads(null, setOf(BydVehicleSignalGroup.GEAR)))
+        assertEquals(emptyList<BydSignal>(), BydVehicleSignals.reads(null, setOf(BydVehicleSignalGroup.CHARGING)))
+        assertTrue(BydVehicleSignals.needsProtocol(setOf(BydVehicleSignalGroup.CHARGING)))
+        assertFalse(BydVehicleSignals.needsProtocol(setOf(BydVehicleSignalGroup.LEFT_CARD)))
+        assertEquals(emptyList<BydSignal>(), BydVehicleSignals.reads(BydBatteryProtocol.CANFD, emptySet()))
+        assertNull(BydVehicleEvent.CARPLAY_NAVIGATION_ENDED.group)
+        assertEquals(BydVehicleEvent.CARPLAY_NAVIGATION_STARTED, BydVehicleEvent.fromStored("OEM_NAVIGATION_STARTED"))
     }
 
     /** A fake clock: every fed sample is [step] ms after the previous one. */
     private var clock = 0L
-    private fun BydVehicleEventDetector.feed(vararg states: BydVehicleState, guidance: Boolean = false, step: Long = 250) =
-        states.flatMap { clock += step; accept(it, guidance, clock) }
+    private fun BydVehicleEventDetector.feed(vararg states: BydVehicleState, step: Long = 250) =
+        states.flatMap { clock += step; accept(it, clock) }
 
     @Test fun firstValueIsABaselineAndOtherChangesCountAtOnce() {
         val detector = BydVehicleEventDetector()
@@ -100,69 +99,60 @@ class BydVehicleSignalsTest {
         assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(left = null, gear = null)))
     }
 
-    @Test fun recordedRightCardSequenceFromTheTai7() {
-        // watch-084022: the cover, the map prompt and the projection rose in one sample; watch-084422: the
-        // prompt fell first and the cover 15 s later.
+    @Test fun aCardThatAppearsWaitsForALateMapPrompt() {
         val detector = BydVehicleEventDetector()
         detector.feed(state())
-        // A plain card waits 700 ms for a late map signal.
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1), state(right = 1)))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1)))
+        // A card from hidden waits 700 ms for a late map prompt.
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1), state(right = 1)))
         assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.feed(state(right = 2)))
+        // The map from hidden counts at once.
         assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1)))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1, prompts = 1, projection = 2)))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN),
-            detector.feed(state(right = 1, prompts = 2, projection = 2), state(right = 1, prompts = 2), state(right = 1, prompts = 2),
-                state(right = 1, prompts = 2), state(right = 1, prompts = 2)))
+        // Turn card to mini map is still the map.
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1, prompts = 3)))
         assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.feed(state(right = 2)))
     }
 
-    @Test fun aDoorCardOverTheMapAndBackFiresBothWays() {
-        // The Tai 7 readings: the cover stays 1 throughout, MAP_MIRRORING stays 3.
+    @Test fun aDoorCardOverTheMapAndBackFiresAtOnceBothWays() {
+        // The Tai 7 readings: the cover stays 1 throughout; only the prompt changes.
         val detector = BydVehicleEventDetector()
-        detector.feed(state(right = 1, prompts = 1, projection = 2))
-        val door = state(right = 1, prompts = 2, projection = 0)
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(door, door, door, door))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1, projection = 2)))
+        detector.feed(state(right = 1, prompts = 1))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1, prompts = 2), step = 10))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1), step = 10))
     }
 
-    @Test fun mapPromptArrivingAfterTheCoverStillReportsTheMapCard() {
+    @Test fun aMapPromptArrivingAfterTheCoverReportsOnlyTheMap() {
         val detector = BydVehicleEventDetector()
         detector.feed(state())
+        // Pushed changes: the cover first, the prompt 400 ms later.
         assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN),
-            detector.feed(state(right = 1), state(right = 1), state(right = 1, prompts = 1), state(right = 1, prompts = 1)))
-        // A map signal that drops for one sample does not report a plain card.
-        assertEquals(emptyList<BydVehicleEvent>(),
-            detector.feed(state(right = 1, prompts = 2), state(right = 1, prompts = 1), state(right = 1, prompts = 1)))
+            detector.feed(state(right = 1), step = 50) + detector.feed(state(right = 1, prompts = 1), step = 400))
     }
 
-    @Test fun pushedSamplesCloseTogetherStillWaitForTheMap() {
+    @Test fun carPlayNavigationStartsAndEnds() {
         val detector = BydVehicleEventDetector()
-        detector.feed(state())
-        // Pushed changes 50 ms apart: the cover first, the prompt 300 ms later.
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1), step = 50))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1), step = 300))
+        detector.feed(state(carPlay = false))
+        assertEquals(listOf(BydVehicleEvent.CARPLAY_NAVIGATION_STARTED), detector.feed(state(carPlay = true)))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(carPlay = true)))
+        // A lost adb link keeps CarPlay's baseline.
+        detector.reset(carPlayToo = false)
+        assertEquals(listOf(BydVehicleEvent.CARPLAY_NAVIGATION_ENDED), detector.feed(state(carPlay = false)))
+        // Not followed: no event.
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(carPlay = null)))
     }
 
-    @Test fun stockNavigationStartIsNotReportedWhileCarPlayFeedsTheAdapter() {
-        val detector = BydVehicleEventDetector()
-        detector.feed(state(navi = 4))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(navi = 2), state(navi = 2), guidance = true))
-        detector.feed(state(navi = 4))
-        assertEquals(listOf(BydVehicleEvent.OEM_NAVIGATION_STARTED), detector.feed(state(navi = 2), state(navi = 2)))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(navi = 3), state(navi = 3)))
-    }
-
-    @Test fun chargingStartsOnceAndAResetStartsANewBaseline() {
+    @Test fun chargingStartsAndEndsOnceAndAPauseIsNeither() {
         val detector = BydVehicleEventDetector()
         detector.feed(state(bms = 15))
         assertEquals(listOf(BydVehicleEvent.CHARGING_STARTED), detector.feed(state(bms = 1), state(bms = 1)))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(bms = 13), state(bms = 1)))
         assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(bms = null), state(bms = 1)))
+        assertEquals(listOf(BydVehicleEvent.CHARGING_ENDED), detector.feed(state(bms = 2)))
+        detector.feed(state(bms = 1))
+        assertEquals(listOf(BydVehicleEvent.CHARGING_ENDED), detector.feed(state(bms = 13), state(bms = 15)))
         detector.reset()
         // After a reset (a lost link), charging that began meanwhile is the new baseline, not an event.
         assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(bms = 1), state(bms = 1)))
-        detector.feed(state(bms = 15))
-        assertEquals(listOf(BydVehicleEvent.CHARGING_STARTED), detector.feed(state(bms = 1)))
     }
 
     private fun bits(value: Float) = java.lang.Float.floatToRawIntBits(value)
@@ -252,7 +242,8 @@ class BydVehicleSignalsTest {
         val reads = BydBatterySignals.all(BydBatteryProtocol.CANFD)
         assertEquals(reads.size, reads.toSet().size)
         assertTrue(BydVehicleSignals.charging(BydBatteryProtocol.CANFD) in reads)
-        assertTrue(BydVehicleSignals.charging(BydBatteryProtocol.CAN) in BydVehicleSignals.events(BydBatteryProtocol.CAN))
-        assertFalse(BydVehicleSignals.events(null).any { it.device == BydVehicleSignals.CHARGING })
+        val all = BydVehicleSignalGroup.entries.toSet()
+        assertTrue(BydVehicleSignals.charging(BydBatteryProtocol.CAN) in BydVehicleSignals.reads(BydBatteryProtocol.CAN, all))
+        assertFalse(BydVehicleSignals.reads(null, all).any { it.device == BydVehicleSignals.CHARGING })
     }
 }

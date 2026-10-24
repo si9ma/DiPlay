@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">Show battery card</string>
-    <string name="shortcut_hide_battery_card">Hide battery card</string>
     <string name="shortcut_vehicle_event">Car event</string>
-    <string name="shortcut_vehicle_hint">Read from the car over DiPlay\'s ADB access several times a second, only while CarPlay is connected; an event usually runs within half a second. A right card waits about a second longer to tell whether it is the map. The value found on connecting is not an event.</string>
+    <string name="shortcut_vehicle_hint">Car states are read through DiPlay\'s ADB connection, only while CarPlay is connected; an event usually runs within half a second. A right card that appears without the map waits about 0.7 s to tell whether it is the map. CarPlay navigation events need no ADB. The value found on connecting is not an event.</string>
     <string name="shortcut_vehicle_left_card_shown">Left dashboard card shown</string>
     <string name="shortcut_vehicle_left_card_hidden">Left dashboard card hidden</string>
     <string name="shortcut_vehicle_right_card_shown">Right dashboard card shown (not the map)</string>
     <string name="shortcut_vehicle_right_map_card_shown">Right dashboard map card shown</string>
     <string name="shortcut_vehicle_right_card_hidden">Right dashboard card hidden</string>
-    <string name="shortcut_vehicle_navigation_started">Car\'s navigation started</string>
     <string name="shortcut_vehicle_gear_p">Shifted into P</string>
     <string name="shortcut_vehicle_gear_r">Shifted into R</string>
     <string name="shortcut_vehicle_gear_d">Shifted into D</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">Charge limit</string>
     <string name="battery_field_charge_time_left">Charge time left</string>
     <string name="battery_field_charged_energy">Charged this session</string>
+
+    <string name="shortcut_show_center_battery_card">Show centre-screen battery card</string>
+    <string name="shortcut_hide_center_battery_card">Hide centre-screen battery card</string>
+    <string name="shortcut_show_cluster_battery_card">Show dashboard battery card</string>
+    <string name="shortcut_hide_cluster_battery_card">Hide dashboard battery card</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">CarPlay navigation started</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">CarPlay navigation ended</string>
+    <string name="shortcut_vehicle_charging_ended">Charging ended</string>
+    <string name="shortcut_condition_gear">Gear</string>
+    <string name="shortcut_condition_charging">Charging</string>
+    <string name="shortcut_condition_left_card">Dashboard left card</string>
+    <string name="shortcut_condition_right_card">Dashboard right card</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay navigating</string>
+    <string name="shortcut_condition_cluster_music">Dashboard music window</string>
+    <string name="shortcut_condition_cluster_map">Dashboard map window</string>
+    <string name="shortcut_condition_center_battery">Centre-screen battery card</string>
+    <string name="shortcut_condition_cluster_battery">Dashboard battery card</string>
+    <string name="shortcut_condition_night">Day/night</string>
+    <string name="shortcut_condition_media_playing">Music playing</string>
+    <string name="shortcut_value_shown">Shown</string>
+    <string name="shortcut_value_hidden">Hidden</string>
+    <string name="shortcut_value_none">No card</string>
+    <string name="shortcut_value_yes">Yes</string>
+    <string name="shortcut_value_no">No</string>
+    <string name="shortcut_value_card">Other card</string>
+    <string name="shortcut_value_map_turn">Map (turn card)</string>
+    <string name="shortcut_value_map_mini">Map (mini map)</string>
+    <string name="shortcut_value_charging">Charging</string>
+    <string name="shortcut_value_paused">Paused</string>
+    <string name="shortcut_value_idle">Not charging</string>
+    <string name="shortcut_value_day">Day</string>
+    <string name="shortcut_value_night">Night</string>
+    <string name="shortcut_conditions">Conditions</string>
+    <string name="shortcut_conditions_hint">The rule runs only when every condition holds; a condition holds when the current value is one of those chosen. Values come from what DiPlay already follows. A car value that cannot be read does not hold; right after connecting, a trigger waits up to 1.5 s for it. All rules for the same trigger whose conditions hold run, in list order, and a new trigger interrupts a rule still running.</string>
+    <string name="shortcut_condition_none">No conditions: runs whenever the trigger fires.</string>
+    <string name="shortcut_add_condition">Add condition</string>
+    <string name="shortcut_condition_values_hint">Choose one or more values. The condition holds when the current value is any of them.</string>
+    <string name="settings_battery_card_which">Card to set up</string>
 </resources>

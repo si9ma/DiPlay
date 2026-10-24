@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Display
@@ -17,15 +19,18 @@ import com.shilapi.xcertplay.hud.BydBatteryField
 import com.shilapi.xcertplay.hud.BydVehicleMonitor
 import kotlin.math.abs
 
+/** The two battery cards: one on the centre screen, one on the dashboard, each with its own settings. */
 internal enum class BatteryCardTarget { CENTER, CLUSTER }
 internal enum class BatteryCardStyle { MINI, STANDARD, RICH }
 /** [FOLLOW] uses the head unit's day/night, read the way the CarPlay screen's "follow" reads it. */
 internal enum class BatteryCardTheme { FOLLOW, DAY, NIGHT }
 
-/** [scale] and [opacity] in %; [clusterX]/[clusterY] the card centre in % of the dashboard; [centerX]/[centerY] px, -1 = default. */
+/**
+ * One card's settings. [scale] and [opacity] in %; [clusterX]/[clusterY] the dashboard card's centre
+ * in % of the dashboard; [centerX]/[centerY] the centre-screen card's corner in px, -1 = default.
+ */
 internal data class BatteryCardConfig(
     val visible: Boolean = false,
-    val target: BatteryCardTarget = BatteryCardTarget.CENTER,
     val style: BatteryCardStyle = BatteryCardStyle.STANDARD,
     val fields: List<BydBatteryField> = BatteryCardSettings.DEFAULT_FIELDS,
     val scale: Int = 100,
@@ -38,23 +43,61 @@ internal data class BatteryCardConfig(
 )
 
 internal object BatteryCardSettings {
-    const val PREFS = "diplay_battery_card"
+    /** Where the single card of earlier versions kept its settings, with the display it was on. */
+    private const val LEGACY_PREFS = "diplay_battery_card"
+    private const val MIGRATED_KEY = "migrated_to"
     val SCALES = (60..160 step 5).toList()
     val OPACITIES = (30..100 step 5).toList()
     val DEFAULT_FIELDS = listOf(BydBatteryField.SOC, BydBatteryField.RANGE, BydBatteryField.POWER,
         BydBatteryField.REMAINING_ENERGY, BydBatteryField.SOH, BydBatteryField.TEMP_MAX, BydBatteryField.CELL_VOLTAGE_DIFF)
 
-    fun prefs(context: Context): SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    fun prefsName(target: BatteryCardTarget) = "diplay_battery_card_${target.name.lowercase()}"
 
-    fun load(context: Context): BatteryCardConfig {
-        val p = prefs(context)
+    fun prefs(context: Context, target: BatteryCardTarget): SharedPreferences {
+        migrate(context)
+        return context.getSharedPreferences(prefsName(target), Context.MODE_PRIVATE)
+    }
+
+    /** The card the single card of earlier versions became; its shortcut actions now name this card. */
+    fun legacyTarget(context: Context): BatteryCardTarget {
+        migrate(context)
+        val name = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE).getString(MIGRATED_KEY, null)
+        return BatteryCardTarget.entries.firstOrNull { it.name == name } ?: BatteryCardTarget.CENTER
+    }
+
+    /** Once: the single card's settings become the settings of the display it was on; the other card starts hidden. */
+    @Synchronized private fun migrate(context: Context) {
+        val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
+        if (legacy.contains(MIGRATED_KEY)) return
+        val all = legacy.all
+        if (all.isEmpty()) return
+        val target = BatteryCardTarget.entries.firstOrNull { it.name == all["target"] } ?: BatteryCardTarget.CENTER
+        val destination = context.getSharedPreferences(prefsName(target), Context.MODE_PRIVATE)
+        if (destination.all.isEmpty()) {
+            val editor = destination.edit()
+            for ((key, value) in all) {
+                if (key == "target") continue
+                when (value) {
+                    is Boolean -> editor.putBoolean(key, value)
+                    is Int -> editor.putInt(key, value)
+                    is Long -> editor.putLong(key, value)
+                    is Float -> editor.putFloat(key, value)
+                    is String -> editor.putString(key, value)
+                }
+            }
+            editor.commit()
+        }
+        legacy.edit().clear().putString(MIGRATED_KEY, target.name).commit()
+    }
+
+    fun load(context: Context, target: BatteryCardTarget): BatteryCardConfig {
+        val p = prefs(context, target)
         fun <T : Enum<T>> enum(key: String, values: Array<T>, default: T) =
             values.firstOrNull { it.name == p.getString(key, null) } ?: default
         val fields = p.getString("fields", null)?.split(',')?.toSet()
             ?.let { names -> BydBatteryField.entries.filter { it.name in names } }
         return BatteryCardConfig(
             visible = p.getBoolean("visible", false),
-            target = enum("target", BatteryCardTarget.values(), BatteryCardTarget.CENTER),
             style = enum("style", BatteryCardStyle.values(), BatteryCardStyle.STANDARD),
             fields = fields ?: DEFAULT_FIELDS,
             scale = p.getInt("scale", 100).coerceIn(SCALES.first(), SCALES.last()),
@@ -67,10 +110,9 @@ internal object BatteryCardSettings {
         )
     }
 
-    fun save(context: Context, config: BatteryCardConfig) {
-        prefs(context).edit()
+    fun save(context: Context, target: BatteryCardTarget, config: BatteryCardConfig) {
+        prefs(context, target).edit()
             .putBoolean("visible", config.visible)
-            .putString("target", config.target.name)
             .putString("style", config.style.name)
             .putString("fields", config.fields.joinToString(",") { it.name })
             .putInt("scale", config.scale)
@@ -83,153 +125,188 @@ internal object BatteryCardSettings {
             .apply()
     }
 
-    fun update(context: Context, change: (BatteryCardConfig) -> BatteryCardConfig) = save(context, change(load(context)))
+    fun update(context: Context, target: BatteryCardTarget, change: (BatteryCardConfig) -> BatteryCardConfig) =
+        save(context, target, change(load(context, target)))
 }
 
 /**
- * The battery card: a floating window on the centre screen (draggable) or on the dashboard (placed
- * from Settings, not touchable). It does not depend on a CarPlay session; it reads the battery
- * through [BydVehicleMonitor] only while it is shown. Needs "display over other apps". Main thread.
+ * The battery cards: floating windows on the centre screen (draggable) and on the dashboard (placed
+ * from Settings, not touchable), each shown or hidden by itself. They do not depend on a CarPlay
+ * session; they share one battery reading through [BydVehicleMonitor], made only while a card is
+ * shown. Needs "display over other apps". Main thread.
  */
 internal object BatteryCard {
     private const val TAG = "DiPlay-BatteryCard"
     private const val PREFERRED_CLUSTER_LAYER = "bosdisplay2"
+    private const val NIGHT_RECHECK_MILLIS = 5_000L
 
     private var app: Context? = null
-    private var view: BatteryCardView? = null
-    private var windows: WindowManager? = null
-    private var params: WindowManager.LayoutParams? = null
-    private var shownOn: Pair<BatteryCardTarget, Int>? = null
     private var observing = false
-    private val battery = BydVehicleMonitor.BatteryListener { update -> view?.update = update }
-    private val changed = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> app?.let(::refresh) }
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    /** The last day/night the head unit reported, kept while no input reports one. */
-    private var lastNight = true
-    private val nightChanged: () -> Unit = { applyTheme() }
-    /** Some inputs (a Configuration) change without a settings change, so "follow" also rechecks. */
-    private val recheck = object : Runnable {
-        override fun run() {
-            applyTheme()
-            if (view != null) handler.postDelayed(this, NIGHT_RECHECK_MILLIS)
+    private val handler = Handler(Looper.getMainLooper())
+    private var latestUpdate: BydVehicleMonitor.BatteryUpdate? = null
+    private val battery = BydVehicleMonitor.BatteryListener { update ->
+        latestUpdate = update
+        cards.values.forEach { it.view?.update = update }
+    }
+    private val nightChanged: () -> Unit = { cards.values.forEach { it.applyTheme() } }
+    private var following = false
+    private val cards = BatteryCardTarget.entries.associateWith { Card(it) }
+
+    private class Card(val target: BatteryCardTarget) {
+        var view: BatteryCardView? = null
+        var windows: WindowManager? = null
+        var params: WindowManager.LayoutParams? = null
+        var displayId: Int? = null
+        /** The last day/night the head unit reported, kept while no input reports one. */
+        var lastNight = true
+        val changed = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> app?.let { refresh(it, target) } }
+        /** Some inputs (a Configuration) change without a settings change, so "follow" also rechecks. */
+        val recheck = object : Runnable {
+            override fun run() {
+                applyTheme()
+                if (view != null) handler.postDelayed(this, NIGHT_RECHECK_MILLIS)
+            }
+        }
+
+        /** Day or night colours from the card's theme. */
+        fun applyTheme() {
+            val card = view ?: return
+            val context = app ?: return
+            card.night = when (card.config.theme) {
+                BatteryCardTheme.DAY -> false
+                BatteryCardTheme.NIGHT -> true
+                BatteryCardTheme.FOLLOW -> (HeadUnitNightMode.read(context) ?: lastNight).also { lastNight = it }
+            }
         }
     }
 
-    val shown: Boolean get() = view != null
+    fun shown(target: BatteryCardTarget): Boolean = cards.getValue(target).view != null
 
     fun permitted(context: Context) = Build.VERSION.SDK_INT >= 26 && Settings.canDrawOverlays(context)
 
-    /** App start: brings back a card that was left visible. */
+    /** App start: brings back the cards that were left visible. */
     fun restore(context: Context) {
         observe(context)
-        refresh(context)
+        BatteryCardTarget.entries.forEach { refresh(context, it) }
     }
 
     /** For a shortcut or the Settings switch; false when the card could not be drawn. */
-    fun setVisible(context: Context, visible: Boolean): Boolean {
+    fun setVisible(context: Context, target: BatteryCardTarget, visible: Boolean): Boolean {
         observe(context)
-        BatteryCardSettings.update(context) { it.copy(visible = visible) }
-        if (!visible) { hide(); return true }
-        return show(context)
+        BatteryCardSettings.update(context, target) { it.copy(visible = visible) }
+        if (!visible) { hide(target); return true }
+        return show(context, target)
     }
 
     private fun observe(context: Context) {
         app = context.applicationContext
         if (observing) return
         observing = true
-        BatteryCardSettings.prefs(context).registerOnSharedPreferenceChangeListener(changed)
+        cards.values.forEach { BatteryCardSettings.prefs(context, it.target).registerOnSharedPreferenceChangeListener(it.changed) }
     }
 
-    private fun refresh(context: Context) {
-        if (BatteryCardSettings.load(context).visible) show(context) else hide()
+    private fun refresh(context: Context, target: BatteryCardTarget) {
+        if (BatteryCardSettings.load(context, target).visible) show(context, target) else hide(target)
     }
 
-    private fun show(context: Context): Boolean {
+    private fun show(context: Context, target: BatteryCardTarget): Boolean {
         val app = context.applicationContext
         this.app = app
-        val config = BatteryCardSettings.load(app)
+        val card = cards.getValue(target)
+        val config = BatteryCardSettings.load(app, target)
         if (!permitted(app)) {
             Log.i(TAG, "overlay permission missing")
-            hide()
+            hide(target)
             return false
         }
-        val display = display(app, config.target)
+        val display = display(app, target)
         if (display == null) {
-            Log.i(TAG, "no ${config.target} display")
-            hide()
+            Log.i(TAG, "no $target display")
+            hide(target)
             return false
         }
-        val current = view
-        if (current != null && shownOn == config.target to display.displayId) {
+        val current = card.view
+        if (current != null && card.displayId == display.displayId) {
             current.config = config
-            applyTheme()
-            relayout()
+            card.applyTheme()
+            relayout(card)
             return true
         }
-        hide()
+        hide(target)
         return try {
             val windowContext = CustomClusterWindows.overlayContext(app, display)
             val manager = windowContext.getSystemService(WindowManager::class.java) ?: return false
-            val card = BatteryCardView(windowContext, BatteryCardText.of(context)).also { it.config = config }
+            val view = BatteryCardView(windowContext, BatteryCardText.of(context)).also {
+                it.config = config
+                it.update = latestUpdate
+            }
             var flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            if (config.target == BatteryCardTarget.CLUSTER) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            if (target == BatteryCardTarget.CLUSTER) flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             val layout = WindowManager.LayoutParams(1, 1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, flags,
                 PixelFormat.TRANSLUCENT).apply {
                 gravity = Gravity.TOP or Gravity.START
-                title = "DiPlay battery card"
+                title = "DiPlay battery card ${target.name.lowercase()}"
             }
-            place(card, manager, layout, config)
-            if (config.target == BatteryCardTarget.CENTER) drag(card, manager, layout)
-            manager.addView(card, layout)
-            view = card; windows = manager; params = layout; shownOn = config.target to display.displayId
-            BydVehicleMonitor.addBatteryListener(app, battery)
-            HeadUnitNightMode.install(app)
-            HeadUnitNightMode.addListener(nightChanged)
-            handler.removeCallbacks(recheck)
-            recheck.run()
-            Log.i(TAG, "shown on display ${display.displayId} ${layout.width}x${layout.height}")
+            place(target, view, manager, layout, config)
+            if (target == BatteryCardTarget.CENTER) drag(view, manager, layout)
+            manager.addView(view, layout)
+            card.view = view; card.windows = manager; card.params = layout; card.displayId = display.displayId
+            follow(app)
+            handler.removeCallbacks(card.recheck)
+            card.recheck.run()
+            Log.i(TAG, "$target shown on display ${display.displayId} ${layout.width}x${layout.height}")
             true
         } catch (error: RuntimeException) {
-            Log.w(TAG, "card failed: ${CustomClusterWindows.failureSummary(error)}")
-            hide()
+            Log.w(TAG, "$target card failed: ${CustomClusterWindows.failureSummary(error)}")
+            hide(target)
             false
         }
     }
 
-    fun hide() {
-        BydVehicleMonitor.removeBatteryListener(battery)
-        HeadUnitNightMode.removeListener(nightChanged)
-        handler.removeCallbacks(recheck)
-        val card = view ?: return
-        runCatching { windows?.removeViewImmediate(card) }
-        view = null; windows = null; params = null; shownOn = null
-        Log.i(TAG, "hidden")
+    fun hide(target: BatteryCardTarget) {
+        val card = cards.getValue(target)
+        handler.removeCallbacks(card.recheck)
+        val view = card.view
+        if (view != null) {
+            runCatching { card.windows?.removeViewImmediate(view) }
+            card.view = null; card.windows = null; card.params = null; card.displayId = null
+            Log.i(TAG, "$target hidden")
+        }
+        follow(app)
     }
 
-    /** Day or night colours from the card's theme; "follow" keeps the last known state while no input reports one. */
-    private fun applyTheme() {
-        val card = view ?: return
-        val context = app ?: return
-        card.night = when (card.config.theme) {
-            BatteryCardTheme.DAY -> false
-            BatteryCardTheme.NIGHT -> true
-            BatteryCardTheme.FOLLOW -> (HeadUnitNightMode.read(context) ?: lastNight).also { lastNight = it }
+    /** One battery reading and one day/night observer while any card is shown. */
+    private fun follow(context: Context?) {
+        val wanted = cards.values.any { it.view != null }
+        if (wanted == following) return
+        if (wanted) {
+            val app = context ?: return
+            following = true
+            BydVehicleMonitor.addBatteryListener(app, battery)
+            HeadUnitNightMode.install(app)
+            HeadUnitNightMode.addListener(nightChanged)
+        } else {
+            following = false
+            BydVehicleMonitor.removeBatteryListener(battery)
+            HeadUnitNightMode.removeListener(nightChanged)
+            latestUpdate = null
         }
     }
 
-    private fun relayout() {
-        val card = view ?: return
-        val manager = windows ?: return
-        val layout = params ?: return
-        place(card, manager, layout, card.config)
-        runCatching { manager.updateViewLayout(card, layout) }
+    private fun relayout(card: Card) {
+        val view = card.view ?: return
+        val manager = card.windows ?: return
+        val layout = card.params ?: return
+        place(card.target, view, manager, layout, view.config)
+        runCatching { manager.updateViewLayout(view, layout) }
     }
 
     private fun bounds(manager: WindowManager, card: BatteryCardView): Pair<Int, Int> =
         if (Build.VERSION.SDK_INT >= 30) manager.currentWindowMetrics.bounds.let { it.width() to it.height() }
         else card.context.resources.displayMetrics.let { it.widthPixels to it.heightPixels }
 
-    private fun place(card: BatteryCardView, manager: WindowManager, layout: WindowManager.LayoutParams, config: BatteryCardConfig) {
+    private fun place(target: BatteryCardTarget, card: BatteryCardView, manager: WindowManager,
+        layout: WindowManager.LayoutParams, config: BatteryCardConfig) {
         val (width, height) = card.contentSize()
         val (screenWidth, screenHeight) = bounds(manager, card)
         val density = card.context.resources.displayMetrics.density
@@ -237,7 +314,7 @@ internal object BatteryCard {
         layout.height = height
         val maxX = (screenWidth - width).coerceAtLeast(0)
         val maxY = (screenHeight - height).coerceAtLeast(0)
-        if (config.target == BatteryCardTarget.CLUSTER) {
+        if (target == BatteryCardTarget.CLUSTER) {
             layout.x = (screenWidth * config.clusterX / 100 - width / 2).coerceIn(0, maxX)
             layout.y = (screenHeight * config.clusterY / 100 - height / 2).coerceIn(0, maxY)
         } else {
@@ -266,7 +343,7 @@ internal object BatteryCard {
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (dragging) {
-                    BatteryCardSettings.update(card.context) { it.copy(centerX = layout.x, centerY = layout.y) }
+                    BatteryCardSettings.update(card.context, BatteryCardTarget.CENTER) { it.copy(centerX = layout.x, centerY = layout.y) }
                 }
             }
             true
@@ -284,13 +361,13 @@ internal object BatteryCard {
             ?: all.firstOrNull()
     }
 
-    fun diagnostics(context: Context): List<String> {
-        val config = BatteryCardSettings.load(context)
-        return listOf("Battery card: visible=${config.visible} shown=$shown on=$shownOn target=${config.target} " +
-            "style=${config.style} theme=${config.theme} night=${view?.night} fields=${config.fields.size} permitted=${permitted(context)}")
-    }
-
-    private const val NIGHT_RECHECK_MILLIS = 5_000L
+    fun diagnostics(context: Context): List<String> = BatteryCardTarget.entries.map { target ->
+        val config = BatteryCardSettings.load(context, target)
+        val card = cards.getValue(target)
+        "Battery card $target: visible=${config.visible} shown=${card.view != null} display=${card.displayId} " +
+            "style=${config.style} theme=${config.theme} night=${card.view?.night} fields=${config.fields.size} " +
+            "permitted=${permitted(context)}"
+    } + "Battery card legacy actions -> ${BatteryCardSettings.legacyTarget(context)}"
 }
 
 /** Localized copy for [BatteryCardView], read once when the card is created. */

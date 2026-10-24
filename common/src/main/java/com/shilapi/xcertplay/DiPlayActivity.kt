@@ -4306,38 +4306,42 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
     }
 
+    /** Which of the two battery cards the settings card edits. */
+    private var batteryCardTarget = BatteryCardTarget.CENTER
+
     private fun batteryCardControls(card: LinearLayout) {
-        val config = BatteryCardSettings.load(this)
+        val target = batteryCardTarget
+        val targets = BatteryCardTarget.entries
+        choice(card, getString(R.string.settings_battery_card_which), listOf(
+            getString(R.string.settings_battery_card_display_center), getString(R.string.settings_battery_card_display_cluster)),
+            targets.indexOf(target), reconnects = false) { index ->
+            batteryCardTarget = targets[index]
+            render()
+        }
+        val config = BatteryCardSettings.load(this, target)
         toggle(card, getString(R.string.settings_battery_card_show),
             getString(R.string.settings_battery_card_show_description), config.visible) { on ->
             if (on && !BatteryCard.permitted(this)) openOverlayPermission()
-            if (!BatteryCard.setVisible(this, on) && on) toast(getString(R.string.settings_battery_card_unavailable))
-        }
-        val targets = BatteryCardTarget.entries
-        choice(card, getString(R.string.settings_battery_card_display), listOf(
-            getString(R.string.settings_battery_card_display_center), getString(R.string.settings_battery_card_display_cluster)),
-            targets.indexOf(config.target), reconnects = false) { index ->
-            BatteryCardSettings.update(this) { it.copy(target = targets[index]) }
-            render()
+            if (!BatteryCard.setVisible(this, target, on) && on) toast(getString(R.string.settings_battery_card_unavailable))
         }
         val styles = BatteryCardStyle.entries
         choice(card, getString(R.string.settings_battery_card_style), listOf(
             getString(R.string.settings_battery_card_style_mini), getString(R.string.settings_battery_card_style_standard),
             getString(R.string.settings_battery_card_style_rich)), styles.indexOf(config.style), reconnects = false) { index ->
-            BatteryCardSettings.update(this) { it.copy(style = styles[index]) }
+            BatteryCardSettings.update(this, target) { it.copy(style = styles[index]) }
         }
         val themes = BatteryCardTheme.entries
         choice(card, getString(R.string.settings_battery_card_theme), listOf(
             getString(R.string.settings_battery_card_theme_follow), getString(R.string.settings_battery_card_theme_day),
             getString(R.string.settings_battery_card_theme_night)), themes.indexOf(config.theme), reconnects = false) { index ->
-            BatteryCardSettings.update(this) { it.copy(theme = themes[index]) }
+            BatteryCardSettings.update(this, target) { it.copy(theme = themes[index]) }
         }
         val fieldsTitle = getString(R.string.settings_battery_card_fields)
         searchIndexSink?.add(fieldsTitle)
         val fieldsButton = button("$fieldsTitle · ${getString(R.string.settings_battery_card_fields_count, config.fields.size)}", false) {}
         fieldsButton.setOnClickListener {
             val all = com.shilapi.xcertplay.hud.BydBatteryField.entries
-            val chosen = BatteryCardSettings.load(this).fields.toSet()
+            val chosen = BatteryCardSettings.load(this, target).fields.toSet()
             val checked = BooleanArray(all.size) { all[it] in chosen }
             appDialogBuilder().setTitle(fieldsTitle)
                 .setMultiChoiceItems(all.map { getString(BatteryCardText.LABELS.getValue(it)) }.toTypedArray(), checked) { _, index, on ->
@@ -4345,25 +4349,25 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
                 .setPositiveButton(getString(R.string.save)) { _, _ ->
                     val fields = all.filterIndexed { index, _ -> checked[index] }
-                    BatteryCardSettings.update(this) { it.copy(fields = fields) }
+                    BatteryCardSettings.update(this, target) { it.copy(fields = fields) }
                     fieldsButton.text = "$fieldsTitle · ${getString(R.string.settings_battery_card_fields_count, fields.size)}"
                 }.setNegativeButton(getString(R.string.cancel), null).show()
         }
         card.addView(fieldsButton, matchButton(0, 60)); card.addView(space(12))
         card.addView(overlaySliderRow(getString(R.string.settings_battery_card_size), BatteryCardSettings.SCALES, config.scale) { "$it %" }
-            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(scale = value) } } })
+            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this, target) { it.copy(scale = value) } } })
         card.addView(overlaySliderRow(getString(R.string.settings_battery_card_opacity), BatteryCardSettings.OPACITIES, config.opacity) { "$it %" }
-            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(opacity = value) } } })
-        if (config.target == BatteryCardTarget.CLUSTER) {
+            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this, target) { it.copy(opacity = value) } } })
+        if (target == BatteryCardTarget.CLUSTER) {
             val positions = (0..100).toList()
             card.addView(overlaySliderRow(getString(R.string.settings_battery_card_x), positions, config.clusterX) { "$it %" }
-                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(clusterX = value) } } })
+                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this, target) { it.copy(clusterX = value) } } })
             card.addView(overlaySliderRow(getString(R.string.settings_battery_card_y), positions, config.clusterY) { "$it %" }
-                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(clusterY = value) } } })
+                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this, target) { it.copy(clusterY = value) } } })
         } else {
             card.addView(label(getString(R.string.settings_battery_card_drag_hint), 14, MUTED))
             card.addView(button(getString(R.string.settings_battery_card_reset), false) {
-                BatteryCardSettings.update(this) { it.copy(centerX = -1, centerY = -1) }
+                BatteryCardSettings.update(this, target) { it.copy(centerX = -1, centerY = -1) }
             }, matchButton(12, 60))
         }
         val overlay = BatteryCard.permitted(this)

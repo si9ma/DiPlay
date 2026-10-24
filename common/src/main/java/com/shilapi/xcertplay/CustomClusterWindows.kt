@@ -42,6 +42,16 @@ internal object ClusterWindowVisibility {
     fun rawMapWindow(session: Any): CustomClusterWindows? = sessions[session]?.windows
         ?.mapNotNull { it.get() }?.lastOrNull { it.rawMapSurface() != null }
 
+    /** Whether [panel] is enabled, requested visible and in a window on the dashboard right now. */
+    fun shown(context: Context, controller: com.shilapi.xcertplay.orchestration.CarPlayController, panel: ClusterWindowPanel): Boolean {
+        val session = controller.mediaAttachmentToken() ?: return false
+        val config = ClusterWindowSettings.load(context)
+        if (panel == ClusterWindowPanel.MUSIC && !config.music || panel == ClusterWindowPanel.MAP && !config.map) return false
+        val state = sessions[session] ?: return false
+        if (state.windows.mapNotNull { it.get() }.none { it.isShowing }) return false
+        return if (panel == ClusterWindowPanel.MUSIC) state.music else state.map
+    }
+
     fun setVisible(context: Context, controller: com.shilapi.xcertplay.orchestration.CarPlayController,
         panel: ClusterWindowPanel, visible: Boolean): Boolean {
         val session = controller.mediaAttachmentToken() ?: return false

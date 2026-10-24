@@ -11,6 +11,7 @@ import com.shilapi.xcertplay.airplay.AirPlayKnobState
 import com.shilapi.xcertplay.airplay.CarPlayMediaButton
 import com.shilapi.xcertplay.hud.BydVehicleEvent
 import com.shilapi.xcertplay.hud.BydVehicleMonitor
+import com.shilapi.xcertplay.hud.BydVehicleSignalGroup
 import com.shilapi.xcertplay.media.NavigationPlayback
 import com.shilapi.xcertplay.orchestration.CarPlayController
 import org.json.JSONArray
@@ -23,11 +24,11 @@ internal enum class ShortcutAction {
     WAIT, URI, PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS, SIRI, SELECT, BACK, LEFT, RIGHT, HOME,
     SHOW_WINDOW, HIDE_WINDOW,
     SHOW_CLUSTER_MUSIC, HIDE_CLUSTER_MUSIC, SHOW_CLUSTER_MAP, HIDE_CLUSTER_MAP, KEY_PRESS, TAP, PINCH_IN, PINCH_OUT, ORIGINAL_CLICK,
-    SHOW_BATTERY_CARD, HIDE_BATTERY_CARD;
+    SHOW_CENTER_BATTERY_CARD, HIDE_CENTER_BATTERY_CARD, SHOW_CLUSTER_BATTERY_CARD, HIDE_CLUSTER_BATTERY_CARD;
 
     val legacyWindow get() = this == SHOW_WINDOW || this == HIDE_WINDOW
     val clusterWindow get() = this in SHOW_CLUSTER_MUSIC..HIDE_CLUSTER_MAP
-    val batteryCard get() = this == SHOW_BATTERY_CARD || this == HIDE_BATTERY_CARD
+    val batteryCard get() = this in SHOW_CENTER_BATTERY_CARD..HIDE_CLUSTER_BATTERY_CARD
     val pinch get() = this == PINCH_IN || this == PINCH_OUT
 }
 /** VEHICLE follows a read-only car signal (see [BydVehicleMonitor]); it needs the adb shell. */
@@ -36,23 +37,28 @@ internal data class ShortcutStep(val action: ShortcutAction, val waitMs: Long = 
     val keyCode: Int = -1, val scanCode: Int = -1, val tapX: Double = -1.0, val tapY: Double = -1.0,
     val zoomCenterX: Double = 0.5, val zoomCenterY: Double = 0.5,
     val pinchScale: Double = CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE)
+/** Runs when its trigger fires and every one of [conditions] holds. Several rules may share a trigger; all that hold run. */
 internal data class ShortcutRule(
     val id: String = UUID.randomUUID().toString(), val name: String = "", val enabled: Boolean = false,
     val event: ShortcutEvent = ShortcutEvent.CONNECTED, val keyCode: Int = 0, val scanCode: Int = 0,
     val steps: List<ShortcutStep> = emptyList(), val clickCount: Int = 1,
     val vehicleEvent: BydVehicleEvent? = null,
+    val conditions: List<ShortcutCondition> = emptyList(),
 )
 
 /** Versioned, bounded local data. Invalid entries never become executable partial rules. */
 internal object ShortcutCodec {
-    const val MAX_RULES = 12
+    const val VERSION = 4
     const val MAX_STEPS = 32
-    const val MAX_BYTES = 65_536
+    /** The whole rule set; as large as a settings backup may be. */
+    const val MAX_BYTES = 512 * 1024
     fun valid(rule: ShortcutRule): Boolean = rule.id.length in 1..64 && rule.name.length in 1..64 &&
         rule.name.none { it.isISOControl() } && rule.keyCode in 0..65535 && rule.scanCode in 0..65535 &&
         rule.clickCount in 1..4 && (rule.event == ShortcutEvent.KEY || rule.clickCount == 1) &&
         (rule.event == ShortcutEvent.VEHICLE) == (rule.vehicleEvent != null) &&
         (rule.event != ShortcutEvent.VEHICLE || rule.keyCode == 0 && rule.scanCode == 0) &&
+        rule.conditions.size <= ShortcutConditions.MAX_PER_RULE && rule.conditions.all { it.valid } &&
+        rule.conditions.map { it.key }.distinct().size == rule.conditions.size &&
         (!rule.enabled || rule.steps.none { it.action.legacyWindow || it.action == ShortcutAction.KEY_PRESS }) &&
         (rule.steps.none { it.action == ShortcutAction.ORIGINAL_CLICK } ||
             rule.event == ShortcutEvent.KEY && com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(rule.keyCode)) &&
@@ -91,18 +97,23 @@ internal object ShortcutCodec {
         return url.takeIf { runCatching { URI(it).let { uri -> uri.isAbsolute && uri.rawUserInfo == null } }.getOrDefault(false) }
     }
 
-    fun decode(text: String): List<ShortcutRule> = runCatching {
+    /**
+     * [legacyBattery] is the card the single battery card of earlier versions became: its show/hide
+     * actions now name that card. Versions before 4 had no conditions and at most 12 rules; an older
+     * app reading version 4 rejects the whole set rather than running part of it.
+     */
+    fun decode(text: String, legacyBattery: BatteryCardTarget = BatteryCardTarget.CENTER): List<ShortcutRule> = runCatching {
         require(text.toByteArray(Charsets.UTF_8).size <= MAX_BYTES)
         val root = JSONObject(text)
         val version = integer(root, "version")
-        require(version in 1L..3L)
+        require(version in 1L..VERSION.toLong())
         val list = root.getJSONArray("rules")
-        require(list.length() <= MAX_RULES)
         val ids = HashSet<String>()
-        val parsed = (0 until list.length()).mapNotNull { index -> runCatching {
+        (0 until list.length()).mapNotNull { index -> runCatching {
             val item = list.getJSONObject(index)
             val steps = item.getJSONArray("steps")
             require(steps.length() in 1..MAX_STEPS)
+            val conditions = item.optJSONArray("conditions")
             val rule = ShortcutRule(
                 id = item.get("id") as String, name = item.get("name") as String,
                 enabled = if (item.has("enabled")) item.get("enabled") as Boolean else false,
@@ -111,10 +122,16 @@ internal object ShortcutCodec {
                 scanCode = integer(item, "scanCode").also { require(it in 0..65535) }.toInt(),
                 clickCount = if (version >= 3) integer(item, "clickCount").also { require(it in 1..4) }.toInt() else 1,
                 // An older app drops the whole rule at ShortcutEvent.valueOf("VEHICLE"), never runs it partly.
-                vehicleEvent = if (item.has("vehicle")) BydVehicleEvent.valueOf(item.get("vehicle") as String) else null,
+                vehicleEvent = if (item.has("vehicle")) BydVehicleEvent.fromStored(item.get("vehicle") as String) else null,
+                conditions = if (conditions == null) emptyList() else (0 until conditions.length()).map { at ->
+                    val condition = conditions.getJSONObject(at)
+                    val values = condition.getJSONArray("values")
+                    ShortcutCondition(ShortcutConditionKey.valueOf(condition.get("key") as String),
+                        (0 until values.length()).mapTo(LinkedHashSet()) { values.get(it) as String })
+                },
                 steps = (0 until steps.length()).map { stepIndex ->
                     val step = steps.getJSONObject(stepIndex)
-                    val action = ShortcutAction.valueOf(step.get("action") as String)
+                    val action = action(step.get("action") as String, legacyBattery)
                     require(!action.pinch || step.has("zoomCenterX") && step.has("zoomCenterY"))
                     ShortcutStep(action,
                         integer(step, "waitMs"), step.get("url") as String,
@@ -132,23 +149,31 @@ internal object ShortcutCodec {
             require(valid(retained) && ids.add(retained.id))
             retained
         }.getOrNull() }
-        parsed.filter { candidate -> parsed.count { sameTrigger(candidate, it) } == 1 }
     }.getOrDefault(emptyList())
 
-    private fun sameTrigger(a: ShortcutRule, b: ShortcutRule): Boolean = a.event == b.event && when (a.event) {
-        ShortcutEvent.CONNECTED -> true
-        ShortcutEvent.KEY -> a.keyCode == b.keyCode && a.scanCode == b.scanCode && a.clickCount == b.clickCount
-        ShortcutEvent.VEHICLE -> a.vehicleEvent == b.vehicleEvent
+    /** The one battery card of earlier versions became [legacyBattery]. */
+    private fun action(name: String, legacyBattery: BatteryCardTarget): ShortcutAction = when (name) {
+        "SHOW_BATTERY_CARD" -> if (legacyBattery == BatteryCardTarget.CLUSTER) ShortcutAction.SHOW_CLUSTER_BATTERY_CARD
+            else ShortcutAction.SHOW_CENTER_BATTERY_CARD
+        "HIDE_BATTERY_CARD" -> if (legacyBattery == BatteryCardTarget.CLUSTER) ShortcutAction.HIDE_CLUSTER_BATTERY_CARD
+            else ShortcutAction.HIDE_CENTER_BATTERY_CARD
+        else -> ShortcutAction.valueOf(name)
     }
-    fun conflicts(rules: List<ShortcutRule>): Boolean = rules.any { a -> rules.count { sameTrigger(a, it) } > 1 }
 
     fun encode(rules: List<ShortcutRule>): String? = runCatching {
-        require(rules.size <= MAX_RULES && rules.all(::valid) && !conflicts(rules) && rules.map { it.id }.distinct().size == rules.size)
-        JSONObject().put("version", 3).put("rules", JSONArray().apply {
+        require(rules.all(::valid) && rules.map { it.id }.distinct().size == rules.size)
+        JSONObject().put("version", VERSION).put("rules", JSONArray().apply {
             rules.forEach { rule -> put(JSONObject().put("id", rule.id).put("name", rule.name)
                 .put("enabled", rule.enabled).put("event", rule.event.name).put("keyCode", rule.keyCode)
                 .put("scanCode", rule.scanCode).put("clickCount", rule.clickCount).apply {
                     rule.vehicleEvent?.let { put("vehicle", it.name) }
+                    if (rule.conditions.isNotEmpty()) put("conditions", JSONArray().apply {
+                        rule.conditions.forEach { condition ->
+                            put(JSONObject().put("key", condition.key.name).put("values", JSONArray().apply {
+                                condition.key.values.filter { it in condition.values }.forEach { put(it) }
+                            }))
+                        }
+                    })
                 }.put("steps", JSONArray().apply {
                     rule.steps.forEach { put(JSONObject().put("action", it.action.name).put("waitMs", it.waitMs).put("url", it.url)
                         .put("keyCode", it.keyCode).put("scanCode", it.scanCode).apply {
@@ -225,8 +250,13 @@ internal object CarPlayShortcuts {
     data class TouchSession(val owner: CarPlayController, val session: Any, val stream: Any)
     private var touchCapture: TouchSession? = null
     @Synchronized fun touchSession(): TouchSession? {
+        if (run != null) return null
+        return clickSession()
+    }
+    /** Like [touchSession], but a running sequence does not block it: a new trigger interrupts that sequence. */
+    private fun clickSession(): TouchSession? {
         val owner = controller ?: return null
-        if (run != null || blocked()) return null
+        if (blocked()) return null
         val session = owner.mediaControlSessionToken() ?: return null
         val stream = owner.activeAirPlaySessionToken() ?: return null
         return TouchSession(owner, session, stream)
@@ -274,7 +304,7 @@ internal object CarPlayShortcuts {
 
     private fun prefs(context: Context) = context.getSharedPreferences("diplay_shortcuts", Context.MODE_PRIVATE)
     fun load(context: Context): List<ShortcutRule> = runCatching {
-        ShortcutCodec.decode(prefs(context).getString("rules", "").orEmpty())
+        ShortcutCodec.decode(prefs(context).getString("rules", "").orEmpty(), BatteryCardSettings.legacyTarget(context))
     }.getOrDefault(emptyList())
     fun wanted(context: Context): Boolean = load(context).any { it.enabled }
     @Synchronized fun save(context: Context, rules: List<ShortcutRule>): Boolean {
@@ -297,7 +327,7 @@ internal object CarPlayShortcuts {
     @Synchronized fun detach(controller: CarPlayController?) {
         if (controller == null || this.controller !== controller) return
         stop(); cancelCapture(); main.removeCallbacks(poll)
-        followVehicle(emptySet())
+        followVehicle(emptySet(), emptySet())
         followAgent(false)
         preferences?.unregisterOnSharedPreferenceChangeListener(changed)
         preferences = null; this.controller = null; context = null; mediaEcho = null
@@ -312,30 +342,33 @@ internal object CarPlayShortcuts {
         if (clicks?.let { !currentTouch(it.connection) } == true) cancelClicks()
         if (touchCapture?.let { !currentTouch(it) } == true) cancelCapture()
         if (touchCapture != null) main.postDelayed(poll, 250)
-        // Vehicle reads run only while a session can act on them, and only for the events a rule uses.
+        // Vehicle reads run only while a session can act on them, and only for what enabled rules use.
         val live = session != null && stream != null
-        followVehicle(if (!live) emptySet() else rules.filter { it.enabled && it.event == ShortcutEvent.VEHICLE }
-            .mapNotNullTo(HashSet()) { it.vehicleEvent })
+        val enabled = rules.filter { it.enabled }
+        followVehicle(if (!live) emptySet() else enabled.filter { it.event == ShortcutEvent.VEHICLE }.mapNotNullTo(HashSet()) { it.vehicleEvent },
+            if (!live) emptySet() else ShortcutConditions.groups(enabled))
         // An original-key replay through the resident shell agent takes milliseconds instead of seconds.
-        followAgent(live && rules.any { rule -> rule.enabled && rule.steps.any { it.action == ShortcutAction.ORIGINAL_CLICK } })
+        followAgent(live && enabled.any { rule -> rule.steps.any { it.action == ShortcutAction.ORIGINAL_CLICK } })
         if (session != null && stream != null) {
             if (lastConnected.get() !== session) {
                 lastConnected = WeakReference(session)
-                rules.firstOrNull { it.enabled && it.event == ShortcutEvent.CONNECTED }?.let { start(it) }
+                fire(enabled.filter { it.event == ShortcutEvent.CONNECTED }, null, "connected")
             }
         } else if (rules.any { it.enabled } && !controller.isClosed()) main.postDelayed(poll, 250)
     }
 
     private var followingVehicle = emptySet<BydVehicleEvent>()
+    private var followingGroups = emptySet<BydVehicleSignalGroup>()
     private val vehicleListener = BydVehicleMonitor.EventListener { event -> onVehicleEvent(event) }
-    private fun followVehicle(wanted: Set<BydVehicleEvent>) {
-        if (wanted == followingVehicle) return
+    private fun followVehicle(events: Set<BydVehicleEvent>, groups: Set<BydVehicleSignalGroup>) {
+        if (events == followingVehicle && groups == followingGroups) return
         val app = context
-        if (wanted.isNotEmpty() && app == null) return
-        followingVehicle = wanted
-        if (wanted.isNotEmpty()) BydVehicleMonitor.addEventListener(app!!, vehicleListener, wanted)
+        val wanted = events.isNotEmpty() || groups.isNotEmpty()
+        if (wanted && app == null) return
+        followingVehicle = events; followingGroups = groups
+        if (wanted) BydVehicleMonitor.addEventListener(app!!, vehicleListener, events, groups)
         else BydVehicleMonitor.removeEventListener(vehicleListener)
-        note("vehicle events ${if (wanted.isNotEmpty()) "followed: ${wanted.joinToString(",")}" else "released"}")
+        note(if (wanted) "vehicle followed: events=${events.joinToString(",")} conditions=${groups.joinToString(",")}" else "vehicle released")
     }
 
     private var followingAgent = false
@@ -348,33 +381,76 @@ internal object CarPlayShortcuts {
         else com.shilapi.xcertplay.hud.BydShellAgent.release("shortcuts")
     }
 
-    /** A read-only car change (main thread). The first matching enabled rule runs unless one is running. */
+    /** A read-only car change (main thread). Every enabled rule for it whose conditions hold runs. */
     @Synchronized fun onVehicleEvent(event: BydVehicleEvent) {
         if (event !in followingVehicle || hasCapture()) return
-        val rule = rules.firstOrNull { it.enabled && it.event == ShortcutEvent.VEHICLE && it.vehicleEvent == event } ?: return
-        note("vehicle trigger $event")
-        if (run != null) note("trigger ignored busy") else if (!start(rule)) note("vehicle trigger not started")
+        val candidates = rules.filter { it.enabled && it.event == ShortcutEvent.VEHICLE && it.vehicleEvent == event }
+        if (candidates.isNotEmpty() && !fire(candidates, null, "vehicle $event")) note("vehicle trigger $event not started")
     }
     private fun blocked(): Boolean = context?.let { inCall(it) } != false ||
         controller?.carPlayPhoneCallActive() == true || NavigationPlayback.snapshot().priorityVoiceActive
     private fun current(run: Run): Boolean = controller === run.owner &&
         run.owner.mediaControlSessionToken() === run.session &&
         run.owner.activeAirPlaySessionToken() === run.stream && !blocked()
-    private fun start(rule: ShortcutRule, trigger: KeyEvent? = null): Boolean {
-        if (run != null || hasCapture() || !ShortcutCodec.executable(rule) || blocked()) return false
-        if (rule.steps.any { it.action == ShortcutAction.ORIGINAL_CLICK } &&
-            (trigger == null || !physical(trigger) || trigger.keyCode != rule.keyCode || trigger.scanCode != rule.scanCode)) return false
+
+    /** A trigger waiting for vehicle values its rules' conditions need, as right after connecting. */
+    private data class PendingFire(val rules: List<ShortcutRule>, val trigger: KeyEvent?, val reason: String, val since: Long)
+    private var pendingFire: PendingFire? = null
+    private val retryFire = Runnable { synchronized(this) {
+        val pending = pendingFire ?: return@synchronized
+        pendingFire = null
+        fire(pending.rules, pending.trigger, pending.reason, pending.since)
+    } }
+
+    /**
+     * Runs every rule of [candidates] whose conditions hold, in list order, as one sequence; it
+     * interrupts a sequence still running. A condition whose value is not known yet makes the
+     * trigger wait up to [ShortcutConditions.UNKNOWN_WAIT_MILLIS]; after that it does not hold.
+     */
+    private fun fire(candidates: List<ShortcutRule>, trigger: KeyEvent?, reason: String,
+        since: Long = SystemClock.uptimeMillis()): Boolean {
+        pendingFire = null; main.removeCallbacks(retryFire)
+        if (candidates.isEmpty() || hasCapture() || blocked()) return false
+        val app = context ?: return false
+        val read = ShortcutConditions.reader(app, controller)
+        val results = candidates.map { it to ShortcutConditions.matches(it.conditions, read) }
+        if (results.any { it.second == null } && SystemClock.uptimeMillis() - since < ShortcutConditions.UNKNOWN_WAIT_MILLIS) {
+            pendingFire = PendingFire(candidates, trigger?.let(::KeyEvent), reason, since)
+            main.postDelayed(retryFire, 150)
+            return true
+        }
+        val matched = results.filter { it.second == true }.map { it.first }
+        note("trigger $reason rules=${candidates.size} matched=${matched.size}" +
+            results.count { it.second == null }.let { if (it > 0) " unknown=$it" else "" })
+        return matched.isNotEmpty() && start(matched, trigger)
+    }
+
+    private fun start(rules: List<ShortcutRule>, trigger: KeyEvent? = null): Boolean {
+        val runnable = rules.filter { rule ->
+            ShortcutCodec.executable(rule) && (rule.steps.none { it.action == ShortcutAction.ORIGINAL_CLICK } ||
+                trigger != null && physical(trigger) && trigger.keyCode == rule.keyCode && trigger.scanCode == rule.scanCode)
+        }
+        if (runnable.isEmpty() || hasCapture() || blocked()) return false
         val owner = controller ?: return false
         val session = owner.mediaControlSessionToken() ?: return false
         val stream = owner.activeAirPlaySessionToken() ?: return false
+        // Siri ends a sequence, so rules that ask for it go last; the original key is replayed once.
+        val ordered = runnable.filter { rule -> rule.steps.none { it.action == ShortcutAction.SIRI } } +
+            runnable.filter { rule -> rule.steps.any { it.action == ShortcutAction.SIRI } }
+        var replayed = false
+        val steps = ordered.flatMap { it.steps }.filter { step ->
+            if (step.action != ShortcutAction.ORIGINAL_CLICK) true else !replayed.also { replayed = true }
+        }
+        if (run != null) note("interrupted")
         stop()
-        run = Run(owner, session, stream, rule.steps.toList(), trigger = trigger?.let(::KeyEvent))
-        note("started steps=${rule.steps.size}"); main.post(advance)
+        run = Run(owner, session, stream, steps, trigger = trigger?.let(::KeyEvent))
+        note("started rules=${ordered.size} steps=${steps.size}"); main.post(advance)
         return true
     }
-    @Synchronized fun test(rule: ShortcutRule): Boolean = start(rule)
+    @Synchronized fun test(rule: ShortcutRule): Boolean = start(listOf(rule))
     @Synchronized fun stop() {
         cancelClicks()
+        pendingFire = null; main.removeCallbacks(retryFire)
         val media = submittedMedia
         if (run != null || media != null) note("stopped")
         run = null; submittedMedia = null; main.removeCallbacks(advance)
@@ -477,8 +553,10 @@ internal object CarPlayShortcuts {
                 ShortcutAction.HIDE_CLUSTER_MUSIC -> context?.let { ClusterWindowVisibility.setVisible(it, active.owner, ClusterWindowPanel.MUSIC, false) } == true
                 ShortcutAction.SHOW_CLUSTER_MAP -> context?.let { ClusterWindowVisibility.setVisible(it, active.owner, ClusterWindowPanel.MAP, true) } == true
                 ShortcutAction.HIDE_CLUSTER_MAP -> context?.let { ClusterWindowVisibility.setVisible(it, active.owner, ClusterWindowPanel.MAP, false) } == true
-                ShortcutAction.SHOW_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, true) } == true
-                ShortcutAction.HIDE_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, false) } == true
+                ShortcutAction.SHOW_CENTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CENTER, true) } == true
+                ShortcutAction.HIDE_CENTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CENTER, false) } == true
+                ShortcutAction.SHOW_CLUSTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CLUSTER, true) } == true
+                ShortcutAction.HIDE_CLUSTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CLUSTER, false) } == true
                 ShortcutAction.SHOW_WINDOW, ShortcutAction.HIDE_WINDOW, ShortcutAction.KEY_PRESS -> false
                 ShortcutAction.SELECT -> active.owner.sendKnob(AirPlayKnobState(select = true))
                 ShortcutAction.BACK -> active.owner.sendKnob(AirPlayKnobState(back = true))
@@ -524,7 +602,7 @@ internal object CarPlayShortcuts {
     private fun cancelClicks() { clicks = null; main.removeCallbacks(settleClicks) }
     private fun checkClicks() {
         val pending = clicks ?: return
-        if (!currentTouch(pending.connection) || hasCapture() || run != null) { cancelClicks(); return }
+        if (!currentTouch(pending.connection) || hasCapture()) { cancelClicks(); return }
         val remaining = pending.deadline - SystemClock.uptimeMillis()
         if (remaining > 0) { main.postDelayed(settleClicks, minOf(100, remaining)); return }
         if (pending.down != null) { cancelClicks(); return }
@@ -533,9 +611,9 @@ internal object CarPlayShortcuts {
     private fun finishClicks(pending: Clicks) {
         cancelClicks()
         if (!currentTouch(pending.connection)) return
-        val match = pending.candidates.firstOrNull { it.clickCount == pending.count }
-        note("trigger clicks=${pending.count} matched=${match != null}")
-        if (match != null) start(match, pending.event)
+        val matches = pending.candidates.filter { it.clickCount == pending.count }
+        note("trigger clicks=${pending.count} rules=${matches.size}")
+        if (matches.isNotEmpty()) fire(matches, pending.event, "key clicks=${pending.count}")
     }
 
     /** Drain repeats/releases before route priorities change; never claims a new physical press. */
@@ -577,23 +655,20 @@ internal object CarPlayShortcuts {
             it.keyCode == event.keyCode && it.scanCode == event.scanCode }
         if (candidates.isEmpty()) return false
         val key = press(event)
-        if (run != null) note("trigger ignored busy") else {
-            val connection = touchSession() ?: return false
-            val now = SystemClock.uptimeMillis()
-            val previous = clicks
-            if (previous != null && previous.down == null && now >= previous.deadline) checkClicks()
-            if (run != null) note("trigger ignored busy") else {
-                val pending = clicks?.takeIf { it.first.device == key.device && it.first.code == key.code &&
-                    it.first.scan == key.scan && it.down == null && currentTouch(it.connection) }
-                if (pending == null) {
-                    cancelClicks()
-                    clicks = Clicks(connection, key, candidates, key, deadline = now + PRESS_TIMEOUT_MILLIS, event = KeyEvent(event))
-                } else {
-                    pending.down = key; pending.deadline = now + PRESS_TIMEOUT_MILLIS
-                }
-                main.removeCallbacks(settleClicks); main.postDelayed(settleClicks, 100)
-            }
+        // A press for a rule interrupts a sequence still running once its clicks are counted.
+        val connection = clickSession() ?: return false
+        val now = SystemClock.uptimeMillis()
+        val previous = clicks
+        if (previous != null && previous.down == null && now >= previous.deadline) checkClicks()
+        val pending = clicks?.takeIf { it.first.device == key.device && it.first.code == key.code &&
+            it.first.scan == key.scan && it.down == null && currentTouch(it.connection) }
+        if (pending == null) {
+            cancelClicks()
+            clicks = Clicks(connection, key, candidates, key, deadline = now + PRESS_TIMEOUT_MILLIS, event = KeyEvent(event))
+        } else {
+            pending.down = key; pending.deadline = now + PRESS_TIMEOUT_MILLIS
         }
+        main.removeCallbacks(settleClicks); main.postDelayed(settleClicks, 100)
         if (held.size >= 64) held.remove(held.first())
         held.add(key)
         val media = CarPlayMediaButton.forWheelKey(event.keyCode, event.scanCode)
@@ -703,7 +778,7 @@ internal object CarPlayShortcuts {
         if (history.size >= 20) history.removeFirst()
         history.addLast(message)
     }
-    @Synchronized fun report(): List<String> = listOf("Shortcuts: rules=${rules.size} enabled=${rules.count { it.enabled }} running=${run != null} capture=${hasCapture()} vehicle=$followingVehicle") + history.toList() + BydVehicleMonitor.report()
+    @Synchronized fun report(): List<String> = listOf("Shortcuts: rules=${rules.size} enabled=${rules.count { it.enabled }} running=${run != null} capture=${hasCapture()} vehicle=$followingVehicle conditions=$followingGroups") + history.toList() + BydVehicleMonitor.report()
 }
 
 /** Observes forwarded CarPlay contacts; never dispatches or intercepts Android touches. */

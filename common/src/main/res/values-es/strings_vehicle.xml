@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="shortcut_show_battery_card">Mostrar la tarjeta de batería</string>
-    <string name="shortcut_hide_battery_card">Ocultar la tarjeta de batería</string>
     <string name="shortcut_vehicle_event">Evento del coche</string>
-    <string name="shortcut_vehicle_hint">Se lee del coche con el acceso ADB de DiPlay varias veces por segundo, solo mientras CarPlay está conectado; un evento suele ejecutarse en medio segundo. La tarjeta derecha espera un segundo más para saber si es el mapa. El valor leído al conectar no cuenta como evento.</string>
+    <string name="shortcut_vehicle_hint">El estado del coche se lee mediante la conexión ADB de DiPlay, solo mientras CarPlay está conectado; un evento suele ejecutarse en medio segundo. Una tarjeta derecha que aparece sin mapa espera unos 0,7 s para saber si es el mapa. Los eventos de navegación de CarPlay no necesitan ADB. El valor leído al conectar no es un evento.</string>
     <string name="shortcut_vehicle_left_card_shown">Tarjeta izquierda del cuadro visible</string>
     <string name="shortcut_vehicle_left_card_hidden">Tarjeta izquierda del cuadro oculta</string>
     <string name="shortcut_vehicle_right_card_shown">Tarjeta derecha del cuadro visible (no el mapa)</string>
     <string name="shortcut_vehicle_right_map_card_shown">Tarjeta de mapa derecha del cuadro visible</string>
     <string name="shortcut_vehicle_right_card_hidden">Tarjeta derecha del cuadro oculta</string>
-    <string name="shortcut_vehicle_navigation_started">Navegación del coche iniciada</string>
     <string name="shortcut_vehicle_gear_p">Cambio a P</string>
     <string name="shortcut_vehicle_gear_r">Cambio a R</string>
     <string name="shortcut_vehicle_gear_d">Cambio a D</string>
@@ -64,4 +61,42 @@
     <string name="battery_field_charge_limit">Límite de carga</string>
     <string name="battery_field_charge_time_left">Tiempo de carga restante</string>
     <string name="battery_field_charged_energy">Cargado en esta sesión</string>
+
+    <string name="shortcut_show_center_battery_card">Mostrar la tarjeta de batería de la pantalla central</string>
+    <string name="shortcut_hide_center_battery_card">Ocultar la tarjeta de batería de la pantalla central</string>
+    <string name="shortcut_show_cluster_battery_card">Mostrar la tarjeta de batería del cuadro</string>
+    <string name="shortcut_hide_cluster_battery_card">Ocultar la tarjeta de batería del cuadro</string>
+    <string name="shortcut_vehicle_carplay_navigation_started">Navegación de CarPlay iniciada</string>
+    <string name="shortcut_vehicle_carplay_navigation_ended">Navegación de CarPlay finalizada</string>
+    <string name="shortcut_vehicle_charging_ended">Carga finalizada</string>
+    <string name="shortcut_condition_gear">Marcha</string>
+    <string name="shortcut_condition_charging">Estado de carga</string>
+    <string name="shortcut_condition_left_card">Tarjeta izquierda del cuadro</string>
+    <string name="shortcut_condition_right_card">Tarjeta derecha del cuadro</string>
+    <string name="shortcut_condition_carplay_navigating">CarPlay navegando</string>
+    <string name="shortcut_condition_cluster_music">Ventana de música del cuadro</string>
+    <string name="shortcut_condition_cluster_map">Ventana de mapa del cuadro</string>
+    <string name="shortcut_condition_center_battery">Tarjeta de batería central</string>
+    <string name="shortcut_condition_cluster_battery">Tarjeta de batería del cuadro</string>
+    <string name="shortcut_condition_night">Día/noche</string>
+    <string name="shortcut_condition_media_playing">Reproduciendo música</string>
+    <string name="shortcut_value_shown">Visible</string>
+    <string name="shortcut_value_hidden">Oculta</string>
+    <string name="shortcut_value_none">Sin tarjeta</string>
+    <string name="shortcut_value_yes">Sí</string>
+    <string name="shortcut_value_no">No</string>
+    <string name="shortcut_value_card">Otra tarjeta</string>
+    <string name="shortcut_value_map_turn">Mapa (indicación de giro)</string>
+    <string name="shortcut_value_map_mini">Mapa (minimapa)</string>
+    <string name="shortcut_value_charging">Cargando</string>
+    <string name="shortcut_value_paused">En pausa</string>
+    <string name="shortcut_value_idle">Sin cargar</string>
+    <string name="shortcut_value_day">Día</string>
+    <string name="shortcut_value_night">Noche</string>
+    <string name="shortcut_conditions">Condiciones</string>
+    <string name="shortcut_conditions_hint">La regla solo se ejecuta si se cumplen todas las condiciones; una condición se cumple cuando el valor actual es uno de los elegidos. Los valores salen de lo que DiPlay ya sigue. Un valor del coche que no se puede leer no se cumple; justo después de conectar, el disparador espera hasta 1,5 s a leerlo. Se ejecutan, en el orden de la lista, todas las reglas del mismo disparador que cumplen sus condiciones, y un disparador nuevo interrumpe la regla en curso.</string>
+    <string name="shortcut_condition_none">Sin condiciones: se ejecuta siempre que se dispara.</string>
+    <string name="shortcut_add_condition">Añadir condición</string>
+    <string name="shortcut_condition_values_hint">Elige uno o varios valores. La condición se cumple si el valor actual es cualquiera de ellos.</string>
+    <string name="settings_battery_card_which">Tarjeta que configurar</string>
 </resources>
