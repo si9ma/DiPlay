@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">Міні</string>
     <string name="settings_battery_card_style_standard">Стандартний</string>
     <string name="settings_battery_card_style_rich">Докладний</string>
+    <string name="settings_battery_card_theme">День/ніч</string>
+    <string name="settings_battery_card_theme_follow">Як у головному пристрої</string>
+    <string name="settings_battery_card_theme_day">День</string>
+    <string name="settings_battery_card_theme_night">Ніч</string>
     <string name="settings_battery_card_fields">Значення</string>
     <string name="settings_battery_card_fields_count">Вибрано: %1$d</string>
     <string name="settings_battery_card_size">Розмір</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">Межа потужності розряду</string>
     <string name="battery_field_charge_limit">Межа заряджання</string>
     <string name="battery_field_charge_time_left">До кінця заряджання</string>
+    <string name="battery_field_charged_energy">Заряджено за сесію</string>
 </resources>

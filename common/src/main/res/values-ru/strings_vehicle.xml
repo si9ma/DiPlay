@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">Мини</string>
     <string name="settings_battery_card_style_standard">Стандартный</string>
     <string name="settings_battery_card_style_rich">Подробный</string>
+    <string name="settings_battery_card_theme">День/ночь</string>
+    <string name="settings_battery_card_theme_follow">Как в головном устройстве</string>
+    <string name="settings_battery_card_theme_day">День</string>
+    <string name="settings_battery_card_theme_night">Ночь</string>
     <string name="settings_battery_card_fields">Значения</string>
     <string name="settings_battery_card_fields_count">Выбрано: %1$d</string>
     <string name="settings_battery_card_size">Размер</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">Предел мощности разряда</string>
     <string name="battery_field_charge_limit">Предел зарядки</string>
     <string name="battery_field_charge_time_left">До конца зарядки</string>
+    <string name="battery_field_charged_energy">Заряжено за сессию</string>
 </resources>

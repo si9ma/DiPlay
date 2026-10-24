@@ -25,7 +25,7 @@ internal object BatteryCardFormat {
         return when (field) {
             BydBatteryField.SOC, BydBatteryField.SOH, BydBatteryField.CHARGE_LIMIT -> "${value.roundToInt()}%"
             BydBatteryField.RANGE -> "${value.roundToInt()} km"
-            BydBatteryField.REMAINING_ENERGY -> f("%.1f kWh", value)
+            BydBatteryField.REMAINING_ENERGY, BydBatteryField.CHARGED_ENERGY -> f("%.1f kWh", value)
             // Charging reads as a negative power; the card shows its size with a charging mark.
             BydBatteryField.POWER -> if (value < -0.05) "⚡" + f("%.1f kW", abs(value)) else f("%.1f kW", abs(value))
             BydBatteryField.VOLTAGE -> f("%.0f V", value)
@@ -43,7 +43,7 @@ internal object BatteryCardFormat {
     fun sample(field: BydBatteryField): String = when (field) {
         BydBatteryField.SOC, BydBatteryField.SOH, BydBatteryField.CHARGE_LIMIT -> "100%"
         BydBatteryField.RANGE -> "8888 km"
-        BydBatteryField.REMAINING_ENERGY -> "188.8 kWh"
+        BydBatteryField.REMAINING_ENERGY, BydBatteryField.CHARGED_ENERGY -> "188.8 kWh"
         BydBatteryField.POWER -> "⚡888.8 kW"
         BydBatteryField.VOLTAGE -> "888 V"
         BydBatteryField.CURRENT -> "-888.8 A"
@@ -62,7 +62,45 @@ internal object BatteryCardFormat {
         BydBatteryField.CELL_VOLTAGE_MIN, BydBatteryField.TEMP_MIN -> "↓"
         BydBatteryField.CELL_VOLTAGE_DIFF -> "Δ"
         BydBatteryField.CHARGE_LIMIT -> "⇥"
+        BydBatteryField.CHARGED_ENERGY -> "+"
         else -> ""
+    }
+}
+
+/** The card's colours; the background takes the configured opacity. */
+internal class BatteryCardPalette(
+    val background: Int, val primary: Int, val secondary: Int, val separator: Int, val track: Int, val border: Int,
+    val good: Int, val warn: Int, val low: Int, val charging: Int, val driving: Int,
+) {
+    companion object {
+        val NIGHT = BatteryCardPalette(
+            background = Color.rgb(16, 20, 26),
+            primary = Color.WHITE,
+            secondary = Color.rgb(0x9A, 0xA4, 0xAE),
+            separator = Color.argb(0x80, 0xFF, 0xFF, 0xFF),
+            track = Color.argb(0x38, 0xFF, 0xFF, 0xFF),
+            border = Color.argb(0x22, 0xFF, 0xFF, 0xFF),
+            good = Color.rgb(0x34, 0xC7, 0x59),
+            warn = Color.rgb(0xFF, 0xB3, 0x40),
+            low = Color.rgb(0xFF, 0x45, 0x3A),
+            charging = Color.rgb(0x40, 0xC8, 0xFF),
+            driving = Color.rgb(0xFF, 0x9F, 0x0A),
+        )
+
+        /** Darker accents than at night, so they keep their contrast on the light card. */
+        val DAY = BatteryCardPalette(
+            background = Color.rgb(0xF5, 0xF6, 0xF8),
+            primary = Color.rgb(0x1C, 0x1F, 0x24),
+            secondary = Color.rgb(0x5F, 0x6B, 0x76),
+            separator = Color.argb(0x70, 0x1C, 0x1F, 0x24),
+            track = Color.argb(0x24, 0x1C, 0x1F, 0x24),
+            border = Color.argb(0x1A, 0x00, 0x00, 0x00),
+            good = Color.rgb(0x1E, 0x9E, 0x45),
+            warn = Color.rgb(0xD9, 0x82, 0x00),
+            low = Color.rgb(0xE0, 0x35, 0x2B),
+            charging = Color.rgb(0x00, 0x8A, 0xD4),
+            driving = Color.rgb(0xE0, 0x7A, 0x00),
+        )
     }
 }
 
@@ -75,12 +113,15 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         set(value) { field = value; requestLayout(); invalidate() }
     var update: BydVehicleMonitor.BatteryUpdate? = null
         set(value) { field = value; invalidate() }
+    var night: Boolean = true
+        set(value) { if (field != value) { field = value; invalidate() } }
 
     private val density = context.resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
     private val regular = Typeface.create("sans-serif", Typeface.NORMAL)
     private val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+    private val colors: BatteryCardPalette get() = if (night) BatteryCardPalette.NIGHT else BatteryCardPalette.DAY
 
     private fun u(dp: Float) = dp * density * config.scale / 100f
     private val details: BydBatteryDetails? get() = update?.details
@@ -136,12 +177,14 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
     }
 
     override fun onDraw(canvas: Canvas) {
+        val palette = colors
         val radius = if (config.style == BatteryCardStyle.MINI) height / 2f else u(20f)
         rect.set(0f, 0f, width.toFloat(), height.toFloat())
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb(config.opacity * 255 / 100, 16, 20, 26)
+        paint.color = Color.argb(config.opacity * 255 / 100, Color.red(palette.background), Color.green(palette.background),
+            Color.blue(palette.background))
         canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = u(1f); paint.color = BORDER
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = u(1f); paint.color = palette.border
         rect.inset(u(0.5f), u(0.5f))
         canvas.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
@@ -160,14 +203,14 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         x += drawText(canvas, valueOf(BydBatteryField.SOC), x, centre, 17f, true, socColor())
         val status = status()
         if (status != null) {
-            drawText(canvas, status, x + u(MINI_GAP), centre, 14f, false, SECONDARY)
+            drawText(canvas, status, x + u(MINI_GAP), centre, 14f, false, colors.secondary)
             return
         }
         for (field in bodyFields()) {
             x += u(MINI_GAP)
-            paint.color = SEPARATOR
+            paint.color = colors.separator
             canvas.drawCircle(x - u(MINI_GAP) / 2, centre, u(1.6f), paint)
-            val color = if (field == BydBatteryField.POWER && charging) CHARGING else PRIMARY
+            val color = if (field == BydBatteryField.POWER && charging) colors.charging else colors.primary
             x += drawText(canvas, BatteryCardFormat.miniPrefix(field) + valueOf(field), x, centre, 15f, true, color)
         }
     }
@@ -187,7 +230,7 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         drawGlyph(canvas, pad, header - u(11f), u(40f), u(22f))
         drawText(canvas, valueOf(BydBatteryField.SOC), pad + u(52f), header, 36f, true, socColor())
         drawStatusEnd(canvas, width - pad, header - u(9f), 15f)
-        if (status() == null) drawTextEnd(canvas, valueOf(BydBatteryField.RANGE), width - pad, header + u(13f), 14f, false, SECONDARY)
+        if (status() == null) drawTextEnd(canvas, valueOf(BydBatteryField.RANGE), width - pad, header + u(13f), 14f, false, colors.secondary)
         var y = pad + u(60f)
         drawSocBar(canvas, pad, y, width - 2 * pad)
         y += u(26f)
@@ -202,9 +245,9 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
     private fun drawStatusEnd(canvas: Canvas, end: Float, centre: Float, size: Float) {
         val status = status()
         when {
-            status != null -> drawTextEnd(canvas, status, end, centre, size, false, SECONDARY)
-            charging -> drawTextEnd(canvas, "⚡ " + text.charging, end, centre, size, true, CHARGING)
-            else -> drawTextEnd(canvas, text.title, end, centre, size, false, SECONDARY)
+            status != null -> drawTextEnd(canvas, status, end, centre, size, false, colors.secondary)
+            charging -> drawTextEnd(canvas, "⚡ " + text.charging, end, centre, size, true, colors.charging)
+            else -> drawTextEnd(canvas, text.title, end, centre, size, false, colors.secondary)
         }
     }
 
@@ -213,8 +256,8 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         fields.forEachIndexed { index, field ->
             val x = left + (index % columns) * cell
             val y = top + (index / columns) * u(GRID_ROW)
-            fitText(canvas, text.labels[field].orEmpty(), x, y + u(10f), cell - u(8f), 12f, false, SECONDARY)
-            val color = if (field == BydBatteryField.POWER && charging) CHARGING else PRIMARY
+            fitText(canvas, text.labels[field].orEmpty(), x, y + u(10f), cell - u(8f), 12f, false, colors.secondary)
+            val color = if (field == BydBatteryField.POWER && charging) colors.charging else colors.primary
             fitText(canvas, valueOf(field), x, y + u(30f), cell - u(8f), 18f, true, color)
         }
     }
@@ -222,37 +265,37 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
     private fun drawSocBar(canvas: Canvas, left: Float, top: Float, width: Float) {
         val height = u(12f)
         rect.set(left, top, left + width, top + height)
-        paint.color = TRACK
+        paint.color = colors.track
         canvas.drawRoundRect(rect, height / 2, height / 2, paint)
         val soc = details?.get(BydBatteryField.SOC) ?: return
         rect.right = left + width * (soc / 100).coerceIn(0.0, 1.0).toFloat()
-        paint.color = if (charging) CHARGING else socColor()
+        paint.color = if (charging) colors.charging else socColor()
         canvas.drawRoundRect(rect, height / 2, height / 2, paint)
         details?.get(BydBatteryField.CHARGE_LIMIT)?.takeIf { it in 1.0..99.0 }?.let { limit ->
             val x = left + width * (limit / 100).toFloat()
-            paint.color = PRIMARY
+            paint.color = colors.primary
             canvas.drawRect(x - u(1f), top - u(3f), x + u(1f), top + height + u(3f), paint)
         }
     }
 
     /** A centred bar: charging grows to the left, driving to the right. */
     private fun drawPower(canvas: Canvas, left: Float, top: Float, width: Float) {
-        fitText(canvas, text.labels[BydBatteryField.POWER].orEmpty(), left, top + u(10f), width / 2, 12f, false, SECONDARY)
+        fitText(canvas, text.labels[BydBatteryField.POWER].orEmpty(), left, top + u(10f), width / 2, 12f, false, colors.secondary)
         val power = details?.get(BydBatteryField.POWER)
-        drawTextEnd(canvas, valueOf(BydBatteryField.POWER), left + width, top + u(10f), 15f, true, if (charging) CHARGING else PRIMARY)
+        drawTextEnd(canvas, valueOf(BydBatteryField.POWER), left + width, top + u(10f), 15f, true, if (charging) colors.charging else colors.primary)
         val barTop = top + u(22f)
         val height = u(8f)
         rect.set(left, barTop, left + width, barTop + height)
-        paint.color = TRACK
+        paint.color = colors.track
         canvas.drawRoundRect(rect, height / 2, height / 2, paint)
         val middle = left + width / 2
-        paint.color = SEPARATOR
+        paint.color = colors.separator
         canvas.drawRect(middle - u(1f), barTop - u(3f), middle + u(1f), barTop + height + u(3f), paint)
         if (power == null) return
         val full = maxOf(POWER_SCALE_KW, abs(power))
         val reach = (width / 2) * (abs(power) / full).toFloat()
         if (power < 0) rect.set(middle - reach, barTop, middle, barTop + height) else rect.set(middle, barTop, middle + reach, barTop + height)
-        paint.color = if (power < 0) CHARGING else DRIVING
+        paint.color = if (power < 0) colors.charging else colors.driving
         canvas.drawRoundRect(rect, height / 2, height / 2, paint)
     }
 
@@ -260,7 +303,7 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         val corner = height * 0.22f
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = maxOf(u(1.5f), height * 0.1f)
-        paint.color = PRIMARY
+        paint.color = colors.primary
         rect.set(left, top, left + width, top + height)
         canvas.drawRoundRect(rect, corner, corner, paint)
         paint.style = Paint.Style.FILL
@@ -270,16 +313,16 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         val soc = details?.get(BydBatteryField.SOC) ?: return
         val inset = paint.strokeWidth * 1.4f
         rect.set(left + inset, top + inset, left + inset + (width - 2 * inset) * (soc / 100).coerceIn(0.0, 1.0).toFloat(), top + height - inset)
-        paint.color = if (charging) CHARGING else socColor()
+        paint.color = if (charging) colors.charging else socColor()
         canvas.drawRoundRect(rect, corner / 2, corner / 2, paint)
     }
 
     private fun socColor(): Int {
-        val soc = details?.get(BydBatteryField.SOC) ?: return PRIMARY
+        val soc = details?.get(BydBatteryField.SOC) ?: return colors.primary
         return when {
-            soc >= 50 -> GOOD
-            soc >= 20 -> WARN
-            else -> LOW
+            soc >= 50 -> colors.good
+            soc >= 20 -> colors.warn
+            else -> colors.low
         }
     }
 
@@ -314,15 +357,5 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         const val GRID_ROW = 46f
         const val POWER_BLOCK = 44f
         const val POWER_SCALE_KW = 150.0
-        val PRIMARY = Color.WHITE
-        val SECONDARY = Color.rgb(0x9A, 0xA4, 0xAE)
-        val SEPARATOR = Color.argb(0x80, 0xFF, 0xFF, 0xFF)
-        val TRACK = Color.argb(0x38, 0xFF, 0xFF, 0xFF)
-        val BORDER = Color.argb(0x22, 0xFF, 0xFF, 0xFF)
-        val GOOD = Color.rgb(0x34, 0xC7, 0x59)
-        val WARN = Color.rgb(0xFF, 0xB3, 0x40)
-        val LOW = Color.rgb(0xFF, 0x45, 0x3A)
-        val CHARGING = Color.rgb(0x40, 0xC8, 0xFF)
-        val DRIVING = Color.rgb(0xFF, 0x9F, 0x0A)
     }
 }

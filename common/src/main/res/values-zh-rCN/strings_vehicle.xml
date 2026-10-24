@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">迷你</string>
     <string name="settings_battery_card_style_standard">标准</string>
     <string name="settings_battery_card_style_rich">丰富</string>
+    <string name="settings_battery_card_theme">日夜模式</string>
+    <string name="settings_battery_card_theme_follow">跟随车机</string>
+    <string name="settings_battery_card_theme_day">白天</string>
+    <string name="settings_battery_card_theme_night">夜间</string>
     <string name="settings_battery_card_fields">显示参数</string>
     <string name="settings_battery_card_fields_count">已选 %1$d 项</string>
     <string name="settings_battery_card_size">大小</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">允许放电功率</string>
     <string name="battery_field_charge_limit">充电上限</string>
     <string name="battery_field_charge_time_left">剩余充电时间</string>
+    <string name="battery_field_charged_energy">本次已充电量</string>
 </resources>

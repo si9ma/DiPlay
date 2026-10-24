@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">Mini</string>
     <string name="settings_battery_card_style_standard">Standard</string>
     <string name="settings_battery_card_style_rich">Detailed</string>
+    <string name="settings_battery_card_theme">Day/night</string>
+    <string name="settings_battery_card_theme_follow">Follow the head unit</string>
+    <string name="settings_battery_card_theme_day">Day</string>
+    <string name="settings_battery_card_theme_night">Night</string>
     <string name="settings_battery_card_fields">Values</string>
     <string name="settings_battery_card_fields_count">%1$d selected</string>
     <string name="settings_battery_card_size">Size</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">Discharge power limit</string>
     <string name="battery_field_charge_limit">Charge limit</string>
     <string name="battery_field_charge_time_left">Charge time left</string>
+    <string name="battery_field_charged_energy">Charged this session</string>
 </resources>

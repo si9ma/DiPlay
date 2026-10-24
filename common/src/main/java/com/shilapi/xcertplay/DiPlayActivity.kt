@@ -4326,6 +4326,12 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             getString(R.string.settings_battery_card_style_rich)), styles.indexOf(config.style), reconnects = false) { index ->
             BatteryCardSettings.update(this) { it.copy(style = styles[index]) }
         }
+        val themes = BatteryCardTheme.entries
+        choice(card, getString(R.string.settings_battery_card_theme), listOf(
+            getString(R.string.settings_battery_card_theme_follow), getString(R.string.settings_battery_card_theme_day),
+            getString(R.string.settings_battery_card_theme_night)), themes.indexOf(config.theme), reconnects = false) { index ->
+            BatteryCardSettings.update(this) { it.copy(theme = themes[index]) }
+        }
         val fieldsTitle = getString(R.string.settings_battery_card_fields)
         searchIndexSink?.add(fieldsTitle)
         val fieldsButton = button("$fieldsTitle · ${getString(R.string.settings_battery_card_fields_count, config.fields.size)}", false) {}

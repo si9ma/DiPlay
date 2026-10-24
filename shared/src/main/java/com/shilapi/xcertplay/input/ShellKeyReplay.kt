@@ -56,6 +56,18 @@ object ShellKeyReplay {
         val quoted = "'" + apk.replace("'", "'\\''") + "'"
         return "CLASSPATH=$quoted app_process /system/bin ${ShellKeyReplayMain::class.java.name} --stdin $token"
     }
+    /**
+     * The pair through [com.shilapi.xcertplay.hud.BydShellAgent], or null when the agent is not running
+     * and nothing was sent, so the caller may use its own shell. A sent request is never retried.
+     */
+    private fun viaAgent(code: Int, scan: Int, display: Int, op: Operation, current: () -> Boolean,
+        prepare: () -> Request): String? = com.shilapi.xcertplay.hud.BydShellAgent.key { token ->
+        if (op.cancelled.get() || !current()) null
+        else prepare().copy(token = token).takeIf {
+            it.valid() && it.code == code && it.scan == scan && it.display == display && !op.cancelled.get() && current()
+        }
+    }
+
     fun submit(context: Context, code: Int, scan: Int, display: Int, current: () -> Boolean,
         prepare: () -> Request): Operation {
         val op = Operation()
@@ -68,7 +80,9 @@ object ShellKeyReplay {
             val timer = deadlines.schedule({ expired.set(true); op.cancel(); op.result.complete("timeout") }, 6000, TimeUnit.MILLISECONDS)
             try {
                 if (op.cancelled.get() || !current()) outcome = "cancelled"
-                else LocalAdb(AdbKeys.load(app), trace = {}).use { adb ->
+                // The resident agent answers in tens of milliseconds; a fresh adb link and app_process take seconds.
+                else viaAgent(code, scan, display, op, current, prepare)?.let { outcome = it }
+                    ?: LocalAdb(AdbKeys.load(app), trace = {}).use { adb ->
                     op.adb = adb
                     if (op.cancelled.get()) { outcome = "cancelled"; return@use }
                     val access = adb.connect(mayAsk = false)
@@ -126,34 +140,47 @@ object ShellKeyReplayMain {
             if (android.os.Process.myUid() != 2000) return
             if (android.os.Looper.myLooper() == null) android.os.Looper.prepare()
             val request = ShellKeyReplay.parseRequest(readLine(), token) ?: return
-            val am = Class.forName("android.app.ActivityManager")
-            val user = am.getDeclaredMethod("getCurrentUser").apply { isAccessible = true }.invoke(null) as Int
-            if (user < 0) return
-            val type = runCatching { Class.forName("android.hardware.input.InputManagerGlobal") }
-                .getOrElse { Class.forName("android.hardware.input.InputManager") }
-            val manager = type.getDeclaredMethod("getInstance").apply { isAccessible = true }.invoke(null)
-            val inject = type.getMethod("injectInputEvent", android.view.InputEvent::class.java, Int::class.javaPrimitiveType)
-            val now = SystemClock.uptimeMillis()
-            if (now < request.downTime || now > request.expires) { outcome = "expired"; return }
-            val down = KeyEvent(request.downTime, now, KeyEvent.ACTION_DOWN, request.code, 0, 0,
-                KeyCharacterMap.VIRTUAL_KEYBOARD, request.scan, KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_KEYBOARD)
-            if (android.os.Build.VERSION.SDK_INT >= 29) {
-                android.view.InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType).invoke(down, 0)
-            }
-            if (SystemClock.uptimeMillis() > request.expires ||
-                am.getDeclaredMethod("getCurrentUser").apply { isAccessible = true }.invoke(null) != user) {
-                outcome = "expired"; return
-            }
-            outcome = injectPair(down, { SystemClock.uptimeMillis() },
-                { event, mode -> inject.invoke(manager, event, mode) == true }, release)
-        } catch (error: Throwable) {
-            val cause = generateSequence(error) { it.cause }.take(4).last()
-            outcome = if (cause is SecurityException) "permission_denied" else "unsupported"
+            outcome = inject(request, release)
         } finally {
             watchdog.shutdownNow()
             output.println("key-replay $token $outcome"); output.println("done"); output.flush()
             Runtime.getRuntime().halt(0)
         }
+    }
+
+    /**
+     * Injects one validated key pair as the shell user, in this process. Also used by the resident
+     * [com.shilapi.xcertplay.hud.BydShellAgentMain], which already holds a validated request. [release]
+     * holds the key-up while the pair is in flight, so a watchdog can release a stuck key.
+     */
+    internal fun inject(request: ShellKeyReplay.Request,
+        release: java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>): String = try {
+        if (android.os.Process.myUid() != 2000 || !request.valid()) "rejected"
+        else {
+            val am = Class.forName("android.app.ActivityManager")
+            val user = am.getDeclaredMethod("getCurrentUser").apply { isAccessible = true }.invoke(null) as Int
+            val type = runCatching { Class.forName("android.hardware.input.InputManagerGlobal") }
+                .getOrElse { Class.forName("android.hardware.input.InputManager") }
+            val manager = type.getDeclaredMethod("getInstance").apply { isAccessible = true }.invoke(null)
+            val inject = type.getMethod("injectInputEvent", android.view.InputEvent::class.java, Int::class.javaPrimitiveType)
+            val now = SystemClock.uptimeMillis()
+            if (user < 0) "unsupported"
+            else if (now < request.downTime || now > request.expires) "expired"
+            else {
+                val down = KeyEvent(request.downTime, now, KeyEvent.ACTION_DOWN, request.code, 0, 0,
+                    KeyCharacterMap.VIRTUAL_KEYBOARD, request.scan, KeyEvent.FLAG_FROM_SYSTEM, InputDevice.SOURCE_KEYBOARD)
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.view.InputEvent::class.java.getMethod("setDisplayId", Int::class.javaPrimitiveType).invoke(down, 0)
+                }
+                if (SystemClock.uptimeMillis() > request.expires ||
+                    am.getDeclaredMethod("getCurrentUser").apply { isAccessible = true }.invoke(null) != user) "expired"
+                else injectPair(down, { SystemClock.uptimeMillis() },
+                    { event, mode -> inject.invoke(manager, event, mode) == true }, release)
+            }
+        }
+    } catch (error: Throwable) {
+        val cause = generateSequence(error) { it.cause }.take(4).last()
+        if (cause is SecurityException) "permission_denied" else "unsupported"
     }
     internal fun injectPair(down: KeyEvent, now: () -> Long, inject: (KeyEvent, Int) -> Boolean,
         release: java.util.concurrent.atomic.AtomicReference<(() -> Unit)?>): String {

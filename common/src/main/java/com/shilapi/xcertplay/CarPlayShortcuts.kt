@@ -297,7 +297,8 @@ internal object CarPlayShortcuts {
     @Synchronized fun detach(controller: CarPlayController?) {
         if (controller == null || this.controller !== controller) return
         stop(); cancelCapture(); main.removeCallbacks(poll)
-        followVehicle(false)
+        followVehicle(emptySet())
+        followAgent(false)
         preferences?.unregisterOnSharedPreferenceChangeListener(changed)
         preferences = null; this.controller = null; context = null; mediaEcho = null
     }
@@ -311,8 +312,12 @@ internal object CarPlayShortcuts {
         if (clicks?.let { !currentTouch(it.connection) } == true) cancelClicks()
         if (touchCapture?.let { !currentTouch(it) } == true) cancelCapture()
         if (touchCapture != null) main.postDelayed(poll, 250)
-        // Vehicle reads run only while a session can act on them.
-        followVehicle(session != null && stream != null && rules.any { it.enabled && it.event == ShortcutEvent.VEHICLE })
+        // Vehicle reads run only while a session can act on them, and only for the events a rule uses.
+        val live = session != null && stream != null
+        followVehicle(if (!live) emptySet() else rules.filter { it.enabled && it.event == ShortcutEvent.VEHICLE }
+            .mapNotNullTo(HashSet()) { it.vehicleEvent })
+        // An original-key replay through the resident shell agent takes milliseconds instead of seconds.
+        followAgent(live && rules.any { rule -> rule.enabled && rule.steps.any { it.action == ShortcutAction.ORIGINAL_CLICK } })
         if (session != null && stream != null) {
             if (lastConnected.get() !== session) {
                 lastConnected = WeakReference(session)
@@ -321,20 +326,31 @@ internal object CarPlayShortcuts {
         } else if (rules.any { it.enabled } && !controller.isClosed()) main.postDelayed(poll, 250)
     }
 
-    private var followingVehicle = false
+    private var followingVehicle = emptySet<BydVehicleEvent>()
     private val vehicleListener = BydVehicleMonitor.EventListener { event -> onVehicleEvent(event) }
-    private fun followVehicle(wanted: Boolean) {
+    private fun followVehicle(wanted: Set<BydVehicleEvent>) {
         if (wanted == followingVehicle) return
         val app = context
-        if (wanted && app == null) return
+        if (wanted.isNotEmpty() && app == null) return
         followingVehicle = wanted
-        if (wanted) BydVehicleMonitor.addEventListener(app!!, vehicleListener) else BydVehicleMonitor.removeEventListener(vehicleListener)
-        note("vehicle events ${if (wanted) "followed" else "released"}")
+        if (wanted.isNotEmpty()) BydVehicleMonitor.addEventListener(app!!, vehicleListener, wanted)
+        else BydVehicleMonitor.removeEventListener(vehicleListener)
+        note("vehicle events ${if (wanted.isNotEmpty()) "followed: ${wanted.joinToString(",")}" else "released"}")
+    }
+
+    private var followingAgent = false
+    private fun followAgent(wanted: Boolean) {
+        if (wanted == followingAgent) return
+        val app = context
+        if (wanted && app == null) return
+        followingAgent = wanted
+        if (wanted) com.shilapi.xcertplay.hud.BydShellAgent.acquire(app!!, "shortcuts")
+        else com.shilapi.xcertplay.hud.BydShellAgent.release("shortcuts")
     }
 
     /** A read-only car change (main thread). The first matching enabled rule runs unless one is running. */
     @Synchronized fun onVehicleEvent(event: BydVehicleEvent) {
-        if (!followingVehicle || hasCapture()) return
+        if (event !in followingVehicle || hasCapture()) return
         val rule = rules.firstOrNull { it.enabled && it.event == ShortcutEvent.VEHICLE && it.vehicleEvent == event } ?: return
         note("vehicle trigger $event")
         if (run != null) note("trigger ignored busy") else if (!start(rule)) note("vehicle trigger not started")

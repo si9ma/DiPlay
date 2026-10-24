@@ -74,6 +74,11 @@ internal object HeadUnitNightMode {
      */
     @Volatile var onChanged: ((String) -> Unit)? = null
 
+    /** Further observers of the same settings keys, such as the battery card; called on the main thread. */
+    private val listeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
+    fun addListener(listener: () -> Unit) { listeners.add(listener) }
+    fun removeListener(listener: () -> Unit) { listeners.remove(listener) }
+
     /** Which input the last non-null reading came from, for the session log. */
     @Volatile var lastSource: String = "none"
         private set
@@ -90,6 +95,7 @@ internal object HeadUnitNightMode {
             override fun onChange(selfChange: Boolean, uri: Uri?) {
                 val key = uri?.lastPathSegment ?: "?"
                 onChanged?.invoke("$key changed; $BYD_NIGHT_KEY=${bydRaw(app)}")
+                listeners.forEach { runCatching { it() } }
             }
         }
         listOf(

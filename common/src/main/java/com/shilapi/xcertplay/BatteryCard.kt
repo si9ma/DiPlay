@@ -19,6 +19,8 @@ import kotlin.math.abs
 
 internal enum class BatteryCardTarget { CENTER, CLUSTER }
 internal enum class BatteryCardStyle { MINI, STANDARD, RICH }
+/** [FOLLOW] uses the head unit's day/night, read the way the CarPlay screen's "follow" reads it. */
+internal enum class BatteryCardTheme { FOLLOW, DAY, NIGHT }
 
 /** [scale] and [opacity] in %; [clusterX]/[clusterY] the card centre in % of the dashboard; [centerX]/[centerY] px, -1 = default. */
 internal data class BatteryCardConfig(
@@ -32,6 +34,7 @@ internal data class BatteryCardConfig(
     val clusterY: Int = 16,
     val centerX: Int = -1,
     val centerY: Int = -1,
+    val theme: BatteryCardTheme = BatteryCardTheme.FOLLOW,
 )
 
 internal object BatteryCardSettings {
@@ -60,6 +63,7 @@ internal object BatteryCardSettings {
             clusterY = p.getInt("cluster_y", 16).coerceIn(0, 100),
             centerX = p.getInt("center_x", -1),
             centerY = p.getInt("center_y", -1),
+            theme = enum("theme", BatteryCardTheme.values(), BatteryCardTheme.FOLLOW),
         )
     }
 
@@ -75,6 +79,7 @@ internal object BatteryCardSettings {
             .putInt("cluster_y", config.clusterY)
             .putInt("center_x", config.centerX)
             .putInt("center_y", config.centerY)
+            .putString("theme", config.theme.name)
             .apply()
     }
 
@@ -98,6 +103,17 @@ internal object BatteryCard {
     private var observing = false
     private val battery = BydVehicleMonitor.BatteryListener { update -> view?.update = update }
     private val changed = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> app?.let(::refresh) }
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    /** The last day/night the head unit reported, kept while no input reports one. */
+    private var lastNight = true
+    private val nightChanged: () -> Unit = { applyTheme() }
+    /** Some inputs (a Configuration) change without a settings change, so "follow" also rechecks. */
+    private val recheck = object : Runnable {
+        override fun run() {
+            applyTheme()
+            if (view != null) handler.postDelayed(this, NIGHT_RECHECK_MILLIS)
+        }
+    }
 
     val shown: Boolean get() = view != null
 
@@ -146,6 +162,7 @@ internal object BatteryCard {
         val current = view
         if (current != null && shownOn == config.target to display.displayId) {
             current.config = config
+            applyTheme()
             relayout()
             return true
         }
@@ -166,6 +183,10 @@ internal object BatteryCard {
             manager.addView(card, layout)
             view = card; windows = manager; params = layout; shownOn = config.target to display.displayId
             BydVehicleMonitor.addBatteryListener(app, battery)
+            HeadUnitNightMode.install(app)
+            HeadUnitNightMode.addListener(nightChanged)
+            handler.removeCallbacks(recheck)
+            recheck.run()
             Log.i(TAG, "shown on display ${display.displayId} ${layout.width}x${layout.height}")
             true
         } catch (error: RuntimeException) {
@@ -177,10 +198,23 @@ internal object BatteryCard {
 
     fun hide() {
         BydVehicleMonitor.removeBatteryListener(battery)
+        HeadUnitNightMode.removeListener(nightChanged)
+        handler.removeCallbacks(recheck)
         val card = view ?: return
         runCatching { windows?.removeViewImmediate(card) }
         view = null; windows = null; params = null; shownOn = null
         Log.i(TAG, "hidden")
+    }
+
+    /** Day or night colours from the card's theme; "follow" keeps the last known state while no input reports one. */
+    private fun applyTheme() {
+        val card = view ?: return
+        val context = app ?: return
+        card.night = when (card.config.theme) {
+            BatteryCardTheme.DAY -> false
+            BatteryCardTheme.NIGHT -> true
+            BatteryCardTheme.FOLLOW -> (HeadUnitNightMode.read(context) ?: lastNight).also { lastNight = it }
+        }
     }
 
     private fun relayout() {
@@ -253,8 +287,10 @@ internal object BatteryCard {
     fun diagnostics(context: Context): List<String> {
         val config = BatteryCardSettings.load(context)
         return listOf("Battery card: visible=${config.visible} shown=$shown on=$shownOn target=${config.target} " +
-            "style=${config.style} fields=${config.fields.size} permitted=${permitted(context)}")
+            "style=${config.style} theme=${config.theme} night=${view?.night} fields=${config.fields.size} permitted=${permitted(context)}")
     }
+
+    private const val NIGHT_RECHECK_MILLIS = 5_000L
 }
 
 /** Localized copy for [BatteryCardView], read once when the card is created. */
@@ -282,6 +318,7 @@ internal data class BatteryCardText(
             BydBatteryField.MAX_DISCHARGE_POWER to R.string.battery_field_max_discharge_power,
             BydBatteryField.CHARGE_LIMIT to R.string.battery_field_charge_limit,
             BydBatteryField.CHARGE_TIME_LEFT to R.string.battery_field_charge_time_left,
+            BydBatteryField.CHARGED_ENERGY to R.string.battery_field_charged_energy,
         )
 
         fun of(context: Context) = BatteryCardText(

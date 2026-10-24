@@ -285,6 +285,115 @@ class LocalAdb(
         }
     }
 
+    /**
+     * A long-lived two-way shell for a resident helper: [onBytes] gets the command's output on a reader
+     * thread of its own, [DuplexShell.write] sends to its stdin from any thread, and [onClosed] runs once
+     * when the stream or the link ends. Holds the connection for as long as it lives, so use a
+     * dedicated instance and nothing else on it.
+     */
+    @Synchronized
+    fun openDuplex(command: String, onBytes: (ByteArray) -> Unit, onClosed: () -> Unit): DuplexShell? {
+        if (cancelled.get()) return null
+        if (socket?.isClosed != false && connect(mayAsk = false) != Access.READY) return null
+        return try {
+            val local = nextStreamId++
+            send(AdbPacket(AdbPacket.OPEN, local, 0, "shell:$command\u0000".toByteArray()))
+            val reply = receive()
+            if (reply.command != AdbPacket.OKAY || reply.arg1 != local) throw IOException("duplex open rejected")
+            // The helper may stay quiet for a long time; a dead link still ends the read with an error.
+            socket?.soTimeout = 0
+            DuplexShell(local, reply.arg0, ::send, ::receive, ::closeQuietly, onBytes, onClosed).also { it.start() }
+        } catch (error: IOException) {
+            closeQuietly()
+            runCatching { trace("$host:$port duplex-open failed error=${error.javaClass.simpleName}") }
+            null
+        }
+    }
+
+    /**
+     * See [openDuplex]. Writes follow ADB's flow control: each waits for adbd's OKAY of the previous one.
+     * The output callback runs on the reader thread and must not block for long.
+     */
+    class DuplexShell internal constructor(
+        private val local: Int,
+        private val remote: Int,
+        private val sendPacket: (AdbPacket) -> Unit,
+        private val readPacket: () -> AdbPacket,
+        private val closeConnection: () -> Unit,
+        private val onBytes: (ByteArray) -> Unit,
+        private val onClosed: () -> Unit,
+    ) : Closeable {
+        private val packetLock = Any()
+        private val acknowledged = java.util.concurrent.Semaphore(1)
+        private val awaitingAck = AtomicBoolean(false)
+        private val closed = AtomicBoolean(false)
+        val isOpen: Boolean get() = !closed.get()
+
+        internal fun start() {
+            Thread(::readLoop, "diplay-adb-duplex").apply { isDaemon = true }.start()
+        }
+
+        private fun sendLocked(packet: AdbPacket) = synchronized(packetLock) { sendPacket(packet) }
+
+        private fun readLoop() {
+            try {
+                while (!closed.get()) {
+                    val packet = readPacket()
+                    if (packet.arg1 != local) {
+                        // A stream left over from an earlier command on this link.
+                        if (packet.command == AdbPacket.WRTE) sendLocked(AdbPacket(AdbPacket.CLSE, packet.arg1, packet.arg0, ByteArray(0)))
+                        continue
+                    }
+                    if (packet.command == AdbPacket.CLSE) break
+                    if (packet.command == AdbPacket.OKAY) {
+                        if (awaitingAck.compareAndSet(true, false)) acknowledged.release()
+                    } else if (packet.command == AdbPacket.WRTE) {
+                        // Acknowledge first: adbd sends nothing more on this stream until it is.
+                        sendLocked(AdbPacket(AdbPacket.OKAY, local, remote, ByteArray(0)))
+                        onBytes(packet.payload)
+                    }
+                }
+            } catch (_: IOException) {
+            } catch (_: RuntimeException) {
+            }
+            close()
+        }
+
+        /** Sends [text] (UTF-8, at most [MAX_WRITE_BYTES]); false when the stream is gone or adbd stalls. */
+        fun write(text: String, timeoutMillis: Long = 2_000): Boolean {
+            val bytes = text.toByteArray(Charsets.UTF_8)
+            if (closed.get() || bytes.isEmpty() || bytes.size > MAX_WRITE_BYTES) return false
+            synchronized(this) {
+                if (!acknowledged.tryAcquire(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS)) {
+                    close()
+                    return false
+                }
+                if (closed.get()) return false
+                awaitingAck.set(true)
+                return try {
+                    sendLocked(AdbPacket(AdbPacket.WRTE, local, remote, bytes))
+                    true
+                } catch (_: IOException) {
+                    close()
+                    false
+                }
+            }
+        }
+
+        override fun close() {
+            if (!closed.compareAndSet(false, true)) return
+            runCatching { sendLocked(AdbPacket(AdbPacket.CLSE, local, remote, ByteArray(0))) }
+            closeConnection()
+            // Wake a writer that waits for an acknowledgement that will never come.
+            acknowledged.release()
+            runCatching { onClosed() }
+        }
+
+        companion object {
+            const val MAX_WRITE_BYTES = 4_000
+        }
+    }
+
     @Synchronized
     override fun close() = closeQuietly()
 

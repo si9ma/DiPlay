@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">ミニ</string>
     <string name="settings_battery_card_style_standard">標準</string>
     <string name="settings_battery_card_style_rich">詳細</string>
+    <string name="settings_battery_card_theme">昼夜モード</string>
+    <string name="settings_battery_card_theme_follow">車両に合わせる</string>
+    <string name="settings_battery_card_theme_day">昼</string>
+    <string name="settings_battery_card_theme_night">夜</string>
     <string name="settings_battery_card_fields">表示する値</string>
     <string name="settings_battery_card_fields_count">%1$d 項目を選択</string>
     <string name="settings_battery_card_size">サイズ</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">放電電力の上限</string>
     <string name="battery_field_charge_limit">充電上限</string>
     <string name="battery_field_charge_time_left">充電残り時間</string>
+    <string name="battery_field_charged_energy">今回の充電量</string>
 </resources>

@@ -42,7 +42,7 @@ class BydVehicleSignalsTest {
         assertNull(values[absent])
     }
 
-    private fun state(left: Int? = 2, right: Int? = 2, prompts: Int? = 2, projection: Int? = 0, mirroring: Int? = 0,
+    private fun state(left: Int? = 2, right: Int? = 2, prompts: Int? = 2, projection: Int? = 0, mirroring: Int? = 3,
                       navi: Int? = 4, gear: Int? = 1, bms: Int? = 15) = BydVehicleSignals.state(mapOf(
         BydVehicleSignals.LEFT_CARD to left, BydVehicleSignals.RIGHT_CARD to right, BydVehicleSignals.MAP_PROMPTS to prompts,
         BydVehicleSignals.RIGHT_PROJECTION to projection, BydVehicleSignals.MAP_MIRRORING to mirroring,
@@ -50,12 +50,16 @@ class BydVehicleSignalsTest {
         BydVehicleSignals.charging(BydBatteryProtocol.CANFD) to bms,
     ), BydBatteryProtocol.CANFD)
 
-    @Test fun rightCardIsTheMapWhenAnyOfTheStockMapSignalsSaysSo() {
+    @Test fun rightCardIsTheMapOnlyWhileThePromptOrTheProjectionSaysSo() {
         assertEquals(BydSideCard.HIDDEN, state(right = 2, prompts = 1).right)
         assertEquals(BydSideCard.SHOWN, state(right = 1).right)
         assertEquals(BydSideCard.MAP, state(right = 1, prompts = 1).right)
+        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 3).right)
         assertEquals(BydSideCard.MAP, state(right = 1, prompts = 2, projection = 2).right)
-        assertEquals(BydSideCard.MAP, state(right = 1, mirroring = 3).right)
+        // Tai 7, door open over the map: mirroring stays 3, the prompt and the projection fall.
+        assertEquals(BydSideCard.SHOWN, state(right = 1, prompts = 2, projection = 0, mirroring = 3).right)
+        // Door closed again: the map is back.
+        assertEquals(BydSideCard.MAP, state(right = 1, prompts = 1, projection = 2, mirroring = 3).right)
         assertNull(state(right = null).right)
         assertNull(state(right = 0).right)
         assertEquals(false, state(navi = 4).navigating)
@@ -66,21 +70,34 @@ class BydVehicleSignalsTest {
         assertEquals(true, state(bms = 1).charging)
     }
 
-    private fun BydVehicleEventDetector.feed(vararg states: BydVehicleState, guidance: Boolean = false) =
-        states.flatMap { accept(it, guidance) }
+    @Test fun onlyTheReadsBehindTheWantedEventsAreMade() {
+        assertEquals(listOf(BydVehicleSignals.LEFT_CARD),
+            BydVehicleSignals.events(BydBatteryProtocol.CANFD, setOf(BydVehicleEvent.LEFT_CARD_SHOWN)))
+        assertEquals(listOf(BydVehicleSignals.RIGHT_CARD, BydVehicleSignals.MAP_PROMPTS, BydVehicleSignals.RIGHT_PROJECTION),
+            BydVehicleSignals.events(BydBatteryProtocol.CANFD, setOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN)))
+        assertEquals(listOf(BydVehicleSignals.GEAR), BydVehicleSignals.events(null, setOf(BydVehicleEvent.GEAR_P, BydVehicleEvent.GEAR_D)))
+        assertFalse(BydVehicleSignals.MAP_MIRRORING in BydVehicleSignals.events(BydBatteryProtocol.CANFD))
+        assertTrue(BydVehicleSignals.needsProtocol(setOf(BydVehicleEvent.CHARGING_STARTED)))
+        assertFalse(BydVehicleSignals.needsProtocol(setOf(BydVehicleEvent.LEFT_CARD_SHOWN)))
+        assertEquals(emptyList<BydSignal>(), BydVehicleSignals.events(BydBatteryProtocol.CANFD, emptySet()))
+    }
+
+    /** A fake clock: every fed sample is [step] ms after the previous one. */
+    private var clock = 0L
+    private fun BydVehicleEventDetector.feed(vararg states: BydVehicleState, guidance: Boolean = false, step: Long = 250) =
+        states.flatMap { clock += step; accept(it, guidance, clock) }
 
     @Test fun firstValueIsABaselineAndOtherChangesCountAtOnce() {
         val detector = BydVehicleEventDetector()
         assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(left = 1, gear = 4)))
-        assertEquals(listOf(BydVehicleEvent.LEFT_CARD_HIDDEN), detector.accept(state(left = 2, gear = 4), false))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.accept(state(left = 2, gear = 4), false))
-        assertEquals(listOf(BydVehicleEvent.GEAR_R), detector.accept(state(left = 2, gear = 2), false))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.accept(state(left = 2, gear = 3), false))
-        assertEquals(listOf(BydVehicleEvent.GEAR_P), detector.accept(state(left = 2, gear = 1), false))
-        assertEquals(setOf(BydVehicleEvent.GEAR_D, BydVehicleEvent.LEFT_CARD_SHOWN),
-            detector.accept(state(left = 1, gear = 4), false).toSet())
+        assertEquals(listOf(BydVehicleEvent.LEFT_CARD_HIDDEN), detector.feed(state(left = 2, gear = 4)))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(left = 2, gear = 4)))
+        assertEquals(listOf(BydVehicleEvent.GEAR_R), detector.feed(state(left = 2, gear = 2)))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(left = 2, gear = 3)))
+        assertEquals(listOf(BydVehicleEvent.GEAR_P), detector.feed(state(left = 2, gear = 1)))
+        assertEquals(setOf(BydVehicleEvent.GEAR_D, BydVehicleEvent.LEFT_CARD_SHOWN), detector.feed(state(left = 1, gear = 4)).toSet())
         // Unreadable samples change nothing.
-        assertEquals(emptyList<BydVehicleEvent>(), detector.accept(state(left = null, gear = null), false))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(left = null, gear = null)))
     }
 
     @Test fun recordedRightCardSequenceFromTheTai7() {
@@ -88,16 +105,25 @@ class BydVehicleSignalsTest {
         // prompt fell first and the cover 15 s later.
         val detector = BydVehicleEventDetector()
         detector.feed(state())
-        // A plain card waits three samples for a late map signal.
-        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1)))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.accept(state(right = 1), false))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.accept(state(right = 2), false))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.accept(state(right = 1, prompts = 1), false))
-        assertEquals(emptyList<BydVehicleEvent>(), detector.accept(state(right = 1, prompts = 1, projection = 2), false))
+        // A plain card waits 700 ms for a late map signal.
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1), state(right = 1)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.feed(state(right = 2)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1)))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1, prompts = 1, projection = 2)))
         assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN),
             detector.feed(state(right = 1, prompts = 2, projection = 2), state(right = 1, prompts = 2), state(right = 1, prompts = 2),
-                state(right = 1, prompts = 2)))
-        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.accept(state(right = 2), false))
+                state(right = 1, prompts = 2), state(right = 1, prompts = 2)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_HIDDEN), detector.feed(state(right = 2)))
+    }
+
+    @Test fun aDoorCardOverTheMapAndBackFiresBothWays() {
+        // The Tai 7 readings: the cover stays 1 throughout, MAP_MIRRORING stays 3.
+        val detector = BydVehicleEventDetector()
+        detector.feed(state(right = 1, prompts = 1, projection = 2))
+        val door = state(right = 1, prompts = 2, projection = 0)
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(door, door, door, door))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1, projection = 2)))
     }
 
     @Test fun mapPromptArrivingAfterTheCoverStillReportsTheMapCard() {
@@ -105,6 +131,17 @@ class BydVehicleSignalsTest {
         detector.feed(state())
         assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN),
             detector.feed(state(right = 1), state(right = 1), state(right = 1, prompts = 1), state(right = 1, prompts = 1)))
+        // A map signal that drops for one sample does not report a plain card.
+        assertEquals(emptyList<BydVehicleEvent>(),
+            detector.feed(state(right = 1, prompts = 2), state(right = 1, prompts = 1), state(right = 1, prompts = 1)))
+    }
+
+    @Test fun pushedSamplesCloseTogetherStillWaitForTheMap() {
+        val detector = BydVehicleEventDetector()
+        detector.feed(state())
+        // Pushed changes 50 ms apart: the cover first, the prompt 300 ms later.
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1), step = 50))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1), step = 300))
     }
 
     @Test fun stockNavigationStartIsNotReportedWhileCarPlayFeedsTheAdapter() {
@@ -128,10 +165,14 @@ class BydVehicleSignalsTest {
         assertEquals(listOf(BydVehicleEvent.CHARGING_STARTED), detector.feed(state(bms = 1)))
     }
 
+    private fun bits(value: Float) = java.lang.Float.floatToRawIntBits(value)
+
     @Test fun batteryDecodesTheParkedTai7Sample() {
         val values = mapOf(
-            BydBatterySignals.SOC to 96, BydBatterySignals.SOH to 98, BydBatterySignals.RANGE to 654,
-            BydBatterySignals.REMAINING to 961, BydBatterySignals.VOLTAGE to 719, BydBatterySignals.CURRENT to 30004,
+            BydBatterySignals.SOC to 95, BydBatterySignals.SOH to 98, BydBatterySignals.RANGE to 654,
+            BydBatterySignals.REMAINING to bits(87.3f), BydBatterySignals.VOLTAGE to 719,
+            BydBatterySignals.CHARGE_CURRENT to bits(0.4f), BydBatterySignals.CURRENT to 30007, BydBatterySignals.ENGINE_POWER to 0,
+            BydBatterySignals.CHARGED to -10011,
             BydBatterySignals.CELL_MAX to 3332, BydBatterySignals.CELL_MIN to 3326, BydBatterySignals.TEMP_MAX to 72,
             BydBatterySignals.TEMP_MIN to 67, BydBatterySignals.TEMP_AVG to 69, BydBatterySignals.INSULATION to 9935,
             BydBatterySignals.MAX_CHARGE to 1740, BydBatterySignals.MAX_DISCHARGE to 9485, BydBatterySignals.CHARGE_LIMIT to 100,
@@ -139,12 +180,15 @@ class BydVehicleSignalsTest {
             BydVehicleSignals.charging(BydBatteryProtocol.CANFD) to 15,
         )
         val details = BydBatterySignals.decode(values, BydBatteryProtocol.CANFD)
-        assertEquals(96.0, details[BydBatteryField.SOC]!!, 0.0)
+        assertEquals(95.0, details[BydBatteryField.SOC]!!, 0.0)
         assertEquals(98.0, details[BydBatteryField.SOH]!!, 0.0)
         assertEquals(654.0, details[BydBatteryField.RANGE]!!, 0.0)
-        assertEquals(96.1, details[BydBatteryField.REMAINING_ENERGY]!!, 1e-9)
+        assertEquals(87.3, details[BydBatteryField.REMAINING_ENERGY]!!, 1e-4)
+        assertEquals("1005:0x34A00010=87.30", details.sources[BydBatteryField.REMAINING_ENERGY])
+        // The float charging current wins over the GB current (0.7 A).
         assertEquals(0.4, details[BydBatteryField.CURRENT]!!, 1e-6)
         assertEquals(0.2876, details[BydBatteryField.POWER]!!, 1e-6)
+        assertNull(details[BydBatteryField.CHARGED_ENERGY])
         assertEquals(3.332, details[BydBatteryField.CELL_VOLTAGE_MAX]!!, 1e-9)
         assertEquals(6.0, details[BydBatteryField.CELL_VOLTAGE_DIFF]!!, 0.0)
         assertEquals(32.0, details[BydBatteryField.TEMP_MAX]!!, 0.0)
@@ -155,8 +199,34 @@ class BydVehicleSignalsTest {
         assertEquals(false, details.charging)
     }
 
+    @Test fun remainingEnergyMustFitThePackAndTheOldStatisticIsGone() {
+        fun remaining(raw: Int?, soc: Int = 95) = BydBatterySignals.decode(mapOf(BydBatterySignals.SOC to soc,
+            BydBatterySignals.REMAINING to raw), null)[BydBatteryField.REMAINING_ENERGY]
+        assertNull(remaining(-10013))
+        assertNull(remaining(bits(-1.0e9f)))
+        assertNull(remaining(bits(400f)))
+        // 5 kWh at 95 % would be a 5 kWh pack.
+        assertNull(remaining(bits(5f)))
+        assertEquals(5.0, remaining(bits(5f), soc = 6)!!, 1e-6)
+        // The integer read DiPlay used before is not a reliable energy and is no longer read.
+        assertFalse(BydSignal(1014, 0x44700028) in BydBatterySignals.all(BydBatteryProtocol.CANFD))
+    }
+
+    @Test fun chargingPowerUsesTheChargingCurrentThenTheEngine() {
+        val charging = BydBatterySignals.decode(mapOf(BydBatterySignals.VOLTAGE to 700,
+            BydBatterySignals.CHARGE_CURRENT to bits(-150f), BydBatterySignals.CURRENT to 30007,
+            BydBatterySignals.CHARGED to bits(12.5f)), null)
+        assertEquals(-105.0, charging[BydBatteryField.POWER]!!, 1e-6)
+        assertEquals("V×I (charging current)", charging.sources[BydBatteryField.POWER])
+        assertEquals(12.5, charging[BydBatteryField.CHARGED_ENERGY]!!, 1e-6)
+        val engine = BydBatterySignals.decode(mapOf(BydBatterySignals.CHARGE_CURRENT to -10013,
+            BydBatterySignals.ENGINE_POWER to -42), null)
+        assertEquals(-42.0, engine[BydBatteryField.POWER]!!, 0.0)
+        assertEquals("1012:0x14400020=-42", engine.sources[BydBatteryField.POWER])
+    }
+
     @Test fun batteryFallsBackToTheVerifiedSocAndDropsImplausibleValues() {
-        val soc = java.lang.Float.floatToRawIntBits(57.5f)
+        val soc = bits(57.5f)
         val values = mapOf(
             BydBatterySignals.SOC to null, BydSignal(1014, BydBatteryProtocol.CANFD.percentId, BydSignal.GET_FLOAT) to soc,
             BydBatterySignals.VOLTAGE to 719, BydBatterySignals.CURRENT to 29000, BydBatterySignals.TEMP_MAX to 255,
@@ -165,8 +235,10 @@ class BydVehicleSignalsTest {
         )
         val details = BydBatterySignals.decode(values, BydBatteryProtocol.CANFD)
         assertEquals(57.5, details[BydBatteryField.SOC]!!, 1e-6)
+        // No float charging current: the GB current is the fallback.
         assertEquals(-100.0, details[BydBatteryField.CURRENT]!!, 1e-6)
         assertEquals(-71.9, details[BydBatteryField.POWER]!!, 1e-6)
+        assertEquals("V×I (GB current)", details.sources[BydBatteryField.POWER])
         assertNull(details[BydBatteryField.TEMP_MAX])
         assertNull(details[BydBatteryField.CELL_VOLTAGE_MAX])
         assertNull(details[BydBatteryField.CELL_VOLTAGE_DIFF])

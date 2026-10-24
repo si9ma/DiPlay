@@ -25,6 +25,10 @@
     <string name="settings_battery_card_style_mini">مصغر</string>
     <string name="settings_battery_card_style_standard">قياسي</string>
     <string name="settings_battery_card_style_rich">مفصل</string>
+    <string name="settings_battery_card_theme">النهار/الليل</string>
+    <string name="settings_battery_card_theme_follow">مثل وحدة السيارة</string>
+    <string name="settings_battery_card_theme_day">نهار</string>
+    <string name="settings_battery_card_theme_night">ليل</string>
     <string name="settings_battery_card_fields">القيم</string>
     <string name="settings_battery_card_fields_count">تم اختيار %1$d</string>
     <string name="settings_battery_card_size">الحجم</string>
@@ -59,4 +63,5 @@
     <string name="battery_field_max_discharge_power">حد قدرة التفريغ</string>
     <string name="battery_field_charge_limit">حد الشحن</string>
     <string name="battery_field_charge_time_left">وقت الشحن المتبقي</string>
+    <string name="battery_field_charged_energy">الشحن في هذه الجلسة</string>
 </resources>
