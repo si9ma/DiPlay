@@ -108,7 +108,7 @@ internal object BydClusterBridge {
             putExtra("NEXT_ROAD_NAME", frame.road)
             putExtra("ROUTE_REMAIN_DIS", frame.routeRemainingMeters)
             putExtra("ROUTE_REMAIN_TIME", frame.routeRemainingSeconds)
-            if (adapter?.needsSimpleNavigationMode == true) putDiLink3Text(this, frame)
+            if (adapter?.sendsPreformattedText == true) putDiLink3Text(this, frame)
         }
         if (broadcastLocked(intent)) {
             lastSent = frame
@@ -158,7 +158,7 @@ internal object BydClusterBridge {
      * DiPlay changed it.
      */
     private fun applyClusterModeLocked() {
-        if (adapter?.needsSimpleNavigationMode != true) return
+        if (adapter?.needsSimpleNavigationMode() != true) return
         val appContext = context ?: return
         BydDiLink3ClusterOutput.setDesired(appContext, mapShown, guidanceActive)
     }
@@ -175,7 +175,7 @@ internal object BydClusterBridge {
 
     /** DiLink 3 only: creates the cluster projection display in the background so the map window can find it. */
     fun prepareProjectionDisplay(appContext: Context) {
-        if (BydAmapAdapter.find { installed(appContext, it) } != BydAmapAdapter.DILINK3) return
+        if (BydAmapAdapter.find { installed(appContext, it) }?.needsSimpleNavigationMode() != true) return
         BydDiLink3ClusterOutput.prepareDisplay(appContext) { projectionDisplayPresent(appContext) }
     }
 

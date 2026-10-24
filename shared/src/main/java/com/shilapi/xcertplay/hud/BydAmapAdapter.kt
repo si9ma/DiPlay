@@ -4,10 +4,16 @@ package com.shilapi.xcertplay.hud
  * The stock AMap adapter that turns AUTONAVI_STANDARD_BROADCAST_SEND broadcasts into cluster guidance.
  * DiLink 3 (Android 10, Qualcomm 6125, "1for2" cluster) ships the same receiver as
  * com.example.amapservice, and its cluster shows the guidance card only in simple-navigation mode.
+ * Newer firmware (for example the Di150VCP, Android 14) also ships com.example.amapservice but has
+ * other AutoContainer commands, so the DiLink 3 cluster modes are switched only on Android 10 or older.
  */
-internal enum class BydAmapAdapter(val packageName: String, val needsSimpleNavigationMode: Boolean) {
-    BYD("com.byd.amapservice", needsSimpleNavigationMode = false),
-    DILINK3("com.example.amapservice", needsSimpleNavigationMode = true);
+internal enum class BydAmapAdapter(val packageName: String, val sendsPreformattedText: Boolean) {
+    BYD("com.byd.amapservice", sendsPreformattedText = false),
+    DILINK3("com.example.amapservice", sendsPreformattedText = true);
+
+    /** Whether DiPlay switches the DiLink 3 cluster mode through AutoContainer for this adapter. */
+    fun needsSimpleNavigationMode(sdkInt: Int = android.os.Build.VERSION.SDK_INT): Boolean =
+        this == DILINK3 && sdkInt <= android.os.Build.VERSION_CODES.Q
 
     companion object {
         fun find(installed: (String) -> Boolean): BydAmapAdapter? = entries.firstOrNull { installed(it.packageName) }

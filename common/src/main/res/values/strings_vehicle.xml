@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_show_battery_card">Show battery card</string>
+    <string name="shortcut_hide_battery_card">Hide battery card</string>
+    <string name="shortcut_vehicle_event">Car event</string>
+    <string name="shortcut_vehicle_hint">Read from the car over DiPlay\'s ADB access several times a second, only while CarPlay is connected; an event usually runs within half a second. A right card waits about a second longer to tell whether it is the map. The value found on connecting is not an event.</string>
+    <string name="shortcut_vehicle_left_card_shown">Left dashboard card shown</string>
+    <string name="shortcut_vehicle_left_card_hidden">Left dashboard card hidden</string>
+    <string name="shortcut_vehicle_right_card_shown">Right dashboard card shown (not the map)</string>
+    <string name="shortcut_vehicle_right_map_card_shown">Right dashboard map card shown</string>
+    <string name="shortcut_vehicle_right_card_hidden">Right dashboard card hidden</string>
+    <string name="shortcut_vehicle_navigation_started">Car\'s navigation started</string>
+    <string name="shortcut_vehicle_gear_p">Shifted into P</string>
+    <string name="shortcut_vehicle_gear_r">Shifted into R</string>
+    <string name="shortcut_vehicle_gear_d">Shifted into D</string>
+    <string name="shortcut_vehicle_charging_started">Charging started</string>
+
+    <string name="settings_battery_card">Battery card (experimental)</string>
+    <string name="settings_battery_card_show">Show the battery card</string>
+    <string name="settings_battery_card_show_description">Draws charge, power, temperatures and other battery values over other apps. Needs display over other apps and DiPlay\'s ADB access; works without CarPlay.</string>
+    <string name="settings_battery_card_display">Screen</string>
+    <string name="settings_battery_card_display_center">Centre screen</string>
+    <string name="settings_battery_card_display_cluster">Dashboard</string>
+    <string name="settings_battery_card_style">Style</string>
+    <string name="settings_battery_card_style_mini">Mini</string>
+    <string name="settings_battery_card_style_standard">Standard</string>
+    <string name="settings_battery_card_style_rich">Detailed</string>
+    <string name="settings_battery_card_fields">Values</string>
+    <string name="settings_battery_card_fields_count">%1$d selected</string>
+    <string name="settings_battery_card_size">Size</string>
+    <string name="settings_battery_card_opacity">Background opacity</string>
+    <string name="settings_battery_card_x">Horizontal position</string>
+    <string name="settings_battery_card_y">Vertical position</string>
+    <string name="settings_battery_card_drag_hint">Drag the card on the centre screen to move it.</string>
+    <string name="settings_battery_card_reset">Reset position</string>
+    <string name="settings_battery_card_hint">Reads the battery every 2 s while the card is shown. Charge, range and the charging state are the values DiPlay already sends to the iPhone; the others and their units were worked out on one Fangchengbao Tai 7 EV and can be wrong or missing on other cars. Shortcuts can show and hide the card.</string>
+    <string name="settings_battery_card_unavailable">The card could not be shown. Allow display over other apps; for the dashboard, a dashboard display must be present.</string>
+
+    <string name="battery_card_title">Battery</string>
+    <string name="battery_card_charging">Charging</string>
+    <string name="battery_card_reading">Reading…</string>
+    <string name="battery_card_no_adb">ADB access needed</string>
+    <string name="battery_card_unsupported">No battery data</string>
+    <string name="battery_field_soc">Charge (SOC)</string>
+    <string name="battery_field_soh">Health (SOH)</string>
+    <string name="battery_field_range">Range</string>
+    <string name="battery_field_remaining_energy">Energy left</string>
+    <string name="battery_field_power">Power</string>
+    <string name="battery_field_voltage">Pack voltage</string>
+    <string name="battery_field_current">Current</string>
+    <string name="battery_field_cell_max">Highest cell</string>
+    <string name="battery_field_cell_min">Lowest cell</string>
+    <string name="battery_field_cell_diff">Cell spread</string>
+    <string name="battery_field_temp_max">Highest temp.</string>
+    <string name="battery_field_temp_min">Lowest temp.</string>
+    <string name="battery_field_temp_avg">Average temp.</string>
+    <string name="battery_field_insulation">Insulation</string>
+    <string name="battery_field_max_charge_power">Charge power limit</string>
+    <string name="battery_field_max_discharge_power">Discharge power limit</string>
+    <string name="battery_field_charge_limit">Charge limit</string>
+    <string name="battery_field_charge_time_left">Charge time left</string>
+</resources>

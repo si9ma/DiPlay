@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_show_battery_card">إظهار بطاقة البطارية</string>
+    <string name="shortcut_hide_battery_card">إخفاء بطاقة البطارية</string>
+    <string name="shortcut_vehicle_event">حدث السيارة</string>
+    <string name="shortcut_vehicle_hint">يُقرأ من السيارة عبر وصول ADB الخاص بـ DiPlay عدة مرات في الثانية، فقط أثناء اتصال CarPlay، وعادةً ما يُنفَّذ الحدث خلال نصف ثانية. تنتظر البطاقة اليمنى نحو ثانية إضافية لمعرفة هل هي الخريطة. القيمة المقروءة عند الاتصال لا تُعد حدثًا.</string>
+    <string name="shortcut_vehicle_left_card_shown">ظهرت البطاقة اليسرى في لوحة العدادات</string>
+    <string name="shortcut_vehicle_left_card_hidden">اختفت البطاقة اليسرى في لوحة العدادات</string>
+    <string name="shortcut_vehicle_right_card_shown">ظهرت البطاقة اليمنى في لوحة العدادات (ليست الخريطة)</string>
+    <string name="shortcut_vehicle_right_map_card_shown">ظهرت بطاقة الخريطة اليمنى في لوحة العدادات</string>
+    <string name="shortcut_vehicle_right_card_hidden">اختفت البطاقة اليمنى في لوحة العدادات</string>
+    <string name="shortcut_vehicle_navigation_started">بدأت ملاحة السيارة</string>
+    <string name="shortcut_vehicle_gear_p">التبديل إلى P</string>
+    <string name="shortcut_vehicle_gear_r">التبديل إلى R</string>
+    <string name="shortcut_vehicle_gear_d">التبديل إلى D</string>
+    <string name="shortcut_vehicle_charging_started">بدأ الشحن</string>
+
+    <string name="settings_battery_card">بطاقة البطارية (تجريبي)</string>
+    <string name="settings_battery_card_show">إظهار بطاقة البطارية</string>
+    <string name="settings_battery_card_show_description">تعرض الشحن والقدرة ودرجات الحرارة وقيمًا أخرى للبطارية فوق التطبيقات الأخرى. تحتاج إذن العرض فوق التطبيقات الأخرى ووصول ADB الخاص بـ DiPlay، وتعمل دون CarPlay.</string>
+    <string name="settings_battery_card_display">الشاشة</string>
+    <string name="settings_battery_card_display_center">الشاشة الوسطى</string>
+    <string name="settings_battery_card_display_cluster">لوحة العدادات</string>
+    <string name="settings_battery_card_style">النمط</string>
+    <string name="settings_battery_card_style_mini">مصغر</string>
+    <string name="settings_battery_card_style_standard">قياسي</string>
+    <string name="settings_battery_card_style_rich">مفصل</string>
+    <string name="settings_battery_card_fields">القيم</string>
+    <string name="settings_battery_card_fields_count">تم اختيار %1$d</string>
+    <string name="settings_battery_card_size">الحجم</string>
+    <string name="settings_battery_card_opacity">عتامة الخلفية</string>
+    <string name="settings_battery_card_x">الموضع الأفقي</string>
+    <string name="settings_battery_card_y">الموضع العمودي</string>
+    <string name="settings_battery_card_drag_hint">اسحب البطاقة على الشاشة الوسطى لتحريكها.</string>
+    <string name="settings_battery_card_reset">إعادة تعيين الموضع</string>
+    <string name="settings_battery_card_hint">تُقرأ البطارية كل ثانيتين أثناء ظهور البطاقة. الشحن والمدى وحالة الشحن هي القيم التي يرسلها DiPlay إلى iPhone أصلًا؛ أما القيم الأخرى ووحداتها فاستُنتجت على سيارة Fangchengbao Tai 7 EV واحدة وقد تكون خاطئة أو غائبة في سيارات أخرى. يمكن للاختصارات إظهار البطاقة وإخفاؤها.</string>
+    <string name="settings_battery_card_unavailable">تعذر إظهار البطاقة. اسمح بالعرض فوق التطبيقات الأخرى؛ وللوحة العدادات يجب أن تتوفر شاشة لوحة العدادات.</string>
+
+    <string name="battery_card_title">البطارية</string>
+    <string name="battery_card_charging">جارٍ الشحن</string>
+    <string name="battery_card_reading">جارٍ القراءة…</string>
+    <string name="battery_card_no_adb">يلزم وصول ADB</string>
+    <string name="battery_card_unsupported">لا توجد بيانات للبطارية</string>
+    <string name="battery_field_soc">الشحن (SOC)</string>
+    <string name="battery_field_soh">الصحة (SOH)</string>
+    <string name="battery_field_range">المدى</string>
+    <string name="battery_field_remaining_energy">الطاقة المتبقية</string>
+    <string name="battery_field_power">القدرة</string>
+    <string name="battery_field_voltage">جهد البطارية</string>
+    <string name="battery_field_current">التيار</string>
+    <string name="battery_field_cell_max">أعلى خلية</string>
+    <string name="battery_field_cell_min">أدنى خلية</string>
+    <string name="battery_field_cell_diff">فرق الخلايا</string>
+    <string name="battery_field_temp_max">أعلى حرارة</string>
+    <string name="battery_field_temp_min">أدنى حرارة</string>
+    <string name="battery_field_temp_avg">متوسط الحرارة</string>
+    <string name="battery_field_insulation">العزل</string>
+    <string name="battery_field_max_charge_power">حد قدرة الشحن</string>
+    <string name="battery_field_max_discharge_power">حد قدرة التفريغ</string>
+    <string name="battery_field_charge_limit">حد الشحن</string>
+    <string name="battery_field_charge_time_left">وقت الشحن المتبقي</string>
+</resources>

@@ -27,6 +27,7 @@ import androidx.core.text.BidiFormatter
 import androidx.core.text.TextDirectionHeuristicsCompat
 import androidx.core.view.doOnLayout
 import com.shilapi.xcertplay.host.R
+import com.shilapi.xcertplay.hud.BydVehicleEvent
 import com.shilapi.xcertplay.settings.SettingsControlMetrics
 import com.shilapi.xcertplay.settings.SettingsTheme
 import com.shilapi.xcertplay.settings.SettingsWidgets
@@ -58,6 +59,20 @@ internal object ShortcutEditor {
         ShortcutAction.HIDE_CLUSTER_MUSIC to R.string.shortcut_hide_cluster_music,
         ShortcutAction.SHOW_CLUSTER_MAP to R.string.shortcut_show_cluster_map,
         ShortcutAction.HIDE_CLUSTER_MAP to R.string.shortcut_hide_cluster_map,
+        ShortcutAction.SHOW_BATTERY_CARD to R.string.shortcut_show_battery_card,
+        ShortcutAction.HIDE_BATTERY_CARD to R.string.shortcut_hide_battery_card,
+    )
+    private val vehicleLabels = mapOf(
+        BydVehicleEvent.LEFT_CARD_SHOWN to R.string.shortcut_vehicle_left_card_shown,
+        BydVehicleEvent.LEFT_CARD_HIDDEN to R.string.shortcut_vehicle_left_card_hidden,
+        BydVehicleEvent.RIGHT_CARD_SHOWN to R.string.shortcut_vehicle_right_card_shown,
+        BydVehicleEvent.RIGHT_MAP_CARD_SHOWN to R.string.shortcut_vehicle_right_map_card_shown,
+        BydVehicleEvent.RIGHT_CARD_HIDDEN to R.string.shortcut_vehicle_right_card_hidden,
+        BydVehicleEvent.OEM_NAVIGATION_STARTED to R.string.shortcut_vehicle_navigation_started,
+        BydVehicleEvent.GEAR_P to R.string.shortcut_vehicle_gear_p,
+        BydVehicleEvent.GEAR_R to R.string.shortcut_vehicle_gear_r,
+        BydVehicleEvent.GEAR_D to R.string.shortcut_vehicle_gear_d,
+        BydVehicleEvent.CHARGING_STARTED to R.string.shortcut_vehicle_charging_started,
     )
     private val selectableActions get() = ShortcutAction.entries.filterNot {
         it.legacyWindow || it == ShortcutAction.KEY_PRESS || it == ShortcutAction.TAP
@@ -77,9 +92,12 @@ internal object ShortcutEditor {
         else -> R.string.shortcut_click_single
     })
 
-    private fun trigger(activity: Activity, rule: ShortcutRule) = if (rule.event == ShortcutEvent.CONNECTED)
-        activity.getString(R.string.shortcut_connected)
-    else "${activity.getString(R.string.shortcut_key)} · ${keyCodes(activity, rule.keyCode, rule.scanCode)} · ${clickLabel(activity, rule.clickCount)}"
+    private fun trigger(activity: Activity, rule: ShortcutRule) = when (rule.event) {
+        ShortcutEvent.CONNECTED -> activity.getString(R.string.shortcut_connected)
+        ShortcutEvent.VEHICLE -> "${activity.getString(R.string.shortcut_vehicle_event)} · " +
+            (rule.vehicleEvent?.let { activity.getString(vehicleLabels.getValue(it)) } ?: "")
+        ShortcutEvent.KEY -> "${activity.getString(R.string.shortcut_key)} · ${keyCodes(activity, rule.keyCode, rule.scanCode)} · ${clickLabel(activity, rule.clickCount)}"
+    }
 
     private fun summary(activity: Activity, step: ShortcutStep): String = buildString {
         append(activity.getString(labels.getValue(step.action)))
@@ -405,9 +423,13 @@ internal object ShortcutEditor {
             val event = card(R.string.shortcut_event)
             ui.add(event, ui.text(trigger(activity, draft)).apply { tag = "shortcut_trigger" })
             ui.add(event, ui.button(R.string.shortcut_connected, "shortcut_connected") {
-                draft = draft.copy(event = ShortcutEvent.CONNECTED, keyCode = 0, scanCode = 0, clickCount = 1); editor()
+                draft = draft.copy(event = ShortcutEvent.CONNECTED, keyCode = 0, scanCode = 0, clickCount = 1, vehicleEvent = null); editor()
             })
             ui.add(event, ui.button(R.string.shortcut_learn, "shortcut_learn") { learn() })
+            ui.add(event, ui.button(R.string.shortcut_vehicle_event, "shortcut_vehicle_event") { chooseVehicleEvent() })
+            if (draft.event == ShortcutEvent.VEHICLE) {
+                ui.add(event, ui.text(activity.getString(R.string.shortcut_vehicle_hint), secondary = true))
+            }
             if (draft.event == ShortcutEvent.KEY) {
                 ui.add(event, ui.button("${activity.getString(R.string.shortcut_click_count)} · ${clickLabel(activity, draft.clickCount)}",
                     "shortcut_click_count") { chooseClickCount() })
@@ -464,6 +486,19 @@ internal object ShortcutEditor {
             })
             addFooter(ui.button(R.string.shortcut_save, "shortcut_save", primary = true) { save() })
             cancelButton { dialog.dismiss() }
+        }
+        private fun chooseVehicleEvent() {
+            page(R.string.shortcut_vehicle_event)
+            ui.add(body, ui.text(activity.getString(R.string.shortcut_vehicle_hint), secondary = true))
+            BydVehicleEvent.entries.forEach { event ->
+                val selected = draft.event == ShortcutEvent.VEHICLE && draft.vehicleEvent == event
+                ui.add(body, ui.button(vehicleLabels.getValue(event), "shortcut_vehicle_${event.name}", primary = selected) {
+                    draft = draft.copy(event = ShortcutEvent.VEHICLE, vehicleEvent = event, keyCode = 0, scanCode = 0,
+                        clickCount = 1, steps = draft.steps.filterNot { it.action == ShortcutAction.ORIGINAL_CLICK })
+                    editor()
+                }.apply { isSelected = selected })
+            }
+            cancelButton()
         }
         private fun chooseClickCount() {
             page(R.string.shortcut_click_count)
@@ -606,7 +641,7 @@ internal object ShortcutEditor {
             CarPlayShortcuts.startLearning({ code, scan ->
                 if (captureActive) {
                     captureActive = false
-                    draft = draft.copy(event = ShortcutEvent.KEY, keyCode = code, scanCode = scan); editor()
+                    draft = draft.copy(event = ShortcutEvent.KEY, keyCode = code, scanCode = scan, vehicleEvent = null); editor()
                 }
             }, { message(activity, R.string.shortcut_unsupported) }, { captureEnded() }, { captureEnded() }, onChanged = { update ->
                 if (captureActive && update.code != null && update.scan != null)

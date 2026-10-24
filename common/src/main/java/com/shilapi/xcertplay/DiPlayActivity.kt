@@ -130,6 +130,7 @@ internal enum class SettingsSection {
     CLUSTER_WINDOWS,
     SHORTCUTS,
     LAUNCHER_BUBBLE,
+    BATTERY_CARD,
     BYD_NAVIGATION,
     MAP_DESTINATION,
     PERMISSIONS_AND_HELP,
@@ -167,6 +168,7 @@ internal object SettingsInformationArchitecture {
         SettingsCategory.ADVANCED to setOf(
             SettingsSection.CLUSTER_MAP,
             SettingsSection.LAUNCHER_BUBBLE,
+            SettingsSection.BATTERY_CARD,
             SettingsSection.EXPERIMENTAL_DISPLAY,
             SettingsSection.ADVANCED_MEDIA,
             SettingsSection.AMBIENT_LIGHTING,
@@ -403,6 +405,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         rememberLaunchAppearance()
         languagePreferenceAtCreate = AppLocale.preference(this)
         com.shilapi.xcertplay.hud.BydNavigationOutputs.onAppOpened(applicationContext)
+        BatteryCard.restore(this)
         WheelKeyService.restoreIfNeeded(this)
         HeadUnitMapDestination.sync(this)
         PhoneAudioRoute.attach(applicationContext)
@@ -543,6 +546,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     override fun onResume() {
         super.onResume()
         WheelKeyService.restoreIfNeeded(this)
+        // Back from the overlay permission screen, a card switched on there appears now.
+        BatteryCard.restore(this)
         applyFullscreenMode()
         // Returning from another activity can bring the head unit's own density back.
         if (enforceInterfaceSize()) render()
@@ -2239,6 +2244,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     else getString(R.string.center_map_overlay_missing, packageName), 14, if (overlay) MUTED else WARNING))
             }
         }
+        filteredSection(content, SettingsSection.BATTERY_CARD,
+            getString(R.string.settings_battery_card), R.drawable.ic_dp_dashboard) { batteryCardControls(it) }
         // Cluster video does not require a BYD navigation broadcast receiver.
         filteredSection(content, SettingsSection.CLUSTER_MAP,
             getString(R.string.carplay_map_on_instrument_cluster_experimental), R.drawable.ic_dp_dashboard) { card ->
@@ -4297,6 +4304,66 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 row.onSave = { value -> AirPlayPersistence.saveClusterSpeedometerOpacity(this, value) }
             })
         }
+    }
+
+    private fun batteryCardControls(card: LinearLayout) {
+        val config = BatteryCardSettings.load(this)
+        toggle(card, getString(R.string.settings_battery_card_show),
+            getString(R.string.settings_battery_card_show_description), config.visible) { on ->
+            if (on && !BatteryCard.permitted(this)) openOverlayPermission()
+            if (!BatteryCard.setVisible(this, on) && on) toast(getString(R.string.settings_battery_card_unavailable))
+        }
+        val targets = BatteryCardTarget.entries
+        choice(card, getString(R.string.settings_battery_card_display), listOf(
+            getString(R.string.settings_battery_card_display_center), getString(R.string.settings_battery_card_display_cluster)),
+            targets.indexOf(config.target), reconnects = false) { index ->
+            BatteryCardSettings.update(this) { it.copy(target = targets[index]) }
+            render()
+        }
+        val styles = BatteryCardStyle.entries
+        choice(card, getString(R.string.settings_battery_card_style), listOf(
+            getString(R.string.settings_battery_card_style_mini), getString(R.string.settings_battery_card_style_standard),
+            getString(R.string.settings_battery_card_style_rich)), styles.indexOf(config.style), reconnects = false) { index ->
+            BatteryCardSettings.update(this) { it.copy(style = styles[index]) }
+        }
+        val fieldsTitle = getString(R.string.settings_battery_card_fields)
+        searchIndexSink?.add(fieldsTitle)
+        val fieldsButton = button("$fieldsTitle · ${getString(R.string.settings_battery_card_fields_count, config.fields.size)}", false) {}
+        fieldsButton.setOnClickListener {
+            val all = com.shilapi.xcertplay.hud.BydBatteryField.entries
+            val chosen = BatteryCardSettings.load(this).fields.toSet()
+            val checked = BooleanArray(all.size) { all[it] in chosen }
+            appDialogBuilder().setTitle(fieldsTitle)
+                .setMultiChoiceItems(all.map { getString(BatteryCardText.LABELS.getValue(it)) }.toTypedArray(), checked) { _, index, on ->
+                    checked[index] = on
+                }
+                .setPositiveButton(getString(R.string.save)) { _, _ ->
+                    val fields = all.filterIndexed { index, _ -> checked[index] }
+                    BatteryCardSettings.update(this) { it.copy(fields = fields) }
+                    fieldsButton.text = "$fieldsTitle · ${getString(R.string.settings_battery_card_fields_count, fields.size)}"
+                }.setNegativeButton(getString(R.string.cancel), null).show()
+        }
+        card.addView(fieldsButton, matchButton(0, 60)); card.addView(space(12))
+        card.addView(overlaySliderRow(getString(R.string.settings_battery_card_size), BatteryCardSettings.SCALES, config.scale) { "$it %" }
+            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(scale = value) } } })
+        card.addView(overlaySliderRow(getString(R.string.settings_battery_card_opacity), BatteryCardSettings.OPACITIES, config.opacity) { "$it %" }
+            .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(opacity = value) } } })
+        if (config.target == BatteryCardTarget.CLUSTER) {
+            val positions = (0..100).toList()
+            card.addView(overlaySliderRow(getString(R.string.settings_battery_card_x), positions, config.clusterX) { "$it %" }
+                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(clusterX = value) } } })
+            card.addView(overlaySliderRow(getString(R.string.settings_battery_card_y), positions, config.clusterY) { "$it %" }
+                .also { row -> row.onSave = { value -> BatteryCardSettings.update(this) { it.copy(clusterY = value) } } })
+        } else {
+            card.addView(label(getString(R.string.settings_battery_card_drag_hint), 14, MUTED))
+            card.addView(button(getString(R.string.settings_battery_card_reset), false) {
+                BatteryCardSettings.update(this) { it.copy(centerX = -1, centerY = -1) }
+            }, matchButton(12, 60))
+        }
+        val overlay = BatteryCard.permitted(this)
+        card.addView(label(if (overlay) getString(R.string.center_map_overlay_allowed)
+            else getString(R.string.center_map_overlay_missing, packageName), 14, if (overlay) MUTED else WARNING))
+        card.addView(label(getString(R.string.settings_battery_card_hint), 14, MUTED))
     }
 
     /** A 1%-step slider row for overlay placement; every step saves, so the card moves live. */
@@ -7083,6 +7150,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         reportSection("CarPlay shortcuts") {
             CarPlayShortcuts.report().forEach { appendLine(it) }
+            BatteryCard.diagnostics(appContext).forEach { appendLine(it) }
         }
         reportSection("OEM cluster song output") {
             BydNavigationOutputs.clusterSongDiagnosticReport().forEach { appendLine(it) }

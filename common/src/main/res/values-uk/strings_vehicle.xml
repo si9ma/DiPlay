@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_show_battery_card">Показати картку батареї</string>
+    <string name="shortcut_hide_battery_card">Сховати картку батареї</string>
+    <string name="shortcut_vehicle_event">Подія автомобіля</string>
+    <string name="shortcut_vehicle_hint">Зчитується з автомобіля через ADB-доступ DiPlay кілька разів на секунду, лише поки підключено CarPlay; подія зазвичай спрацьовує за пів секунди. Права картка чекає приблизно на секунду довше, щоб зрозуміти, чи це мапа. Значення під час підключення подією не вважається.</string>
+    <string name="shortcut_vehicle_left_card_shown">Ліву картку приладової панелі показано</string>
+    <string name="shortcut_vehicle_left_card_hidden">Ліву картку приладової панелі сховано</string>
+    <string name="shortcut_vehicle_right_card_shown">Праву картку приладової панелі показано (не мапа)</string>
+    <string name="shortcut_vehicle_right_map_card_shown">Праву картку з мапою показано</string>
+    <string name="shortcut_vehicle_right_card_hidden">Праву картку приладової панелі сховано</string>
+    <string name="shortcut_vehicle_navigation_started">Штатна навігація почала ведення</string>
+    <string name="shortcut_vehicle_gear_p">Увімкнено режим P</string>
+    <string name="shortcut_vehicle_gear_r">Увімкнено режим R</string>
+    <string name="shortcut_vehicle_gear_d">Увімкнено режим D</string>
+    <string name="shortcut_vehicle_charging_started">Заряджання почалося</string>
+
+    <string name="settings_battery_card">Картка батареї (експериментально)</string>
+    <string name="settings_battery_card_show">Показувати картку батареї</string>
+    <string name="settings_battery_card_show_description">Показує заряд, потужність, температури та інші дані батареї поверх інших застосунків. Потрібні дозвіл на показ поверх інших застосунків і ADB-доступ DiPlay; працює й без CarPlay.</string>
+    <string name="settings_battery_card_display">Екран</string>
+    <string name="settings_battery_card_display_center">Центральний екран</string>
+    <string name="settings_battery_card_display_cluster">Приладова панель</string>
+    <string name="settings_battery_card_style">Стиль</string>
+    <string name="settings_battery_card_style_mini">Міні</string>
+    <string name="settings_battery_card_style_standard">Стандартний</string>
+    <string name="settings_battery_card_style_rich">Докладний</string>
+    <string name="settings_battery_card_fields">Значення</string>
+    <string name="settings_battery_card_fields_count">Вибрано: %1$d</string>
+    <string name="settings_battery_card_size">Розмір</string>
+    <string name="settings_battery_card_opacity">Непрозорість фону</string>
+    <string name="settings_battery_card_x">Положення по горизонталі</string>
+    <string name="settings_battery_card_y">Положення по вертикалі</string>
+    <string name="settings_battery_card_drag_hint">На центральному екрані картку можна перетягнути.</string>
+    <string name="settings_battery_card_reset">Скинути положення</string>
+    <string name="settings_battery_card_hint">Поки картку показано, батарея зчитується кожні 2 с. Заряд, запас ходу й стан заряджання — ті самі значення, що DiPlay уже передає iPhone; решту та їхні одиниці визначено на одному Fangchengbao Tai 7 EV, і на інших автомобілях вони можуть бути неточними або відсутніми. Швидкі команди можуть показувати й ховати картку.</string>
+    <string name="settings_battery_card_unavailable">Не вдалося показати картку. Дозвольте показ поверх інших застосунків; для приладової панелі потрібен її дисплей.</string>
+
+    <string name="battery_card_title">Батарея</string>
+    <string name="battery_card_charging">Заряджання</string>
+    <string name="battery_card_reading">Зчитування…</string>
+    <string name="battery_card_no_adb">Потрібен ADB-доступ</string>
+    <string name="battery_card_unsupported">Немає даних батареї</string>
+    <string name="battery_field_soc">Заряд (SOC)</string>
+    <string name="battery_field_soh">Стан (SOH)</string>
+    <string name="battery_field_range">Запас ходу</string>
+    <string name="battery_field_remaining_energy">Залишок енергії</string>
+    <string name="battery_field_power">Потужність</string>
+    <string name="battery_field_voltage">Напруга батареї</string>
+    <string name="battery_field_current">Струм</string>
+    <string name="battery_field_cell_max">Макс. комірка</string>
+    <string name="battery_field_cell_min">Мін. комірка</string>
+    <string name="battery_field_cell_diff">Розкид комірок</string>
+    <string name="battery_field_temp_max">Макс. темп.</string>
+    <string name="battery_field_temp_min">Мін. темп.</string>
+    <string name="battery_field_temp_avg">Середня темп.</string>
+    <string name="battery_field_insulation">Ізоляція</string>
+    <string name="battery_field_max_charge_power">Межа потужності заряджання</string>
+    <string name="battery_field_max_discharge_power">Межа потужності розряду</string>
+    <string name="battery_field_charge_limit">Межа заряджання</string>
+    <string name="battery_field_charge_time_left">До кінця заряджання</string>
+</resources>

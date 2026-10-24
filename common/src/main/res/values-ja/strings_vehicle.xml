@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_show_battery_card">バッテリーカードを表示</string>
+    <string name="shortcut_hide_battery_card">バッテリーカードを非表示</string>
+    <string name="shortcut_vehicle_event">車両イベント</string>
+    <string name="shortcut_vehicle_hint">DiPlay の ADB アクセスで車両の状態を毎秒数回読み取ります。CarPlay 接続中のみ有効で、イベントは通常 0.5 秒以内に実行されます。右側のカードは地図かどうかを見分けるため、約 1 秒長く待ちます。接続時に読み取った状態はイベントになりません。</string>
+    <string name="shortcut_vehicle_left_card_shown">メーター左側のカードが表示された</string>
+    <string name="shortcut_vehicle_left_card_hidden">メーター左側のカードが消えた</string>
+    <string name="shortcut_vehicle_right_card_shown">メーター右側のカードが表示された（地図以外）</string>
+    <string name="shortcut_vehicle_right_map_card_shown">メーター右側に地図カードが表示された</string>
+    <string name="shortcut_vehicle_right_card_hidden">メーター右側のカードが消えた</string>
+    <string name="shortcut_vehicle_navigation_started">純正ナビの案内開始</string>
+    <string name="shortcut_vehicle_gear_p">P に入れた</string>
+    <string name="shortcut_vehicle_gear_r">R に入れた</string>
+    <string name="shortcut_vehicle_gear_d">D に入れた</string>
+    <string name="shortcut_vehicle_charging_started">充電開始</string>
+
+    <string name="settings_battery_card">バッテリーカード（実験的機能）</string>
+    <string name="settings_battery_card_show">バッテリーカードを表示</string>
+    <string name="settings_battery_card_show_description">充電量、出力、温度などのバッテリー情報を他のアプリの上に表示します。「他のアプリの上に重ねて表示」の許可と DiPlay の ADB アクセスが必要です。CarPlay なしでも使えます。</string>
+    <string name="settings_battery_card_display">表示先</string>
+    <string name="settings_battery_card_display_center">センター画面</string>
+    <string name="settings_battery_card_display_cluster">メーター</string>
+    <string name="settings_battery_card_style">スタイル</string>
+    <string name="settings_battery_card_style_mini">ミニ</string>
+    <string name="settings_battery_card_style_standard">標準</string>
+    <string name="settings_battery_card_style_rich">詳細</string>
+    <string name="settings_battery_card_fields">表示する値</string>
+    <string name="settings_battery_card_fields_count">%1$d 項目を選択</string>
+    <string name="settings_battery_card_size">サイズ</string>
+    <string name="settings_battery_card_opacity">背景の不透明度</string>
+    <string name="settings_battery_card_x">横の位置</string>
+    <string name="settings_battery_card_y">縦の位置</string>
+    <string name="settings_battery_card_drag_hint">センター画面ではカードをドラッグして移動できます。</string>
+    <string name="settings_battery_card_reset">位置をリセット</string>
+    <string name="settings_battery_card_hint">カード表示中は 2 秒ごとにバッテリーを読み取ります。充電量、航続距離、充電状態は DiPlay が iPhone に送る値と同じです。それ以外の値と単位は方程豹 鈦7 EV の 1 台で調べたもので、他の車では正しくないか表示されないことがあります。ショートカットでカードの表示・非表示ができます。</string>
+    <string name="settings_battery_card_unavailable">カードを表示できません。「他のアプリの上に重ねて表示」を許可してください。メーターに表示するにはメーターのディスプレイが必要です。</string>
+
+    <string name="battery_card_title">バッテリー</string>
+    <string name="battery_card_charging">充電中</string>
+    <string name="battery_card_reading">読み取り中…</string>
+    <string name="battery_card_no_adb">ADB アクセスが必要</string>
+    <string name="battery_card_unsupported">バッテリー情報なし</string>
+    <string name="battery_field_soc">充電量 (SOC)</string>
+    <string name="battery_field_soh">劣化度 (SOH)</string>
+    <string name="battery_field_range">航続距離</string>
+    <string name="battery_field_remaining_energy">残エネルギー</string>
+    <string name="battery_field_power">出力</string>
+    <string name="battery_field_voltage">総電圧</string>
+    <string name="battery_field_current">電流</string>
+    <string name="battery_field_cell_max">最高セル電圧</string>
+    <string name="battery_field_cell_min">最低セル電圧</string>
+    <string name="battery_field_cell_diff">セル電圧差</string>
+    <string name="battery_field_temp_max">最高温度</string>
+    <string name="battery_field_temp_min">最低温度</string>
+    <string name="battery_field_temp_avg">平均温度</string>
+    <string name="battery_field_insulation">絶縁抵抗</string>
+    <string name="battery_field_max_charge_power">充電電力の上限</string>
+    <string name="battery_field_max_discharge_power">放電電力の上限</string>
+    <string name="battery_field_charge_limit">充電上限</string>
+    <string name="battery_field_charge_time_left">充電残り時間</string>
+</resources>

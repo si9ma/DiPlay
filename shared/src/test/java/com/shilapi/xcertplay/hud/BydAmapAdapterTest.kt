@@ -13,7 +13,16 @@ class BydAmapAdapterTest {
         val adapter = BydAmapAdapter.find { it == "com.example.amapservice" }
 
         assertEquals(BydAmapAdapter.DILINK3, adapter)
-        assertTrue(adapter!!.needsSimpleNavigationMode)
+        assertTrue(adapter!!.needsSimpleNavigationMode(sdkInt = 29))
+        assertTrue(adapter.sendsPreformattedText)
+    }
+
+    @Test
+    fun newerFirmwareWithTheSameAdapterNeverGetsDiLink3ClusterCommands() {
+        // Fangchengbao Tai 7 EV, Di150VCP / Android 14: com.example.amapservice, other AutoContainer commands.
+        val adapter = BydAmapAdapter.find { it == "com.example.amapservice" }!!
+        assertFalse(adapter.needsSimpleNavigationMode(sdkInt = 34))
+        assertFalse(adapter.needsSimpleNavigationMode(sdkInt = 30))
     }
 
     @Test
@@ -21,7 +30,8 @@ class BydAmapAdapterTest {
         val adapter = BydAmapAdapter.find { true }
 
         assertEquals(BydAmapAdapter.BYD, adapter)
-        assertFalse(adapter!!.needsSimpleNavigationMode)
+        assertFalse(adapter!!.needsSimpleNavigationMode(sdkInt = 29))
+        assertFalse(adapter.sendsPreformattedText)
     }
 
     @Test

@@ -137,6 +137,9 @@ object BydNavigationOutputs {
         }
     }
 
+    /** Whether the iPhone is guiding now; DiPlay then feeds the stock adapter that the cluster also reads. */
+    fun carPlayGuidanceActive(): Boolean = synchronized(overlayLock) { overlayRoute.currentApple() != null }
+
     /** The dashboard song setting changed; applies at once. */
     fun clusterSongChanged(enabled: Boolean) = BydClusterSong.settingChanged(enabled)
 

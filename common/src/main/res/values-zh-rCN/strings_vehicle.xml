@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shortcut_show_battery_card">显示电池卡片</string>
+    <string name="shortcut_hide_battery_card">隐藏电池卡片</string>
+    <string name="shortcut_vehicle_event">车辆事件</string>
+    <string name="shortcut_vehicle_hint">通过 DiPlay 的 ADB 连接每秒读取数次车辆状态，仅在 CarPlay 连接期间生效，事件一般在半秒内触发。右侧卡片要多等约一秒，以判断是不是地图卡片。连接时读到的状态不算事件。</string>
+    <string name="shortcut_vehicle_left_card_shown">仪表左侧卡片显示</string>
+    <string name="shortcut_vehicle_left_card_hidden">仪表左侧卡片隐藏</string>
+    <string name="shortcut_vehicle_right_card_shown">仪表右侧卡片显示（非地图）</string>
+    <string name="shortcut_vehicle_right_map_card_shown">仪表右侧地图卡片显示</string>
+    <string name="shortcut_vehicle_right_card_hidden">仪表右侧卡片隐藏</string>
+    <string name="shortcut_vehicle_navigation_started">原厂导航开始</string>
+    <string name="shortcut_vehicle_gear_p">挂入 P 挡</string>
+    <string name="shortcut_vehicle_gear_r">挂入 R 挡</string>
+    <string name="shortcut_vehicle_gear_d">挂入 D 挡</string>
+    <string name="shortcut_vehicle_charging_started">开始充电</string>
+
+    <string name="settings_battery_card">电池卡片（实验性）</string>
+    <string name="settings_battery_card_show">显示电池卡片</string>
+    <string name="settings_battery_card_show_description">在其他应用上方显示电量、功率、温度等电池参数。需要“在其他应用上层显示”权限和 DiPlay 的 ADB 连接；不连接 CarPlay 也能用。</string>
+    <string name="settings_battery_card_display">显示位置</string>
+    <string name="settings_battery_card_display_center">中控屏</string>
+    <string name="settings_battery_card_display_cluster">仪表</string>
+    <string name="settings_battery_card_style">样式</string>
+    <string name="settings_battery_card_style_mini">迷你</string>
+    <string name="settings_battery_card_style_standard">标准</string>
+    <string name="settings_battery_card_style_rich">丰富</string>
+    <string name="settings_battery_card_fields">显示参数</string>
+    <string name="settings_battery_card_fields_count">已选 %1$d 项</string>
+    <string name="settings_battery_card_size">大小</string>
+    <string name="settings_battery_card_opacity">背景不透明度</string>
+    <string name="settings_battery_card_x">水平位置</string>
+    <string name="settings_battery_card_y">垂直位置</string>
+    <string name="settings_battery_card_drag_hint">在中控屏上拖动卡片即可移动位置。</string>
+    <string name="settings_battery_card_reset">重置位置</string>
+    <string name="settings_battery_card_hint">卡片显示期间每 2 秒读取一次电池数据。电量、续航和充电状态与 DiPlay 发给 iPhone 的数据相同；其余参数及单位是根据一台方程豹钛7 EV 推断的，在其他车型上可能不准或缺失。快捷指令可以显示和隐藏卡片。</string>
+    <string name="settings_battery_card_unavailable">无法显示卡片。请允许“在其他应用上层显示”；显示在仪表时，需要能找到仪表显示屏。</string>
+
+    <string name="battery_card_title">电池</string>
+    <string name="battery_card_charging">充电中</string>
+    <string name="battery_card_reading">读取中…</string>
+    <string name="battery_card_no_adb">需要 ADB 授权</string>
+    <string name="battery_card_unsupported">读不到电池数据</string>
+    <string name="battery_field_soc">电量 SOC</string>
+    <string name="battery_field_soh">健康度 SOH</string>
+    <string name="battery_field_range">续航</string>
+    <string name="battery_field_remaining_energy">剩余电量</string>
+    <string name="battery_field_power">功率</string>
+    <string name="battery_field_voltage">总电压</string>
+    <string name="battery_field_current">电流</string>
+    <string name="battery_field_cell_max">最高单体</string>
+    <string name="battery_field_cell_min">最低单体</string>
+    <string name="battery_field_cell_diff">单体压差</string>
+    <string name="battery_field_temp_max">最高温度</string>
+    <string name="battery_field_temp_min">最低温度</string>
+    <string name="battery_field_temp_avg">平均温度</string>
+    <string name="battery_field_insulation">绝缘电阻</string>
+    <string name="battery_field_max_charge_power">允许充电功率</string>
+    <string name="battery_field_max_discharge_power">允许放电功率</string>
+    <string name="battery_field_charge_limit">充电上限</string>
+    <string name="battery_field_charge_time_left">剩余充电时间</string>
+</resources>
