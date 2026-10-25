@@ -47,7 +47,8 @@ internal object BatteryCardSettings {
     private const val LEGACY_PREFS = "diplay_battery_card"
     private const val MIGRATED_KEY = "migrated_to"
     val SCALES = (60..160 step 5).toList()
-    val OPACITIES = (30..100 step 5).toList()
+    /** 0 % draws no background at all, only the values. */
+    val OPACITIES = (0..100 step 5).toList()
     val DEFAULT_FIELDS = listOf(BydBatteryField.SOC, BydBatteryField.RANGE, BydBatteryField.POWER,
         BydBatteryField.REMAINING_ENERGY, BydBatteryField.SOH, BydBatteryField.TEMP_MAX, BydBatteryField.CELL_VOLTAGE_DIFF)
 

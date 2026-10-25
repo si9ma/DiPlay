@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">Подія автомобіля</string>
-    <string name="shortcut_vehicle_hint">Стан автомобіля читається через ADB-підключення DiPlay, лише поки підключено CarPlay; подія зазвичай спрацьовує за пів секунди. Права картка, що з’явилася без мапи, чекає близько 0,7 с, щоб зрозуміти, чи це мапа. Подіям навігації CarPlay ADB не потрібен. Значення, прочитане під час підключення, не є подією.</string>
+    <string name="shortcut_vehicle_hint">Стан автомобіля читається через ADB-підключення DiPlay, лише поки підключено CarPlay; подія зазвичай спрацьовує за пів секунди. Права картка, що з’явилася без мапи, трохи чекає (типово 0,7 с, налаштовується в списку швидких команд), щоб зрозуміти, чи це мапа. Подіям навігації CarPlay ADB не потрібен. Значення, прочитане під час підключення, не є подією.</string>
     <string name="shortcut_vehicle_left_card_shown">Ліву картку приладової панелі показано</string>
     <string name="shortcut_vehicle_left_card_hidden">Ліву картку приладової панелі сховано</string>
     <string name="shortcut_vehicle_right_card_shown">Праву картку приладової панелі показано (не мапа)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">Додати умову</string>
     <string name="shortcut_condition_values_hint">Виберіть одне чи кілька значень. Умову виконано, якщо поточне значення — будь-яке з них.</string>
     <string name="settings_battery_card_which">Яку картку налаштувати</string>
+    <string name="shortcut_right_card_wait">Права картка: чекати сигнал мапи</string>
+    <string name="shortcut_right_card_wait_ms">%1$d мс</string>
+    <string name="shortcut_right_card_wait_none">Без очікування</string>
+    <string name="shortcut_right_card_wait_hint">Діє для всіх правил. Коли з’являється права картка, сигнал мапи від панелі приладів може прийти до пів секунди пізніше; очікування потрібне, щоб відрізнити мапу. Без очікування «праву картку показано» спрацьовує одразу, а якщо це виявиться мапа, слідом спрацює й «праву картку мапи показано». Картка дверей поверх мапи та повернення мапи завжди спрацьовують одразу.</string>
 </resources>

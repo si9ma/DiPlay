@@ -121,6 +121,30 @@ class BydVehicleSignalsTest {
         assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1), step = 10))
     }
 
+    @Test fun theRightCardWaitIsConfigurableDownToNone() {
+        var wait = 0L
+        val detector = BydVehicleEventDetector { wait }
+        detector.feed(state())
+        // No wait: a card counts at once, and a late map prompt then reports the map as well.
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1), step = 50))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_MAP_CARD_SHOWN), detector.feed(state(right = 1, prompts = 1), step = 300))
+        detector.feed(state())
+        wait = 1_000L
+        assertEquals(emptyList<BydVehicleEvent>(), detector.feed(state(right = 1), state(right = 1), state(right = 1), state(right = 1)))
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.feed(state(right = 1)))
+    }
+
+    @Test fun aWaitingCardSaysWhenItCanBeConfirmed() {
+        val detector = BydVehicleEventDetector { 50L }
+        detector.accept(state(), 0)
+        assertNull(detector.pendingMillis(0))
+        assertEquals(emptyList<BydVehicleEvent>(), detector.accept(state(right = 1), 10))
+        assertEquals(40L, detector.pendingMillis(20))
+        // Confirmed by the same state once the wait is over, without a new sample in between.
+        assertEquals(listOf(BydVehicleEvent.RIGHT_CARD_SHOWN), detector.accept(state(right = 1), 60))
+        assertNull(detector.pendingMillis(60))
+    }
+
     @Test fun aMapPromptArrivingAfterTheCoverReportsOnlyTheMap() {
         val detector = BydVehicleEventDetector()
         detector.feed(state())

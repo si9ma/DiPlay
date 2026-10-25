@@ -139,13 +139,17 @@ enum class BydVehicleEvent(val group: BydVehicleSignalGroup?) {
 
 /**
  * Turns samples into events. A change counts at the first sample that shows it, with one exception:
- * a right card that appears without a map waits [rightSettleMillis], because the cluster can raise
- * the map prompt up to half a second after the cover; the prompt arriving ends the wait at once.
- * A map that turns into another card (a door warning) is reported at once. Time-based, so pushed
- * values and polls can be mixed. The first value after a start or a lost link only sets the
- * baseline, so connecting in D never reports "D engaged".
+ * a right card that appears without a map waits [rightSettleMillis] (0 = not at all), because the
+ * cluster can raise the map prompt up to half a second after the cover; the prompt arriving ends the
+ * wait at once. With no wait, such a map card reports "right card shown" first and "map card shown"
+ * when its prompt arrives. A map that turns into another card (a door warning) is reported at once.
+ * Time-based, so pushed values and polls can be mixed. The first value after a start or a lost link
+ * only sets the baseline, so connecting in D never reports "D engaged".
  */
-internal class BydVehicleEventDetector(private val rightSettleMillis: Long = 700) {
+internal class BydVehicleEventDetector(private val rightSettleMillis: () -> Long = { DEFAULT_RIGHT_SETTLE_MILLIS }) {
+    companion object {
+        const val DEFAULT_RIGHT_SETTLE_MILLIS = 700L
+    }
     private class Tracker<T : Any>(private val neededMillis: (previous: T, value: T) -> Long = { _, _ -> 0L }) {
         var committed: T? = null
         private var candidate: T? = null
@@ -162,10 +166,17 @@ internal class BydVehicleEventDetector(private val rightSettleMillis: Long = 700
             committed = value; candidate = null
             return previous to value
         }
+
+        /** How long the waiting change still needs, or null when none waits. */
+        fun remaining(now: Long): Long? {
+            val value = candidate ?: return null
+            val previous = committed ?: return null
+            return (neededMillis(previous, value) - (now - since)).takeIf { it > 0 }
+        }
     }
 
     private fun rightTracker() = Tracker<BydRightCard> { previous, value ->
-        if (previous == BydRightCard.HIDDEN && value == BydRightCard.CARD) rightSettleMillis else 0L
+        if (previous == BydRightCard.HIDDEN && value == BydRightCard.CARD) rightSettleMillis() else 0L
     }
     private var left = Tracker<Boolean>()
     private var right = rightTracker()
@@ -178,6 +189,9 @@ internal class BydVehicleEventDetector(private val rightSettleMillis: Long = 700
         left = Tracker(); right = rightTracker(); gear = Tracker(); charging = Tracker()
         if (carPlayToo) carPlay = Tracker()
     }
+
+    /** A change waiting to be confirmed: [accept] the same state again after this many ms to confirm it. */
+    fun pendingMillis(now: Long): Long? = right.remaining(now)
 
     fun accept(state: BydVehicleState, now: Long): List<BydVehicleEvent> = buildList {
         left.accept(state.leftShown, now)?.let { (previous, current) ->

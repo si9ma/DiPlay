@@ -51,7 +51,7 @@ object BydVehicleMonitor {
     private val pushed = BydShellAgent.PushListener { device, fid, value -> executor.execute { onPush(device, fid, value) } }
 
     // Worker-thread state.
-    private val detector = BydVehicleEventDetector()
+    private val detector = BydVehicleEventDetector { rightCardWaitMillis }
     private var protocol: BydBatteryProtocol? = null
     private var protocolKnown = false
     private var lastBatteryMillis = 0L
@@ -66,6 +66,13 @@ object BydVehicleMonitor {
     /** Tests replace the shell and the CarPlay-guidance check. */
     @Volatile internal var shellRun: (Context, String) -> String? = { app, command -> shell.run(app, command, READ_TIMEOUT_MILLIS) }
     @Volatile internal var carPlayGuidance: () -> Boolean = { BydNavigationOutputs.carPlayGuidanceActive() }
+
+    /** Default [rightCardWaitMillis]; the detector's baseline settle time. */
+    const val DEFAULT_RIGHT_CARD_WAIT_MILLIS = BydVehicleEventDetector.DEFAULT_RIGHT_SETTLE_MILLIS
+
+    /** How long a right card that appears without the map waits for a late map prompt; 0 = no wait. */
+    @Volatile var rightCardWaitMillis: Long = DEFAULT_RIGHT_CARD_WAIT_MILLIS
+        set(value) { field = value.coerceIn(0L, 2_000L) }
 
     /**
      * [wanted] are the events this listener acts on and [conditions] the further readings it looks up
@@ -110,7 +117,7 @@ object BydVehicleMonitor {
     fun report(): List<String> = synchronized(history) {
         listOf("Vehicle monitor: running=${future != null} eventListeners=${events.size} batteryListeners=${battery.size} " +
             "protocol=${protocol ?: if (protocolKnown) "unknown" else "unread"} battery=${latestBattery.link} " +
-            "eventRead=$readSummary pushApplied=$pushApplied state=$latestState",
+            "eventRead=$readSummary pushApplied=$pushApplied rightWait=${rightCardWaitMillis}ms state=$latestState",
             "Battery sources: ${latestBattery.details?.sources?.entries?.joinToString("; ") { "${it.key}=${it.value}" } ?: "none"}") +
             history + BydShellAgent.report()
     }
@@ -135,6 +142,7 @@ object BydVehicleMonitor {
         BydShellAgent.release(AGENT_OWNER)
         executor.execute {
             if (synchronized(scheduleLock) { future != null }) return@execute
+            settle?.cancel(false); settle = null
             detector.reset()
             protocolKnown = false
             eventSignals = emptyList(); latest.clear(); carPlayNavigating = null
@@ -203,11 +211,16 @@ object BydVehicleMonitor {
     private fun evaluate() {
         val state = BydVehicleSignals.state(latest, protocol, carPlayNavigating)
         latestState = state
-        for (event in detector.accept(state, SystemClock.elapsedRealtime())) {
+        val now = SystemClock.elapsedRealtime()
+        for (event in detector.accept(state, now)) {
             note("event $event")
             main.post { events.keys.forEach { it.onVehicleEvent(event) } }
         }
+        // A waiting right card is confirmed when its wait ends, not at the next poll.
+        settle?.cancel(false)
+        settle = detector.pendingMillis(now)?.let { executor.schedule(Runnable { evaluate() }, it, TimeUnit.MILLISECONDS) }
     }
+    private var settle: ScheduledFuture<*>? = null
 
     /** Keeps the agent's subscription on [signals]; a new agent needs it again. */
     private fun syncPush(signals: List<BydSignal>) {

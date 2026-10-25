@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">Evento del coche</string>
-    <string name="shortcut_vehicle_hint">El estado del coche se lee mediante la conexión ADB de DiPlay, solo mientras CarPlay está conectado; un evento suele ejecutarse en medio segundo. Una tarjeta derecha que aparece sin mapa espera unos 0,7 s para saber si es el mapa. Los eventos de navegación de CarPlay no necesitan ADB. El valor leído al conectar no es un evento.</string>
+    <string name="shortcut_vehicle_hint">El estado del coche se lee mediante la conexión ADB de DiPlay, solo mientras CarPlay está conectado; un evento suele ejecutarse en medio segundo. Una tarjeta derecha que aparece sin mapa espera un momento (0,7 s por defecto, ajustable en la lista de atajos) para saber si es el mapa. Los eventos de navegación de CarPlay no necesitan ADB. El valor leído al conectar no es un evento.</string>
     <string name="shortcut_vehicle_left_card_shown">Tarjeta izquierda del cuadro visible</string>
     <string name="shortcut_vehicle_left_card_hidden">Tarjeta izquierda del cuadro oculta</string>
     <string name="shortcut_vehicle_right_card_shown">Tarjeta derecha del cuadro visible (no el mapa)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">Añadir condición</string>
     <string name="shortcut_condition_values_hint">Elige uno o varios valores. La condición se cumple si el valor actual es cualquiera de ellos.</string>
     <string name="settings_battery_card_which">Tarjeta que configurar</string>
+    <string name="shortcut_right_card_wait">Tarjeta derecha: esperar al mapa</string>
+    <string name="shortcut_right_card_wait_ms">%1$d ms</string>
+    <string name="shortcut_right_card_wait_none">Sin espera</string>
+    <string name="shortcut_right_card_wait_hint">Se aplica a todas las reglas. Cuando aparece una tarjeta derecha, el cuadro puede enviar la señal del mapa hasta medio segundo después; la espera sirve para distinguir el mapa. Sin espera, \"tarjeta derecha visible\" se ejecuta al instante y, si resulta ser el mapa, justo después se ejecuta también \"tarjeta de mapa derecha visible\". Una tarjeta de puerta sobre el mapa y la vuelta del mapa siempre se ejecutan al instante.</string>
 </resources>

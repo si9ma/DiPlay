@@ -303,6 +303,18 @@ internal object CarPlayShortcuts {
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences("diplay_shortcuts", Context.MODE_PRIVATE)
+
+    /** Choices for how long a right card that appears without the map waits for a late map prompt. */
+    val RIGHT_CARD_WAITS = listOf(0L, 10L, 50L, 100L, 300L, 500L, 700L, 1_000L)
+    fun rightCardWait(context: Context): Long =
+        prefs(context).getLong(RIGHT_CARD_WAIT_KEY, BydVehicleMonitor.rightCardWaitMillis).takeIf { it in RIGHT_CARD_WAITS }
+            ?: BydVehicleMonitor.DEFAULT_RIGHT_CARD_WAIT_MILLIS
+    fun setRightCardWait(context: Context, millis: Long) {
+        if (millis !in RIGHT_CARD_WAITS) return
+        prefs(context).edit().putLong(RIGHT_CARD_WAIT_KEY, millis).apply()
+        BydVehicleMonitor.rightCardWaitMillis = millis
+    }
+    private const val RIGHT_CARD_WAIT_KEY = "right_card_wait_ms"
     fun load(context: Context): List<ShortcutRule> = runCatching {
         ShortcutCodec.decode(prefs(context).getString("rules", "").orEmpty(), BatteryCardSettings.legacyTarget(context))
     }.getOrDefault(emptyList())
@@ -321,6 +333,7 @@ internal object CarPlayShortcuts {
         this.context = context.applicationContext
         this.controller = controller
         preferences = prefs(context).also { it.registerOnSharedPreferenceChangeListener(changed) }
+        BydVehicleMonitor.rightCardWaitMillis = rightCardWait(context)
         rules = load(context)
         sync(controller)
     }

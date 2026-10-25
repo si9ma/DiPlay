@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">Evento dell\'auto</string>
-    <string name="shortcut_vehicle_hint">Lo stato dell\'auto viene letto tramite la connessione ADB di DiPlay, solo mentre CarPlay è connesso; un evento di solito parte entro mezzo secondo. Una scheda destra che compare senza mappa attende circa 0,7 s per capire se è la mappa. Gli eventi di navigazione CarPlay non richiedono ADB. Il valore letto alla connessione non è un evento.</string>
+    <string name="shortcut_vehicle_hint">Lo stato dell\'auto viene letto tramite la connessione ADB di DiPlay, solo mentre CarPlay è connesso; un evento di solito parte entro mezzo secondo. Una scheda destra che compare senza mappa attende un attimo (0,7 s di default, impostabile nell\'elenco delle regole) per capire se è la mappa. Gli eventi di navigazione CarPlay non richiedono ADB. Il valore letto alla connessione non è un evento.</string>
     <string name="shortcut_vehicle_left_card_shown">Scheda sinistra del quadro visibile</string>
     <string name="shortcut_vehicle_left_card_hidden">Scheda sinistra del quadro nascosta</string>
     <string name="shortcut_vehicle_right_card_shown">Scheda destra del quadro visibile (non la mappa)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">Aggiungi condizione</string>
     <string name="shortcut_condition_values_hint">Scegli uno o più valori. La condizione è soddisfatta se il valore attuale è uno qualsiasi di essi.</string>
     <string name="settings_battery_card_which">Scheda da configurare</string>
+    <string name="shortcut_right_card_wait">Scheda destra: attendi la mappa</string>
+    <string name="shortcut_right_card_wait_ms">%1$d ms</string>
+    <string name="shortcut_right_card_wait_none">Nessuna attesa</string>
+    <string name="shortcut_right_card_wait_hint">Vale per tutte le regole. Quando compare una scheda destra, il quadro può inviare il segnale della mappa fino a mezzo secondo dopo; l\'attesa serve a distinguere la mappa. Senza attesa, \"scheda destra visibile\" parte subito e, se poi si rivela la mappa, parte subito dopo anche \"scheda mappa destra visibile\". Una scheda porta sopra la mappa e il ritorno della mappa partono sempre subito.</string>
 </resources>

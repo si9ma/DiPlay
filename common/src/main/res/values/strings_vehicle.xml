@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">Car event</string>
-    <string name="shortcut_vehicle_hint">Car states are read through DiPlay\'s ADB connection, only while CarPlay is connected; an event usually runs within half a second. A right card that appears without the map waits about 0.7 s to tell whether it is the map. CarPlay navigation events need no ADB. The value found on connecting is not an event.</string>
+    <string name="shortcut_vehicle_hint">Car states are read through DiPlay\'s ADB connection, only while CarPlay is connected; an event usually runs within half a second. A right card that appears without the map waits a short time (0.7 s by default, set in the shortcut list) to tell whether it is the map. CarPlay navigation events need no ADB. The value found on connecting is not an event.</string>
     <string name="shortcut_vehicle_left_card_shown">Left dashboard card shown</string>
     <string name="shortcut_vehicle_left_card_hidden">Left dashboard card hidden</string>
     <string name="shortcut_vehicle_right_card_shown">Right dashboard card shown (not the map)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">Add condition</string>
     <string name="shortcut_condition_values_hint">Choose one or more values. The condition holds when the current value is any of them.</string>
     <string name="settings_battery_card_which">Card to set up</string>
+    <string name="shortcut_right_card_wait">Right card: wait for the map</string>
+    <string name="shortcut_right_card_wait_ms">%1$d ms</string>
+    <string name="shortcut_right_card_wait_none">No wait</string>
+    <string name="shortcut_right_card_wait_hint">Applies to all rules. When a right card appears, the dashboard can send its map signal up to half a second later; the wait tells a plain card from the map. With no wait, \"right card shown\" runs at once, and a map card that turns out to be the map also runs \"right map card shown\" right after. A door card over the map, and the map coming back, always run at once.</string>
 </resources>

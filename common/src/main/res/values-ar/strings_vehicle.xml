@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">حدث السيارة</string>
-    <string name="shortcut_vehicle_hint">تُقرأ حالة السيارة عبر اتصال ADB الخاص بـ DiPlay، فقط أثناء اتصال CarPlay، وعادةً ما يُنفَّذ الحدث خلال نصف ثانية. تنتظر البطاقة اليمنى التي تظهر بلا خريطة نحو 0.7 ثانية لمعرفة هل هي الخريطة. لا تحتاج أحداث التنقل في CarPlay إلى ADB. القيمة المقروءة عند الاتصال ليست حدثًا.</string>
+    <string name="shortcut_vehicle_hint">تُقرأ حالة السيارة عبر اتصال ADB الخاص بـ DiPlay، فقط أثناء اتصال CarPlay، وعادةً ما يُنفَّذ الحدث خلال نصف ثانية. تنتظر البطاقة اليمنى التي تظهر بلا خريطة قليلًا (0.7 ثانية افتراضيًا، ويمكن ضبطها في قائمة الاختصارات) لمعرفة هل هي الخريطة. لا تحتاج أحداث التنقل في CarPlay إلى ADB. القيمة المقروءة عند الاتصال ليست حدثًا.</string>
     <string name="shortcut_vehicle_left_card_shown">ظهرت البطاقة اليسرى في لوحة العدادات</string>
     <string name="shortcut_vehicle_left_card_hidden">اختفت البطاقة اليسرى في لوحة العدادات</string>
     <string name="shortcut_vehicle_right_card_shown">ظهرت البطاقة اليمنى في لوحة العدادات (ليست الخريطة)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">إضافة شرط</string>
     <string name="shortcut_condition_values_hint">اختر قيمة أو أكثر. يتحقق الشرط إذا كانت القيمة الحالية أيًّا منها.</string>
     <string name="settings_battery_card_which">البطاقة المراد إعدادها</string>
+    <string name="shortcut_right_card_wait">البطاقة اليمنى: انتظار إشارة الخريطة</string>
+    <string name="shortcut_right_card_wait_ms">%1$d ملي ثانية</string>
+    <string name="shortcut_right_card_wait_none">بلا انتظار</string>
+    <string name="shortcut_right_card_wait_hint">ينطبق على كل القواعد. عند ظهور بطاقة يمنى قد تصل إشارة الخريطة من لوحة العدادات متأخرة حتى نصف ثانية، والانتظار يميّز الخريطة. بلا انتظار يُنفَّذ \"ظهور البطاقة اليمنى\" فورًا، وإذا تبيّن أنها الخريطة يُنفَّذ بعده مباشرة \"ظهور بطاقة الخريطة اليمنى\" أيضًا. بطاقة الباب فوق الخريطة وعودة الخريطة تُنفَّذان فورًا دائمًا.</string>
 </resources>

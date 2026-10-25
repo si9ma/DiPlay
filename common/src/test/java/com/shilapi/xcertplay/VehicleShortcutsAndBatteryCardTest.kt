@@ -178,6 +178,24 @@ class VehicleShortcutsAndBatteryCardTest {
         }
     }
 
+    @Test fun aMiniCardPrintsTheChargeOnlyWhenChosenAndCanBeFullyTransparent() {
+        val fields = listOf(BydBatteryField.RANGE, BydBatteryField.POWER)
+        val without = card(BatteryCardConfig(style = BatteryCardStyle.MINI, fields = fields))
+        val with = card(BatteryCardConfig(style = BatteryCardStyle.MINI, fields = listOf(BydBatteryField.SOC) + fields))
+        assertTrue(with.contentSize().first > without.contentSize().first)
+        // 0 % opacity draws no background and no border: corners outside the text stay empty.
+        val clear = card(BatteryCardConfig(style = BatteryCardStyle.STANDARD, opacity = 0, fields = fields))
+        val (width, height) = clear.contentSize()
+        clear.measure(0, 0); clear.layout(0, 0, width, height)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        clear.draw(Canvas(bitmap))
+        assertEquals(0, android.graphics.Color.alpha(bitmap.getPixel(width / 2, height - 2)))
+        assertEquals(0, android.graphics.Color.alpha(bitmap.getPixel(width - 2, height / 2)))
+        BatteryCardSettings.prefs(app, BatteryCardTarget.CENTER).edit().putInt("opacity", 0).commit()
+        assertEquals(0, BatteryCardSettings.load(app, BatteryCardTarget.CENTER).opacity)
+        BatteryCardSettings.prefs(app, BatteryCardTarget.CENTER).edit().clear().commit()
+    }
+
     @Test fun sizeFollowsFieldsAndScale() {
         val few = card(BatteryCardConfig(style = BatteryCardStyle.STANDARD, fields = listOf(BydBatteryField.SOC, BydBatteryField.RANGE)))
         val many = card(BatteryCardConfig(style = BatteryCardStyle.STANDARD, fields = BydBatteryField.entries))

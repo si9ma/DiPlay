@@ -69,7 +69,7 @@ internal object BatteryCardFormat {
 
 /** The card's colours; the background takes the configured opacity. */
 internal class BatteryCardPalette(
-    val background: Int, val primary: Int, val secondary: Int, val separator: Int, val track: Int, val border: Int,
+    val background: Int, val primary: Int, val secondary: Int, val separator: Int, val track: Int,
     val good: Int, val warn: Int, val low: Int, val charging: Int, val driving: Int,
 ) {
     companion object {
@@ -79,7 +79,6 @@ internal class BatteryCardPalette(
             secondary = Color.rgb(0x9A, 0xA4, 0xAE),
             separator = Color.argb(0x80, 0xFF, 0xFF, 0xFF),
             track = Color.argb(0x38, 0xFF, 0xFF, 0xFF),
-            border = Color.argb(0x22, 0xFF, 0xFF, 0xFF),
             good = Color.rgb(0x34, 0xC7, 0x59),
             warn = Color.rgb(0xFF, 0xB3, 0x40),
             low = Color.rgb(0xFF, 0x45, 0x3A),
@@ -94,7 +93,6 @@ internal class BatteryCardPalette(
             secondary = Color.rgb(0x5F, 0x6B, 0x76),
             separator = Color.argb(0x70, 0x1C, 0x1F, 0x24),
             track = Color.argb(0x24, 0x1C, 0x1F, 0x24),
-            border = Color.argb(0x1A, 0x00, 0x00, 0x00),
             good = Color.rgb(0x1E, 0x9E, 0x45),
             warn = Color.rgb(0xD9, 0x82, 0x00),
             low = Color.rgb(0xE0, 0x35, 0x2B),
@@ -128,12 +126,13 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
     private fun valueOf(field: BydBatteryField) = BatteryCardFormat.value(field, details?.get(field))
     private val charging: Boolean get() = details?.charging == true
 
-    /** Fields printed below the header (or after the mini percentage). */
+    /** Fields printed below the header; a mini card prints the percentage only when it was chosen. */
     private fun bodyFields(): List<BydBatteryField> = when (config.style) {
         BatteryCardStyle.MINI -> config.fields.filter { it != BydBatteryField.SOC }.take(MINI_FIELDS)
         BatteryCardStyle.STANDARD -> config.fields.filter { it != BydBatteryField.SOC }
         BatteryCardStyle.RICH -> config.fields.filter { it != BydBatteryField.SOC && it != BydBatteryField.POWER && it != BydBatteryField.RANGE }
     }
+    private val miniSoc: Boolean get() = BydBatteryField.SOC in config.fields
 
     private fun status(): String? {
         val current = update
@@ -153,11 +152,15 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
 
     fun contentSize(): Pair<Int, Int> = when (config.style) {
         BatteryCardStyle.MINI -> {
-            val fields = bodyFields().sumOf {
-                (u(MINI_GAP) + textWidth(BatteryCardFormat.miniPrefix(it) + BatteryCardFormat.sample(it), 15f, true)).toDouble()
-            }.toFloat()
-            val message = listOf(text.reading, text.noAdb, text.unsupported).maxOf { textWidth(it, 14f, false) } + u(MINI_GAP)
-            val width = u(14f) + u(GLYPH_MINI_W + 3) + u(8f) + textWidth("100%", 17f, true) + maxOf(fields, message) + u(16f)
+            val fields = bodyFields().mapIndexed { index, field ->
+                // The first value sits right after the glyph or the percentage, with no separator before it.
+                val gap = if (index == 0 && !miniSoc) 0f else u(MINI_GAP)
+                gap + textWidth(BatteryCardFormat.miniPrefix(field) + BatteryCardFormat.sample(field), 15f, true)
+            }.sum()
+            val message = listOf(text.reading, text.noAdb, text.unsupported).maxOf { textWidth(it, 14f, false) } +
+                if (miniSoc) u(MINI_GAP) else 0f
+            val soc = if (miniSoc) textWidth("100%", 17f, true) else 0f
+            val width = u(14f) + u(GLYPH_MINI_W + 3) + u(8f) + soc + maxOf(fields, message) + u(16f)
             ceil(width).toInt() to ceil(u(44f)).toInt()
         }
         BatteryCardStyle.STANDARD -> {
@@ -181,13 +184,12 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         val radius = if (config.style == BatteryCardStyle.MINI) height / 2f else u(20f)
         rect.set(0f, 0f, width.toFloat(), height.toFloat())
         paint.style = Paint.Style.FILL
-        paint.color = Color.argb(config.opacity * 255 / 100, Color.red(palette.background), Color.green(palette.background),
-            Color.blue(palette.background))
-        canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = u(1f); paint.color = palette.border
-        rect.inset(u(0.5f), u(0.5f))
-        canvas.drawRoundRect(rect, radius, radius, paint)
-        paint.style = Paint.Style.FILL
+        // No border: at 0 % opacity only the values remain.
+        if (config.opacity > 0) {
+            paint.color = Color.argb(config.opacity * 255 / 100, Color.red(palette.background), Color.green(palette.background),
+                Color.blue(palette.background))
+            canvas.drawRoundRect(rect, radius, radius, paint)
+        }
         when (config.style) {
             BatteryCardStyle.MINI -> drawMini(canvas)
             BatteryCardStyle.STANDARD -> drawStandard(canvas)
@@ -200,16 +202,23 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
         var x = u(14f)
         drawGlyph(canvas, x, centre - u(GLYPH_MINI_H) / 2, u(GLYPH_MINI_W), u(GLYPH_MINI_H))
         x += u(GLYPH_MINI_W + 3) + u(8f)
-        x += drawText(canvas, valueOf(BydBatteryField.SOC), x, centre, 17f, true, socColor())
+        var first = true
+        if (miniSoc) {
+            x += drawText(canvas, valueOf(BydBatteryField.SOC), x, centre, 17f, true, socColor())
+            first = false
+        }
         val status = status()
         if (status != null) {
-            drawText(canvas, status, x + u(MINI_GAP), centre, 14f, false, colors.secondary)
+            drawText(canvas, status, x + if (first) 0f else u(MINI_GAP), centre, 14f, false, colors.secondary)
             return
         }
         for (field in bodyFields()) {
-            x += u(MINI_GAP)
-            paint.color = colors.separator
-            canvas.drawCircle(x - u(MINI_GAP) / 2, centre, u(1.6f), paint)
+            if (!first) {
+                x += u(MINI_GAP)
+                paint.color = colors.separator
+                canvas.drawCircle(x - u(MINI_GAP) / 2, centre, u(1.6f), paint)
+            }
+            first = false
             val color = if (field == BydBatteryField.POWER && charging) colors.charging else colors.primary
             x += drawText(canvas, BatteryCardFormat.miniPrefix(field) + valueOf(field), x, centre, 15f, true, color)
         }

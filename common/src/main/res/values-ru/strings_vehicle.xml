@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">Событие автомобиля</string>
-    <string name="shortcut_vehicle_hint">Состояние автомобиля читается через ADB-подключение DiPlay, только пока подключён CarPlay; событие обычно срабатывает за полсекунды. Правая карточка, появившаяся без карты, ждёт около 0,7 с, чтобы понять, карта ли это. Событиям навигации CarPlay ADB не нужен. Значение, прочитанное при подключении, не считается событием.</string>
+    <string name="shortcut_vehicle_hint">Состояние автомобиля читается через ADB-подключение DiPlay, только пока подключён CarPlay; событие обычно срабатывает за полсекунды. Правая карточка, появившаяся без карты, немного ждёт (по умолчанию 0,7 с, настраивается в списке быстрых команд), чтобы понять, карта ли это. Событиям навигации CarPlay ADB не нужен. Значение, прочитанное при подключении, не считается событием.</string>
     <string name="shortcut_vehicle_left_card_shown">Левая карточка приборной панели показана</string>
     <string name="shortcut_vehicle_left_card_hidden">Левая карточка приборной панели скрыта</string>
     <string name="shortcut_vehicle_right_card_shown">Правая карточка приборной панели показана (не карта)</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">Добавить условие</string>
     <string name="shortcut_condition_values_hint">Выберите одно или несколько значений. Условие выполнено, если текущее значение — любое из них.</string>
     <string name="settings_battery_card_which">Какую карточку настроить</string>
+    <string name="shortcut_right_card_wait">Правая карточка: ждать сигнал карты</string>
+    <string name="shortcut_right_card_wait_ms">%1$d мс</string>
+    <string name="shortcut_right_card_wait_none">Без ожидания</string>
+    <string name="shortcut_right_card_wait_hint">Действует для всех правил. Когда появляется правая карточка, сигнал карты от приборной панели может прийти до полсекунды позже; ожидание нужно, чтобы отличить карту. Без ожидания «правая карточка показана» срабатывает сразу, а если это окажется карта, следом сработает и «правая карточка карты показана». Карточка двери поверх карты и возврат карты всегда срабатывают сразу.</string>
 </resources>

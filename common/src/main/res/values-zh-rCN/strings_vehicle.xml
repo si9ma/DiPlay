@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">车辆事件</string>
-    <string name="shortcut_vehicle_hint">车辆状态通过 DiPlay 的 ADB 连接读取，仅在 CarPlay 连接期间生效，事件一般在半秒内触发。右侧非地图卡片从隐藏到显示时会多等约 0.7 秒，以判断是不是地图。CarPlay 导航事件不需要 ADB。连接时读到的状态不算事件。</string>
+    <string name="shortcut_vehicle_hint">车辆状态通过 DiPlay 的 ADB 连接读取，仅在 CarPlay 连接期间生效，事件一般在半秒内触发。右侧非地图卡片从隐藏到显示时会多等一会儿（默认 0.7 秒，可在快捷指令列表里设置），以判断是不是地图。CarPlay 导航事件不需要 ADB。连接时读到的状态不算事件。</string>
     <string name="shortcut_vehicle_left_card_shown">仪表左侧卡片显示</string>
     <string name="shortcut_vehicle_left_card_hidden">仪表左侧卡片隐藏</string>
     <string name="shortcut_vehicle_right_card_shown">仪表右侧卡片显示（非地图）</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">添加条件</string>
     <string name="shortcut_condition_values_hint">可以选一个或多个值，当前值是其中任意一个就算满足。</string>
     <string name="settings_battery_card_which">要设置的卡片</string>
+    <string name="shortcut_right_card_wait">右侧卡片等待地图信号</string>
+    <string name="shortcut_right_card_wait_ms">%1$d 毫秒</string>
+    <string name="shortcut_right_card_wait_none">不等待</string>
+    <string name="shortcut_right_card_wait_hint">对所有规则生效。右侧卡片出现时，仪表的地图信号可能晚到半秒左右，等待是为了分清是不是地图。不等待时，“右侧卡片显示（非地图）”立即触发；如果后来发现是地图，紧接着还会再触发一次“右侧地图卡片显示”。车门提示盖住地图、地图恢复这两种情况始终立即触发。</string>
 </resources>

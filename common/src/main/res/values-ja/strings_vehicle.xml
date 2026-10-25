@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="shortcut_vehicle_event">車両イベント</string>
-    <string name="shortcut_vehicle_hint">車両の状態は DiPlay の ADB 接続で読み取ります。CarPlay 接続中のみ有効で、イベントは通常 0.5 秒以内に実行されます。右側の地図以外のカードが現れたときは、地図かどうかを見分けるため約 0.7 秒待ちます。CarPlay のナビイベントには ADB は不要です。接続時に読み取った状態はイベントになりません。</string>
+    <string name="shortcut_vehicle_hint">車両の状態は DiPlay の ADB 接続で読み取ります。CarPlay 接続中のみ有効で、イベントは通常 0.5 秒以内に実行されます。右側の地図以外のカードが現れたときは、地図かどうかを見分けるため少し待ちます（既定 0.7 秒、ショートカット一覧で設定可能）。CarPlay のナビイベントには ADB は不要です。接続時に読み取った状態はイベントになりません。</string>
     <string name="shortcut_vehicle_left_card_shown">メーター左側のカードが表示された</string>
     <string name="shortcut_vehicle_left_card_hidden">メーター左側のカードが消えた</string>
     <string name="shortcut_vehicle_right_card_shown">メーター右側のカードが表示された（地図以外）</string>
@@ -99,4 +99,8 @@
     <string name="shortcut_add_condition">条件を追加</string>
     <string name="shortcut_condition_values_hint">値を 1 つ以上選んでください。現在の値がいずれかであれば条件を満たします。</string>
     <string name="settings_battery_card_which">設定するカード</string>
+    <string name="shortcut_right_card_wait">右側カード：地図信号を待つ</string>
+    <string name="shortcut_right_card_wait_ms">%1$d ミリ秒</string>
+    <string name="shortcut_right_card_wait_none">待たない</string>
+    <string name="shortcut_right_card_wait_hint">すべてのルールに適用されます。右側のカードが現れたとき、メーターの地図信号は最大 0.5 秒ほど遅れて届くことがあり、待つことで地図かどうかを見分けます。待たない場合は「右側カード表示（地図以外）」がすぐに実行され、後から地図だと分かると続けて「右側地図カード表示」も実行されます。地図にドアの表示が重なったときと、地図に戻ったときは常にすぐ実行されます。</string>
 </resources>

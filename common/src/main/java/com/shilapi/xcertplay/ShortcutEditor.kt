@@ -40,6 +40,9 @@ internal object ShortcutEditor {
     private const val OUTLINE_DP = SettingsControlMetrics.OUTLINE_DP
     private const val FOCUS_OUTLINE_DP = SettingsControlMetrics.FOCUS_OUTLINE_DP
     private const val PAGE_MAX_WIDTH_DP = 760
+    private const val HEIGHT_WATCH_MILLIS = 250L
+    /** Tests replace the room the editor may use, as a keyboard opening and closing would change it. */
+    @Volatile internal var testAvailableHeight: (() -> Int)? = null
     private const val NAME_MAX_LENGTH = 64
     private val labels = mapOf(
         ShortcutAction.WAIT to R.string.shortcut_wait, ShortcutAction.URI to R.string.shortcut_uri,
@@ -191,11 +194,36 @@ internal object ShortcutEditor {
             ui.add(list, ui.button(R.string.shortcut_new, "shortcut_new", primary = true) {
                 show(activity, ShortcutRule(), ::refresh)
             })
+            ui.add(list, rightCardWaitButton(activity, ui))
+            ui.add(list, ui.text(activity.getString(R.string.shortcut_right_card_wait_hint), secondary = true))
             ui.add(list, ui.button(R.string.shortcut_stop, "shortcut_stop_all") {
                 CarPlayShortcuts.stop(); CarPlayShortcuts.cancelCapture()
             })
         }
         refresh()
+    }
+
+    private fun waitLabel(activity: Activity, millis: Long) =
+        if (millis == 0L) activity.getString(R.string.shortcut_right_card_wait_none)
+        else activity.getString(R.string.shortcut_right_card_wait_ms, millis)
+
+    /** The one vehicle setting shared by all rules: how long a plain right card waits for a late map prompt. */
+    private fun rightCardWaitButton(activity: Activity, ui: Ui): View {
+        val title = activity.getString(R.string.shortcut_right_card_wait)
+        fun text() = "$title · ${waitLabel(activity, CarPlayShortcuts.rightCardWait(activity))}"
+        val button = ui.button(text(), "shortcut_right_card_wait") {}
+        button.setOnClickListener {
+            val choices = CarPlayShortcuts.RIGHT_CARD_WAITS
+            activity.appDialogBuilder().setTitle(title)
+                .setSingleChoiceItems(choices.map { waitLabel(activity, it) }.toTypedArray(),
+                    choices.indexOf(CarPlayShortcuts.rightCardWait(activity))) { dialog, index ->
+                    CarPlayShortcuts.setRightCardWait(activity, choices[index])
+                    button.text = text()
+                    dialog.dismiss()
+                }
+                .setNegativeButton(android.R.string.cancel, null).show()
+        }
+        return button
     }
 
     fun show(activity: Activity, draft: ShortcutRule = ShortcutRule(), onSaved: () -> Unit = {}) {
@@ -311,11 +339,15 @@ internal object ShortcutEditor {
     /** Wraps its pages up to [maxHeight]: only the scroll area shrinks, so the footer stays on screen. */
     private class BoundedPage(context: android.content.Context, private val maxHeight: () -> Int) : LinearLayout(context) {
         var scroll: BoundedScroll? = null
+        /** The limit the last measure used; a different [maxHeight] now means the page must measure again. */
+        var measuredLimit = -1
+            private set
         init { orientation = VERTICAL }
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val mode = MeasureSpec.getMode(heightMeasureSpec)
             val size = MeasureSpec.getSize(heightMeasureSpec)
             val limit = maxHeight().coerceAtLeast(0)
+            measuredLimit = limit
             val cap = if (mode == MeasureSpec.UNSPECIFIED) limit else minOf(size, limit)
             val scroll = scroll
             if (scroll != null) {
@@ -375,7 +407,10 @@ internal object ShortcutEditor {
             root.scroll = scroll
             root.addView(scroll, LinearLayout.LayoutParams(-1, -2))
             root.addView(footer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = ui.dp(CONTROL_GAP_DP) })
-            dialog.setOnDismissListener { if (captureActive) cancelCapture() }
+            dialog.setOnDismissListener {
+                root.removeCallbacks(heightWatch)
+                if (captureActive) cancelCapture()
+            }
             dialog.setOnKeyListener { _, code, event ->
                 if (OriginalKeyReplayGuard.matches(event)) false
                 else if (CarPlayShortcuts.consumeOwnedKey(event)) true
@@ -397,12 +432,39 @@ internal object ShortcutEditor {
                 setLayout(minOf(ui.dp(PAGE_MAX_WIDTH_DP), width), WindowManager.LayoutParams.WRAP_CONTENT)
                 setGravity(Gravity.CENTER)
             }
+            // A keyboard change reaches the page as new insets, often without a new measure.
+            root.setOnApplyWindowInsetsListener { view, insets ->
+                view.post(checkHeight)
+                view.onApplyWindowInsets(insets)
+            }
+            root.removeCallbacks(heightWatch)
+            root.postDelayed(heightWatch, HEIGHT_WATCH_MILLIS)
+        }
+
+        /**
+         * The keyboard shrinks the dialog by resizing its window, which measures it again. Closing the
+         * keyboard does not: the shorter wrap-content window still fits, so it is never resized. This
+         * measures the page again whenever the room it was measured for has changed.
+         */
+        private val checkHeight = Runnable {
+            if (dialog.isShowing && root.measuredLimit >= 0 && availableHeight() != root.measuredLimit) {
+                root.requestLayout()
+            }
+        }
+        /** Some head units send no insets when the keyboard closes; a cheap recheck covers them. */
+        private val heightWatch = object : Runnable {
+            override fun run() {
+                if (!dialog.isShowing) return
+                checkHeight.run()
+                root.postDelayed(this, HEIGHT_WATCH_MILLIS)
+            }
         }
         /**
          * Use the focused dialog's visible frame for IME changes, but the host's full height:
          * the dialog's own wrap-content height must never become the next page's height limit.
          */
         private fun availableHeight(): Int {
+            testAvailableHeight?.let { return it() }
             val decor = activity.window.decorView
             val visibleDecor = if (dialog.isShowing) dialog.window?.decorView ?: decor else decor
             val visible = android.graphics.Rect().also(visibleDecor::getWindowVisibleDisplayFrame).height()
