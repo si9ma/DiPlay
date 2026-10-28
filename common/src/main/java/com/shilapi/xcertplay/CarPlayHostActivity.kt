@@ -6715,39 +6715,111 @@ class CarPlayHostActivity : ComponentActivity() {
             return
         }
         shortcutTapTracker.reset()
-        val bar = LinearLayout(appDialogContext()).apply {
-            tag = "shortcut_touch_recording_bar"
-            orientation = LinearLayout.VERTICAL
-            isClickable = true
-            setBackgroundColor(DiPlayPalette.of(appNight).surface)
-            addView(TextView(context).apply {
-                setText(R.string.shortcut_record_taps)
-                setTextColor(DiPlayPalette.of(appNight).primaryText)
-                gravity = Gravity.CENTER
-            }, LinearLayout.LayoutParams(-1, -2))
-            val buttons = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL }
-            fun button(label: Int, click: () -> Unit) = DiPlayButton(context).apply {
-                setText(label)
-                style(DiPlayButtonKind.SECONDARY, DiPlayPalette.of(appNight), overlay = false)
-                setOnClickListener { click() }
-            }
-            buttons.addView(button(R.string.shortcut_record_accept) { CarPlayShortcuts.stopRecording() },
-                LinearLayout.LayoutParams(0, dp(com.shilapi.xcertplay.settings.SettingsControlMetrics.HEIGHT_DP), 1f))
-            buttons.addView(button(android.R.string.cancel) {
-                ShortcutEditor.cancelTouchTransfer(token)
-                returnFromShortcutRecording()
-            }, LinearLayout.LayoutParams(0, dp(com.shilapi.xcertplay.settings.SettingsControlMetrics.HEIGHT_DP), 1f))
-            addView(buttons, LinearLayout.LayoutParams(-1, -2))
-        }
+        val bar = shortcutRecordingCard(token)
         shortcutRecordingBar = bar
-        val shown = if (overlayMode) ProjectionOverlay.showShortcutRecordingBar(bar) else {
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.LEFT,
+        ).apply {
+            leftMargin = dp(12)
+            topMargin = dp(12)
+        }
+        val shown = if (overlayMode) ProjectionOverlay.showShortcutRecordingBar(bar, params) else {
             (videoView?.parent as? FrameLayout)?.let {
-                it.addView(bar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP)); true
+                it.addView(bar, params); true
             } ?: false
         }
         if (!shown) {
             ShortcutEditor.cancelTouchTransfer(token)
             returnFromShortcutRecording()
+        }
+    }
+
+    /**
+     * The recording controls as a small card floating over the CarPlay picture, instead of a
+     * full-width bar that would hide the very taps being recorded. The title doubles as the handle
+     * that drags it out of the way.
+     */
+    private fun shortcutRecordingCard(token: String): View {
+        val palette = DiPlayPalette.of(appNight)
+        val handle = TextView(appDialogContext()).apply {
+            setText(R.string.shortcut_record_taps)
+            setTextColor(palette.secondaryText)
+            textSize = 13f
+            gravity = Gravity.CENTER
+            isClickable = true
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+        }
+        fun button(label: Int, click: () -> Unit) = DiPlayButton(appDialogContext()).apply {
+            setText(label)
+            textSize = 14f
+            setPadding(dp(14), 0, dp(14), 0)
+            style(DiPlayButtonKind.SECONDARY, palette, overlay = false)
+            setOnClickListener { click() }
+        }
+        val buttons = LinearLayout(appDialogContext()).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        buttons.addView(button(R.string.shortcut_record_accept) { CarPlayShortcuts.stopRecording() },
+            LinearLayout.LayoutParams(-2, dp(40)))
+        buttons.addView(button(android.R.string.cancel) {
+            ShortcutEditor.cancelTouchTransfer(token)
+            returnFromShortcutRecording()
+        }, LinearLayout.LayoutParams(-2, dp(40)).apply { marginStart = dp(8) })
+        val card = LinearLayout(appDialogContext()).apply {
+            tag = "shortcut_touch_recording_bar"
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isClickable = true
+            background = GradientDrawable().apply {
+                cornerRadius = dp(12).toFloat()
+                setColor(palette.surface)
+                setStroke(dp(1).coerceAtLeast(1), palette.outline)
+            }
+            addView(handle, LinearLayout.LayoutParams(-2, -2))
+            addView(buttons, LinearLayout.LayoutParams(-2, -2))
+        }
+        installCardDrag(card, handle)
+        return card
+    }
+
+    /** The card's title bar drags it anywhere inside its parent, clamped so it stays reachable. */
+    private fun installCardDrag(card: View, handle: View) {
+        val slop = ViewConfiguration.get(this).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var startLeft = 0
+        var startTop = 0
+        var dragging = false
+        handle.setOnTouchListener { _, event ->
+            val params = card.layoutParams as? FrameLayout.LayoutParams
+            if (params == null) false else {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        startLeft = params.leftMargin
+                        startTop = params.topMargin
+                        dragging = false
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (!dragging && (Math.abs(dx) > slop || Math.abs(dy) > slop)) dragging = true
+                        if (dragging) {
+                            val parent = card.parent as? ViewGroup
+                            params.leftMargin = (startLeft + dx.toInt())
+                                .coerceIn(0, Math.max(0, (parent?.width ?: 0) - card.width))
+                            params.topMargin = (startTop + dy.toInt())
+                                .coerceIn(0, Math.max(0, (parent?.height ?: 0) - card.height))
+                            card.requestLayout()
+                        }
+                    }
+                }
+                true
+            }
         }
     }
 

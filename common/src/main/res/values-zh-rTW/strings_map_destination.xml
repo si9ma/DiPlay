@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">兩次點擊之間的間隔</string>
     <string name="settings_carplay_tap_gap_recorded">按錄製時的節奏</string>
     <string name="settings_carplay_tap_gap_hint">錄製下來的間隔是你當時手速的偶然值。而面板動畫的時長是固定的，所以固定間隔往往更穩：太短，下一下會點在還沒切換完的畫面上；太長，則出發得晚。</string>
+    <string name="settings_carplay_tap_edit">編輯點按位置</string>
+    <string name="settings_carplay_tap_number">點按 %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X（距左側 0–100%）</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y（距頂部 0–100%）</string>
+    <string name="settings_carplay_tap_delay">點按前延遲（250–4000 毫秒）</string>
+    <string name="settings_carplay_tap_invalid">請檢查每個位置（0–100）和延遲（250–4000 毫秒）。</string>
 </resources>

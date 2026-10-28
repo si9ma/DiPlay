@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">Пауза між торканнями</string>
     <string name="settings_carplay_tap_gap_recorded">Як записано</string>
     <string name="settings_carplay_tap_gap_hint">Записана пауза — це випадковість вашого руху. Анімація панелі триває фіксований час, тож фіксована пауза зазвичай стабільніша: надто коротка — наступне торкання припаде на ще не змінений екран, надто довга — поїздка почнеться пізніше.</string>
+    <string name="settings_carplay_tap_edit">Змінити позиції дотиків</string>
+    <string name="settings_carplay_tap_number">Дотик %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X (0–100% зліва)</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y (0–100% зверху)</string>
+    <string name="settings_carplay_tap_delay">Затримка перед дотиком (250–4000 мс)</string>
+    <string name="settings_carplay_tap_invalid">Перевірте кожну позицію (0–100) і затримку (250–4000 мс).</string>
 </resources>

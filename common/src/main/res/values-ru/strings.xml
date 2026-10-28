@@ -112,6 +112,11 @@
     <string name="shortcut_record_taps">Записать касания в CarPlay</string>
     <string name="shortcut_record_taps_hint">Перед началом безопасно припаркуйтесь. Не вводите конфиденциальные данные. Настройки скроются и появится CarPlay; касания будут действительно управлять телефоном. Записываются только короткие касания одним пальцем, но не перетаскивания, жесты несколькими пальцами или текст. Остановите запись, чтобы автоматически вернуться к этому черновику. Подтверждение не включает его; сохраните и включите отдельно. При изменении приложения телефона, разрешения или компоновки запишите заново: при повторении касания могут попасть не туда.</string>
     <string name="shortcut_tap">Касание CarPlay</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">Изменить позицию касания</string>
+    <string name="shortcut_tap_coordinates_hint">Проценты от всего холста CarPlay, считая от верхнего левого угла. Записанные касания уже в этой системе координат. Проверяйте на стоянке; при смене приложения, разрешения или раскладки может понадобиться другая позиция.</string>
+    <string name="shortcut_tap_x" formatted="false">X (0–100% слева)</string>
+    <string name="shortcut_tap_y" formatted="false">Y (0–100% сверху)</string>
     <string name="settings_cluster_safe_area">Безопасная область карты</string>
     <string name="settings_cluster_safe_area_description" formatted="false">Задаёт область окна карты для маршрута и маркера автомобиля. По умолчанию отступы со всех сторон равны 8%. Изменения требуют переподключения CarPlay; текущее подключение не будет прервано сразу.</string>
     <string name="settings_cluster_safe_top" formatted="false">Отступ сверху (%)</string>
@@ -163,6 +168,8 @@
     <string name="shortcut_no_steps">Добавьте действия или запишите клавиши, чтобы создать последовательность.</string>
     <string name="shortcut_move_up">Выше</string>
     <string name="shortcut_move_down">Ниже</string>
+    <string name="shortcut_drag_handle">Перетащите, чтобы изменить порядок</string>
+    <string name="shortcut_steps_hint">Нажмите на шаг, чтобы изменить его. Перетащите боковой маркер, чтобы изменить порядок.</string>
     <string name="shortcut_new">Новая быстрая команда</string>
     <string name="shortcut_name">Название</string>
     <string name="shortcut_event">Условие запуска</string>
@@ -200,6 +207,16 @@
     <string name="shortcut_save">Сохранить</string>
     <string name="shortcut_delete">Удалить</string>
     <string name="shortcut_delete_confirm">Удалить эту быструю команду?</string>
+    <string name="shortcut_duplicate">Дублировать</string>
+    <string name="shortcut_duplicate_suffix">(копия)</string>
+    <string name="shortcut_duplicated">Ярлык продублирован.</string>
+    <string name="shortcut_export">Экспорт</string>
+    <string name="shortcut_exported">Ярлыки скопированы в буфер обмена.</string>
+    <string name="shortcut_import">Импорт из буфера обмена</string>
+    <string name="shortcut_import_empty">В буфере обмена нет текста для импорта.</string>
+    <string name="shortcut_import_invalid">В буфере обмена нет допустимых ярлыков.</string>
+    <string name="shortcut_import_none">Нет новых ярлыков для импорта.</string>
+    <string name="shortcut_imported">Импортировано ярлыков: %1$d.</string>
     <string name="shortcut_limit">Поддерживается до 12 быстрых команд.</string>
     <string name="shortcut_invalid">Проверьте название, клавишу и URL. Используйте 1–32 шага, не более 120 секунд ожидания в сумме и размещайте Siri в конце.</string>
     <string name="settings_cluster_group_common">Общие настройки</string>

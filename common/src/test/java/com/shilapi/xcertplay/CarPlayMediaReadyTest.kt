@@ -70,7 +70,6 @@ class CarPlayMediaReadyTest {
         assertTrue(playback.actions and PlaybackState.ACTION_SKIP_TO_NEXT != 0L)
         assertNoFocus()
         verify(connection.controller, never()).sendMediaButton(anyInt())
-        verify(connection.controller, never()).tryAutoPlayback()
         callback(media).onPlay()
         idle()
         verify(connection.controller).sendMediaButton(com.shilapi.xcertplay.airplay.CarPlayMediaButton.PLAY)

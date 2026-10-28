@@ -108,6 +108,11 @@
     <string name="shortcut_record_taps">在 CarPlay 中錄製點按</string>
     <string name="shortcut_record_taps_hint">請先安全停車再開始，請勿輸入敏感資訊。設定會隱藏並顯示 CarPlay，點按會實際操作手機。只記錄單指點按，不記錄拖曳、多指手勢或文字。結束錄製後會自動返回此草稿；確認不會自動啟用，需另外儲存並啟用。手機 App、解析度或版面配置變更後，請重新錄製，否則重播可能點錯位置。</string>
     <string name="shortcut_tap">CarPlay 點按</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">編輯點按位置</string>
+    <string name="shortcut_tap_coordinates_hint">相對於整個 CarPlay 畫面的百分比，從左上角起算。錄製的點按已在此座標系中。請駐車測試；應用程式、解析度或版面配置變更後可能需要調整位置。</string>
+    <string name="shortcut_tap_x" formatted="false">X（距左側 0–100%）</string>
+    <string name="shortcut_tap_y" formatted="false">Y（距頂部 0–100%）</string>
     <string name="settings_cluster_safe_area">地圖安全區域</string>
     <string name="settings_cluster_safe_area_description" formatted="false">設定路線和車輛標記可使用的小窗區域，預設四邊各保留 8%。變更後需重新連線 CarPlay，不會立即中斷連線。</string>
     <string name="settings_cluster_safe_top" formatted="false">上邊距（%）</string>
@@ -159,6 +164,8 @@
     <string name="shortcut_no_steps">新增動作或錄製按鍵，組成執行順序。</string>
     <string name="shortcut_move_up">上移</string>
     <string name="shortcut_move_down">下移</string>
+    <string name="shortcut_drag_handle">拖動調整順序</string>
+    <string name="shortcut_steps_hint">點按步驟可直接編輯；拖動側邊把手調整順序。</string>
     <string name="shortcut_new">新增快捷指令</string>
     <string name="shortcut_name">名稱</string>
     <string name="shortcut_event">觸發條件</string>
@@ -196,6 +203,16 @@
     <string name="shortcut_save">儲存</string>
     <string name="shortcut_delete">刪除</string>
     <string name="shortcut_delete_confirm">刪除此快捷指令？</string>
+    <string name="shortcut_duplicate">複製</string>
+    <string name="shortcut_duplicate_suffix">(副本)</string>
+    <string name="shortcut_duplicated">快捷指令已複製。</string>
+    <string name="shortcut_export">匯出</string>
+    <string name="shortcut_exported">快捷指令已複製到剪貼簿。</string>
+    <string name="shortcut_import">從剪貼簿匯入</string>
+    <string name="shortcut_import_empty">剪貼簿沒有可匯入的文字。</string>
+    <string name="shortcut_import_invalid">剪貼簿沒有有效的快捷指令。</string>
+    <string name="shortcut_import_none">沒有新的快捷指令可匯入。</string>
+    <string name="shortcut_imported">已匯入 %1$d 條快捷指令。</string>
     <string name="shortcut_limit">最多支援12個快捷指令。</string>
     <string name="shortcut_invalid">請檢查名稱、按鍵與 URL。使用1–32個步驟，總等待時間不得超過120秒，並將 Siri 放在最後。</string>
     <string name="settings_cluster_group_common">共同設定</string>

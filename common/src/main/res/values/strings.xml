@@ -108,6 +108,11 @@
     <string name="shortcut_record_taps">Record taps in CarPlay</string>
     <string name="shortcut_record_taps_hint">Park safely before starting. Do not enter sensitive information. Settings will hide and CarPlay will appear; taps will actually operate the phone. Only single-finger taps are recorded, not drags, multi-touch gestures or text. Stop recording to return to this draft automatically. Confirm, save and enable it separately; confirmation does not enable it. Record again if the phone app, resolution or layout changes, as playback may tap the wrong place.</string>
     <string name="shortcut_tap">CarPlay tap</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">Edit tap position</string>
+    <string name="shortcut_tap_coordinates_hint">Percentages of the full CarPlay canvas, measured from the top-left. Recorded taps are already in this space. Test while parked; a changed app, resolution or layout may need a different position.</string>
+    <string name="shortcut_tap_x" formatted="false">X (0–100%, from left)</string>
+    <string name="shortcut_tap_y" formatted="false">Y (0–100%, from top)</string>
     <string name="settings_cluster_safe_area">Map safe area</string>
     <string name="settings_cluster_safe_area_description" formatted="false">Sets the area of the map window available to the route and vehicle marker. The default margin is 8% on each side. Changes require reconnecting CarPlay; the current connection will not be interrupted.</string>
     <string name="settings_cluster_safe_top" formatted="false">Top margin (%)</string>
@@ -159,6 +164,8 @@
     <string name="shortcut_no_steps">Add actions or record keys to build a sequence.</string>
     <string name="shortcut_move_up">Move up</string>
     <string name="shortcut_move_down">Move down</string>
+    <string name="shortcut_drag_handle">Drag to reorder</string>
+    <string name="shortcut_steps_hint">Tap a step to edit it. Drag the handle on the side to reorder.</string>
     <string name="shortcut_new">New shortcut</string>
     <string name="shortcut_name">Name</string>
     <string name="shortcut_event">Trigger</string>
@@ -172,6 +179,16 @@
     <string name="shortcut_save">Save</string>
     <string name="shortcut_delete">Delete</string>
     <string name="shortcut_delete_confirm">Delete this shortcut?</string>
+    <string name="shortcut_duplicate">Duplicate</string>
+    <string name="shortcut_duplicate_suffix">(copy)</string>
+    <string name="shortcut_duplicated">Shortcut duplicated.</string>
+    <string name="shortcut_export">Export</string>
+    <string name="shortcut_exported">Shortcuts copied to the clipboard.</string>
+    <string name="shortcut_import">Import from clipboard</string>
+    <string name="shortcut_import_empty">The clipboard has no text to import.</string>
+    <string name="shortcut_import_invalid">The clipboard does not hold valid shortcuts.</string>
+    <string name="shortcut_import_none">No new shortcuts to import.</string>
+    <string name="shortcut_imported">Imported %1$d shortcut(s).</string>
     <string name="shortcut_stop">Stop pending actions</string>
     <string name="shortcut_test">Run once</string>
     <string name="shortcut_queued">Sequence queued; this does not confirm phone execution.</string>

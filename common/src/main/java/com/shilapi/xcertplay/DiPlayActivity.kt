@@ -4800,6 +4800,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             startGuidanceCalibration(CarPlayGuidanceStopper.Action.STOP)
         }, matchButton(8, 50))
         if (taps.isNotEmpty()) {
+            card.addView(button(getString(R.string.settings_carplay_tap_edit), false) {
+                editGuidanceTaps(CarPlayGuidanceStopper.Action.STOP)
+            }, matchButton(8, 50))
             card.addView(button(getString(R.string.settings_carplay_stop_test), false) {
                 replayAndReport(CarPlayGuidanceStopper.Action.STOP, 0L)
             }, matchButton(8, 50))
@@ -4848,6 +4851,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             startGuidanceCalibration(CarPlayGuidanceStopper.Action.START)
         }, matchButton(8, 50))
         if (taps.isNotEmpty()) {
+            card.addView(button(getString(R.string.settings_carplay_tap_edit), false) {
+                editGuidanceTaps(CarPlayGuidanceStopper.Action.START)
+            }, matchButton(8, 50))
             card.addView(button(getString(R.string.settings_carplay_start_test), false) {
                 testStartTaps()
             }, matchButton(8, 50))
@@ -4878,6 +4884,69 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             return
         }
         replayAndReport(CarPlayGuidanceStopper.Action.START, delay)
+    }
+
+    /** Edits the recorded tap sequence's positions and delays in place, without another calibration. */
+    private fun editGuidanceTaps(action: CarPlayGuidanceStopper.Action) {
+        val current = CarPlayGuidanceStopper.taps(this, action)
+        if (current.isEmpty()) return
+        val dialogContext = appDialogContext()
+        val fields = column().apply { setPadding(dp(24), dp(12), dp(24), dp(12)) }
+        val xInputs = ArrayList<EditText>(current.size)
+        val yInputs = ArrayList<EditText>(current.size)
+        val delayInputs = ArrayList<EditText>(current.size)
+        current.forEachIndexed { index, tap ->
+            fields.addView(label(getString(R.string.settings_carplay_tap_number, index + 1), 16, TEXT, bold = true))
+            fields.addView(label(getString(R.string.settings_carplay_tap_x), 14, MUTED))
+            xInputs.add(EditText(dialogContext).apply {
+                setSingleLine()
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText(Math.round(tap.x * 100).toString())
+            })
+            fields.addView(xInputs[index])
+            fields.addView(label(getString(R.string.settings_carplay_tap_y), 14, MUTED))
+            yInputs.add(EditText(dialogContext).apply {
+                setSingleLine()
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText(Math.round(tap.y * 100).toString())
+            })
+            fields.addView(yInputs[index])
+            fields.addView(label(getString(R.string.settings_carplay_tap_delay), 14, MUTED))
+            delayInputs.add(EditText(dialogContext).apply {
+                setSingleLine()
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                setText(tap.delayBeforeMillis.toString())
+            })
+            fields.addView(delayInputs[index])
+        }
+        val dialog = appDialogBuilder()
+            .setTitle(getString(R.string.settings_carplay_tap_edit))
+            .setView(ScrollView(dialogContext).apply { addView(fields) })
+            .setPositiveButton(android.R.string.ok, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val edited = ArrayList<CarPlayGuidanceStopper.Tap>(current.size)
+                var valid = true
+                for (index in current.indices) {
+                    val cx = xInputs[index].text.toString().toIntOrNull()?.takeIf { it in 0..100 }
+                    val cy = yInputs[index].text.toString().toIntOrNull()?.takeIf { it in 0..100 }
+                    val cd = delayInputs[index].text.toString().toLongOrNull()
+                        ?.takeIf { it in CarPlayGuidanceStopper.MIN_DELAY_MILLIS..CarPlayGuidanceStopper.MAX_DELAY_MILLIS }
+                    if (cx == null || cy == null || cd == null) { valid = false; break }
+                    edited.add(CarPlayGuidanceStopper.Tap(cx / 100.0, cy / 100.0, cd))
+                }
+                if (!valid) {
+                    toast(getString(R.string.settings_carplay_tap_invalid))
+                } else {
+                    CarPlayGuidanceStopper.saveTaps(this, action, edited)
+                    dialog.dismiss()
+                    render()
+                }
+            }
+        }
+        dialog.show()
     }
 
     /**

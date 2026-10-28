@@ -109,6 +109,11 @@
     <string name="shortcut_record_taps">CarPlay でタップを記録</string>
     <string name="shortcut_record_taps_hint">安全に駐車してから開始してください。個人情報などの機密情報を入力しないでください。設定画面が隠れ、CarPlay が表示されます。タップはスマートフォンを実際に操作します。記録するのは1本指のタップのみで、ドラッグ、複数指のジェスチャー、文字は記録しません。記録を終了すると、この下書きに自動で戻ります。確定しても自動では有効になりません。別途保存して有効にしてください。スマートフォンのアプリ、解像度、レイアウトが変わった場合は再記録してください。再実行時に誤った場所をタップする可能性があります。</string>
     <string name="shortcut_tap">CarPlay タップ</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">タップ位置を編集</string>
+    <string name="shortcut_tap_coordinates_hint">CarPlay キャンバス全体に対する左上からの割合です。記録済みのタップはすでにこの座標系です。停車中にテストしてください。アプリ・解像度・レイアウトが変わると別の位置が必要になる場合があります。</string>
+    <string name="shortcut_tap_x" formatted="false">X（左から 0～100%）</string>
+    <string name="shortcut_tap_y" formatted="false">Y（上から 0～100%）</string>
     <string name="settings_cluster_safe_area">地図のセーフエリア</string>
     <string name="settings_cluster_safe_area_description" formatted="false">小窓内でルートと車両マーカーを表示できる範囲を設定します。初期設定は四辺それぞれ 8% の余白です。変更の反映には CarPlay の再接続が必要ですが、現在の接続はすぐには切断されません。</string>
     <string name="settings_cluster_safe_top" formatted="false">上の余白（%）</string>
@@ -160,6 +165,8 @@
     <string name="shortcut_no_steps">操作を追加するかキーを記録して、実行順序を作成してください。</string>
     <string name="shortcut_move_up">上へ移動</string>
     <string name="shortcut_move_down">下へ移動</string>
+    <string name="shortcut_drag_handle">ドラッグして並べ替え</string>
+    <string name="shortcut_steps_hint">ステップをタップして編集し、横のハンドルをドラッグして並べ替えます。</string>
     <string name="shortcut_new">新しいショートカット</string>
     <string name="shortcut_name">名前</string>
     <string name="shortcut_event">実行条件</string>
@@ -197,6 +204,16 @@
     <string name="shortcut_save">保存</string>
     <string name="shortcut_delete">削除</string>
     <string name="shortcut_delete_confirm">このショートカットを削除しますか？</string>
+    <string name="shortcut_duplicate">複製</string>
+    <string name="shortcut_duplicate_suffix">(コピー)</string>
+    <string name="shortcut_duplicated">ショートカットを複製しました。</string>
+    <string name="shortcut_export">エクスポート</string>
+    <string name="shortcut_exported">ショートカットをクリップボードにコピーしました。</string>
+    <string name="shortcut_import">クリップボードからインポート</string>
+    <string name="shortcut_import_empty">クリップボードにインポートするテキストがありません。</string>
+    <string name="shortcut_import_invalid">クリップボードに有効なショートカットがありません。</string>
+    <string name="shortcut_import_none">インポートする新しいショートカットはありません。</string>
+    <string name="shortcut_imported">%1$d 件のショートカットをインポートしました。</string>
     <string name="shortcut_limit">ショートカットは最大12個です。</string>
     <string name="shortcut_invalid">名前、キー、URL を確認してください。ステップ数は1～32、待機時間は合計120秒以内にし、Siri は最後に配置してください。</string>
     <string name="settings_cluster_group_common">共通設定</string>

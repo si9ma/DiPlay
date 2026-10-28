@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">المهلة بين النقرات</string>
     <string name="settings_carplay_tap_gap_recorded">كما سُجِّلت</string>
     <string name="settings_carplay_tap_gap_hint">المهلة المسجَّلة هي ما فعله إصبعك مصادفةً. أما حركة اللوحة فتستغرق وقتًا ثابتًا، لذا غالبًا ما تكون المهلة الثابتة أكثر استقرارًا: القصيرة جدًا تجعل النقرة التالية تقع قبل تغيّر الشاشة، والطويلة جدًا تؤخّر انطلاق الرحلة.</string>
+    <string name="settings_carplay_tap_edit">تحرير مواضع النقر</string>
+    <string name="settings_carplay_tap_number">نقرة %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X (0–100%، من اليسار)</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y (0–100%، من الأعلى)</string>
+    <string name="settings_carplay_tap_delay">التأخير قبل النقرة (250–4000 مللي ثانية)</string>
+    <string name="settings_carplay_tap_invalid">تحقق من كل موضع (0–100) والتأخير (250–4000 مللي ثانية).</string>
 </resources>

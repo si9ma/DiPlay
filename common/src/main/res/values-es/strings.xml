@@ -112,6 +112,11 @@
     <string name="shortcut_record_taps">Grabar toques en CarPlay</string>
     <string name="shortcut_record_taps_hint">Aparca en un lugar seguro antes de empezar. No introduzcas información sensible. Los ajustes se ocultarán y aparecerá CarPlay; los toques actuarán realmente sobre el teléfono. Solo se graban toques con un dedo, no arrastres, gestos multitáctiles ni texto. Detén la grabación para volver automáticamente a este borrador. Confirmar no lo activa; guárdalo y actívalo por separado. Vuelve a grabar si cambia la app del teléfono, la resolución o la distribución, ya que la reproducción puede tocar un lugar equivocado.</string>
     <string name="shortcut_tap">Toque en CarPlay</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">Editar posición del toque</string>
+    <string name="shortcut_tap_coordinates_hint">Porcentajes de todo el lienzo de CarPlay, medidos desde la esquina superior izquierda. Los toques grabados ya están en este espacio. Prueba con el coche parado; un cambio de app, resolución o diseño puede requerir otra posición.</string>
+    <string name="shortcut_tap_x" formatted="false">X (0–100%, desde la izquierda)</string>
+    <string name="shortcut_tap_y" formatted="false">Y (0–100%, desde arriba)</string>
     <string name="settings_cluster_safe_area">Área segura del mapa</string>
     <string name="settings_cluster_safe_area_description" formatted="false">Define el área de la ventana del mapa disponible para la ruta y el marcador del vehículo. El margen predeterminado es del 8% en cada lado. Los cambios requieren reconectar CarPlay; no se interrumpirá la conexión actual.</string>
     <string name="settings_cluster_safe_top" formatted="false">Margen superior (%)</string>
@@ -163,6 +168,8 @@
     <string name="shortcut_no_steps">Añade acciones o graba teclas para crear una secuencia.</string>
     <string name="shortcut_move_up">Subir</string>
     <string name="shortcut_move_down">Bajar</string>
+    <string name="shortcut_drag_handle">Arrastra para reordenar</string>
+    <string name="shortcut_steps_hint">Toca un paso para editarlo. Arrastra el tirador lateral para reordenar.</string>
     <string name="shortcut_new">Nuevo atajo</string>
     <string name="shortcut_name">Nombre</string>
     <string name="shortcut_event">Activador</string>
@@ -200,6 +207,16 @@
     <string name="shortcut_save">Guardar</string>
     <string name="shortcut_delete">Eliminar</string>
     <string name="shortcut_delete_confirm">¿Eliminar este atajo?</string>
+    <string name="shortcut_duplicate">Duplicar</string>
+    <string name="shortcut_duplicate_suffix">(copia)</string>
+    <string name="shortcut_duplicated">Atajo duplicado.</string>
+    <string name="shortcut_export">Exportar</string>
+    <string name="shortcut_exported">Atajos copiados al portapapeles.</string>
+    <string name="shortcut_import">Importar desde el portapapeles</string>
+    <string name="shortcut_import_empty">El portapapeles no tiene texto que importar.</string>
+    <string name="shortcut_import_invalid">El portapapeles no contiene atajos válidos.</string>
+    <string name="shortcut_import_none">No hay atajos nuevos que importar.</string>
+    <string name="shortcut_imported">Se importaron %1$d atajos.</string>
     <string name="shortcut_limit">Se admiten hasta 12 atajos.</string>
     <string name="shortcut_invalid">Comprueba el nombre, la tecla y la URL. Usa entre 1 y 32 pasos, espera como máximo 120 segundos en total y deja Siri para el final.</string>
     <string name="settings_cluster_group_common">Controles comunes</string>

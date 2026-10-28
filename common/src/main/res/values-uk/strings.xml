@@ -112,6 +112,11 @@
     <string name="shortcut_record_taps">Записати дотики в CarPlay</string>
     <string name="shortcut_record_taps_hint">Перед початком безпечно припаркуйтеся. Не вводьте конфіденційні дані. Налаштування сховаються й з’явиться CarPlay; дотики справді керуватимуть телефоном. Записуються лише короткі дотики одним пальцем, але не перетягування, жести кількома пальцями чи текст. Зупиніть запис, щоб автоматично повернутися до цієї чернетки. Підтвердження не вмикає її; збережіть і ввімкніть окремо. Якщо зміниться застосунок телефона, роздільна здатність чи компонування, запишіть знову: під час повторення дотики можуть потрапити не туди.</string>
     <string name="shortcut_tap">Дотик CarPlay</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">Змінити позицію дотику</string>
+    <string name="shortcut_tap_coordinates_hint">Відсотки від усього полотна CarPlay, від верхнього лівого кута. Записані дотики вже в цій системі координат. Перевіряйте на стоянці; при зміні програми, роздільної здатності чи розкладки може знадобитися інша позиція.</string>
+    <string name="shortcut_tap_x" formatted="false">X (0–100% зліва)</string>
+    <string name="shortcut_tap_y" formatted="false">Y (0–100% зверху)</string>
     <string name="settings_cluster_safe_area">Безпечна область карти</string>
     <string name="settings_cluster_safe_area_description" formatted="false">Задає область вікна карти для маршруту та маркера автомобіля. Типово відступи з усіх боків становлять 8%. Зміни потребують перепідключення CarPlay; поточне підключення не буде перервано одразу.</string>
     <string name="settings_cluster_safe_top" formatted="false">Відступ згори (%)</string>
@@ -163,6 +168,8 @@
     <string name="shortcut_no_steps">Додайте дії або запишіть клавіші, щоб створити послідовність.</string>
     <string name="shortcut_move_up">Вище</string>
     <string name="shortcut_move_down">Нижче</string>
+    <string name="shortcut_drag_handle">Перетягніть, щоб змінити порядок</string>
+    <string name="shortcut_steps_hint">Торкніться кроку, щоб змінити його. Перетягніть бічний маркер, щоб змінити порядок.</string>
     <string name="shortcut_new">Нова швидка команда</string>
     <string name="shortcut_name">Назва</string>
     <string name="shortcut_event">Умова запуску</string>
@@ -200,6 +207,16 @@
     <string name="shortcut_save">Зберегти</string>
     <string name="shortcut_delete">Видалити</string>
     <string name="shortcut_delete_confirm">Видалити цю швидку команду?</string>
+    <string name="shortcut_duplicate">Дублювати</string>
+    <string name="shortcut_duplicate_suffix">(копія)</string>
+    <string name="shortcut_duplicated">Ярлик продубльовано.</string>
+    <string name="shortcut_export">Експорт</string>
+    <string name="shortcut_exported">Ярлики скопійовано в буфер обміну.</string>
+    <string name="shortcut_import">Імпорт із буфера обміну</string>
+    <string name="shortcut_import_empty">У буфері обміну немає тексту для імпорту.</string>
+    <string name="shortcut_import_invalid">У буфері обміну немає допустимих ярликів.</string>
+    <string name="shortcut_import_none">Немає нових ярликів для імпорту.</string>
+    <string name="shortcut_imported">Імпортовано ярликів: %1$d.</string>
     <string name="shortcut_limit">Підтримується до 12 швидких команд.</string>
     <string name="shortcut_invalid">Перевірте назву, клавішу та URL. Використовуйте 1–32 кроки, не більше 120 секунд очікування загалом і розміщуйте Siri наприкінці.</string>
     <string name="settings_cluster_group_common">Спільні налаштування</string>

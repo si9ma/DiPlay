@@ -112,6 +112,11 @@
     <string name="shortcut_record_taps">تسجيل النقرات في CarPlay</string>
     <string name="shortcut_record_taps_hint">أوقف السيارة بأمان قبل البدء. لا تُدخل معلومات حساسة. ستختفي الإعدادات ويظهر CarPlay؛ وستؤثر النقرات فعليًا على الهاتف. تُسجّل النقرات بإصبع واحد فقط، وليس السحب أو إيماءات الأصابع المتعددة أو النص. أوقف التسجيل للعودة تلقائيًا إلى هذه المسودة. التأكيد لا يفعّلها تلقائيًا؛ احفظها وفعّلها بشكل منفصل. أعد التسجيل إذا تغيّر تطبيق الهاتف أو الدقة أو التخطيط، فقد تنقر إعادة التنفيذ في موضع خاطئ.</string>
     <string name="shortcut_tap">نقرة CarPlay</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">تحرير موضع النقرة</string>
+    <string name="shortcut_tap_coordinates_hint">النسب المئوية لكامل لوحة CarPlay، مقيسة من الزاوية العلوية اليسرى. النقرات المسجلة موجودة بالفعل في هذا الفضاء. اختبر أثناء توقف السيارة؛ قد يحتاج تغيير التطبيق أو الدقة أو التخطيط إلى موضع مختلف.</string>
+    <string name="shortcut_tap_x" formatted="false">X (0–100%، من اليسار)</string>
+    <string name="shortcut_tap_y" formatted="false">Y (0–100%، من الأعلى)</string>
     <string name="settings_cluster_safe_area">المنطقة الآمنة للخريطة</string>
     <string name="settings_cluster_safe_area_description" formatted="false">تحدد مساحة نافذة الخريطة المتاحة للمسار وعلامة السيارة. الهامش الافتراضي 8% من كل جانب. تتطلب التغييرات إعادة اتصال CarPlay؛ لن يُقطع الاتصال الحالي فورًا.</string>
     <string name="settings_cluster_safe_top" formatted="false">الهامش العلوي (%)</string>
@@ -163,6 +168,8 @@
     <string name="shortcut_no_steps">أضف إجراءات أو سجّل أزرارًا لبناء تسلسل التنفيذ.</string>
     <string name="shortcut_move_up">نقل لأعلى</string>
     <string name="shortcut_move_down">نقل لأسفل</string>
+    <string name="shortcut_drag_handle">اسحب لإعادة الترتيب</string>
+    <string name="shortcut_steps_hint">انقر على خطوة لتحريرها، واسحب المقبض الجانبي لإعادة الترتيب.</string>
     <string name="shortcut_new">اختصار جديد</string>
     <string name="shortcut_name">الاسم</string>
     <string name="shortcut_event">المشغّل</string>
@@ -200,6 +207,16 @@
     <string name="shortcut_save">حفظ</string>
     <string name="shortcut_delete">حذف</string>
     <string name="shortcut_delete_confirm">هل تريد حذف هذا الاختصار؟</string>
+    <string name="shortcut_duplicate">تكرار</string>
+    <string name="shortcut_duplicate_suffix">(نسخة)</string>
+    <string name="shortcut_duplicated">تم تكرار الاختصار.</string>
+    <string name="shortcut_export">تصدير</string>
+    <string name="shortcut_exported">تم نسخ الاختصارات إلى الحافظة.</string>
+    <string name="shortcut_import">استيراد من الحافظة</string>
+    <string name="shortcut_import_empty">لا يوجد نص في الحافظة للاستيراد.</string>
+    <string name="shortcut_import_invalid">الحافظة لا تحتوي على اختصارات صالحة.</string>
+    <string name="shortcut_import_none">لا توجد اختصارات جديدة للاستيراد.</string>
+    <string name="shortcut_imported">تم استيراد %1$d اختصارًا.</string>
     <string name="shortcut_limit">يمكن استخدام ما يصل إلى 12 اختصارًا.</string>
     <string name="shortcut_invalid">تحقق من الاسم والزر والرابط. استخدم من 1 إلى 32 خطوة، وانتظارًا إجماليًا لا يتجاوز 120 ثانية، وضع Siri في النهاية.</string>
     <string name="settings_cluster_group_common">عناصر التحكم المشتركة</string>

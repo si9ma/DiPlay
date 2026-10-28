@@ -50,10 +50,10 @@ object ProjectionOverlay {
 
     val shown: Boolean get() = root != null
 
-    internal fun showShortcutRecordingBar(bar: View): Boolean {
+    internal fun showShortcutRecordingBar(bar: View, params: FrameLayout.LayoutParams): Boolean {
         val parent = content ?: return false
         (bar.parent as? ViewGroup)?.removeView(bar)
-        parent.addView(bar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        parent.addView(bar, params)
         return true
     }
 

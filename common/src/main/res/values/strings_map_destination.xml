@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">Pause between taps</string>
     <string name="settings_carplay_tap_gap_recorded">As recorded</string>
     <string name="settings_carplay_tap_gap_hint">A recorded pause is whatever your finger happened to do. A panel animation takes a fixed time, so a fixed pause is often steadier: too short and the next tap lands before the screen has changed, too long and the drive starts late.</string>
+    <string name="settings_carplay_tap_edit">Edit tap positions</string>
+    <string name="settings_carplay_tap_number">Tap %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X (0–100%, from left)</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y (0–100%, from top)</string>
+    <string name="settings_carplay_tap_delay">Delay before tap (250–4000 ms)</string>
+    <string name="settings_carplay_tap_invalid">Check each position (0–100) and delay (250–4000 ms).</string>
 </resources>

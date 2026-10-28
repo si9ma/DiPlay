@@ -742,10 +742,6 @@ class AdaptiveSettingsUiTest {
         listOf(display, audio, vehicle, advanced).forEach {
             assertFalse(text(R.string.settings_map_destination_title) in it)
         }
-        assertTrue(text(R.string.settings_auto_playback) in advanced)
-        listOf(display, audio, vehicle, navigation, connection).forEach {
-            assertFalse(text(R.string.settings_auto_playback) in it)
-        }
         assertTrue(text(R.string.settings_ambient_title) in advanced)
         assertFalse(text(R.string.settings_ambient_title) in audio)
         assertFalse(text(R.string.settings_ambient_title) in vehicle)

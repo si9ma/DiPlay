@@ -108,6 +108,11 @@
     <string name="shortcut_record_taps">在 CarPlay 中录制点击</string>
     <string name="shortcut_record_taps_hint">请停车后开始，请勿输入敏感信息。设置会隐藏并显示 CarPlay，点击会实际操作手机。只记录单指点按，不记录拖动、多指或文字。点击“结束录制”后自动返回此草稿；确认不会自动启用，需另行保存并启用。手机应用、分辨率或布局变化后需重新录制，回放可能点错。</string>
     <string name="shortcut_tap">CarPlay 点击</string>
+    <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
+    <string name="shortcut_tap_coordinates">编辑点击位置</string>
+    <string name="shortcut_tap_coordinates_hint">相对整个 CarPlay 画面的百分比，从左上角起算。录制的点击已在此坐标系中。请驻车测试；应用、分辨率或布局变化后可能需要调整位置。</string>
+    <string name="shortcut_tap_x" formatted="false">X（距左侧 0–100%）</string>
+    <string name="shortcut_tap_y" formatted="false">Y（距顶部 0–100%）</string>
     <string name="settings_cluster_safe_area">地图安全区</string>
     <string name="settings_cluster_safe_area_description" formatted="false">控制路线和车标可使用的小窗区域，默认四边 8%。更改后需重新连接 CarPlay，不会立即断开。</string>
     <string name="settings_cluster_safe_top" formatted="false">上边距（%）</string>
@@ -159,6 +164,8 @@
     <string name="shortcut_no_steps">添加动作或录制按键，组成执行顺序。</string>
     <string name="shortcut_move_up">上移</string>
     <string name="shortcut_move_down">下移</string>
+    <string name="shortcut_drag_handle">拖动调整顺序</string>
+    <string name="shortcut_steps_hint">点按步骤可直接编辑；拖动侧边手柄调整顺序。</string>
     <string name="shortcut_new">新增快捷指令</string>
     <string name="shortcut_name">名称</string>
     <string name="shortcut_event">触发事件</string>
@@ -172,6 +179,16 @@
     <string name="shortcut_save">保存</string>
     <string name="shortcut_delete">删除</string>
     <string name="shortcut_delete_confirm">删除这条快捷指令？</string>
+    <string name="shortcut_duplicate">复制</string>
+    <string name="shortcut_duplicate_suffix">(副本)</string>
+    <string name="shortcut_duplicated">快捷指令已复制。</string>
+    <string name="shortcut_export">导出</string>
+    <string name="shortcut_exported">快捷指令已复制到剪贴板。</string>
+    <string name="shortcut_import">从剪贴板导入</string>
+    <string name="shortcut_import_empty">剪贴板没有可导入的文本。</string>
+    <string name="shortcut_import_invalid">剪贴板没有有效的快捷指令。</string>
+    <string name="shortcut_import_none">没有新的快捷指令可导入。</string>
+    <string name="shortcut_imported">已导入 %1$d 条快捷指令。</string>
     <string name="shortcut_stop">停止待执行动作</string>
     <string name="shortcut_test">执行一次</string>
     <string name="shortcut_queued">动作序列已入队，不代表手机已执行成功。</string>

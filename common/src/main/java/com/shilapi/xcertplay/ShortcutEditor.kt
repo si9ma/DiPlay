@@ -12,8 +12,12 @@ import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
@@ -37,6 +41,14 @@ internal object ShortcutEditor {
     private const val BLOCK_GAP_DP = SettingsControlMetrics.BLOCK_GAP_DP
     private const val CONTROL_GAP_DP = SettingsControlMetrics.GAP_DP
     private const val CONTROL_HEIGHT_DP = SettingsControlMetrics.HEIGHT_DP
+    /** Chips share one compact height; two text lines still fit, so no locale clips. */
+    private const val COMPACT_CONTROL_HEIGHT_DP = 48
+    /** Trigger chips are the smallest controls in the editor; each carries one short label. */
+    private const val TRIGGER_CHIP_HEIGHT_DP = 40
+    /** Accent outline of the step tools row, set apart from the neutral step buttons. */
+    private const val TOOL_OUTLINE_DP = 2
+    /** Drag handle width; its height matches the step button it sits beside. */
+    private const val HANDLE_WIDTH_DP = 40
     private const val OUTLINE_DP = SettingsControlMetrics.OUTLINE_DP
     private const val FOCUS_OUTLINE_DP = SettingsControlMetrics.FOCUS_OUTLINE_DP
     private const val PAGE_MAX_WIDTH_DP = 760
@@ -120,6 +132,16 @@ internal object ShortcutEditor {
     private fun message(activity: Activity, resource: Int) {
         if (live(activity)) Toast.makeText(activity, resource, Toast.LENGTH_LONG).show()
     }
+    private fun message(activity: Activity, text: String) {
+        if (live(activity)) Toast.makeText(activity, text, Toast.LENGTH_LONG).show()
+    }
+    private fun clipboard(activity: Activity, text: String) {
+        activity.getSystemService(android.content.ClipboardManager::class.java)
+            ?.setPrimaryClip(android.content.ClipData.newPlainText("DiPlay shortcuts", text))
+    }
+    private fun clipboardText(activity: Activity): String? =
+        activity.getSystemService(android.content.ClipboardManager::class.java)
+            ?.primaryClip?.getItemAt(0)?.coerceToText(activity)?.toString()
     private fun keyCodes(activity: Activity, code: Int, scan: Int): String = BidiFormatter.getInstance(
         activity.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL)
         .unicodeWrap(activity.getString(R.string.shortcut_key_codes, code, scan), TextDirectionHeuristicsCompat.LTR).orEmpty()
@@ -147,6 +169,12 @@ internal object ShortcutEditor {
                 append(" · " + activity.getString(R.string.settings_shortcut_pinch_center,
                     Math.round(step.zoomCenterX * 100).toInt(), Math.round(step.zoomCenterY * 100).toInt()))
                 append(" · " + activity.getString(R.string.settings_shortcut_pinch_scale_value, step.pinchScale))
+            }
+            ShortcutAction.TAP -> {
+                if (step.tapX in 0.0..1.0 && step.tapY in 0.0..1.0) {
+                    append(" · " + activity.getString(R.string.shortcut_tap_point,
+                        Math.round(step.tapX * 100).toInt(), Math.round(step.tapY * 100).toInt()))
+                }
             }
             else -> Unit
         }
@@ -194,6 +222,10 @@ internal object ShortcutEditor {
             ui.add(list, ui.button(R.string.shortcut_new, "shortcut_new", primary = true) {
                 show(activity, ShortcutRule(), ::refresh)
             })
+            val transfer = ui.row()
+            ui.addWeighted(transfer, ui.button(R.string.shortcut_export, "shortcut_export") { export(activity, ::refresh) }, CONTROL_HEIGHT_DP)
+            ui.addWeighted(transfer, ui.button(R.string.shortcut_import, "shortcut_import") { import(activity, ::refresh) }, CONTROL_HEIGHT_DP)
+            ui.add(list, transfer)
             ui.add(list, rightCardWaitButton(activity, ui))
             ui.add(list, ui.text(activity.getString(R.string.shortcut_right_card_wait_hint), secondary = true))
             ui.add(list, ui.button(R.string.shortcut_stop, "shortcut_stop_all") {
@@ -201,6 +233,46 @@ internal object ShortcutEditor {
             })
         }
         refresh()
+    }
+
+    /** Copies the chosen rules to the clipboard as versioned JSON, so another DiPlay can import them. */
+    private fun export(activity: Activity, refresh: () -> Unit) {
+        val rules = CarPlayShortcuts.load(activity)
+        if (rules.isEmpty()) { message(activity, R.string.shortcut_empty); return }
+        val checked = BooleanArray(rules.size)
+        activity.appDialogBuilder()
+            .setTitle(R.string.shortcut_export)
+            .setMultiChoiceItems(rules.map { it.name }.toTypedArray(), checked) { _, which, isChecked ->
+                checked[which] = isChecked
+            }
+            .setPositiveButton(R.string.shortcut_export) { _, _ ->
+                val selected = rules.filterIndexed { index, _ -> checked[index] }
+                if (selected.isEmpty()) { message(activity, R.string.shortcut_invalid); return@setPositiveButton }
+                val json = ShortcutCodec.encode(selected)
+                if (json == null) message(activity, R.string.shortcut_invalid)
+                else { clipboard(activity, json); message(activity, R.string.shortcut_exported) }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    /** Merges rules read from the clipboard, keeping existing ids untouched. */
+    private fun import(activity: Activity, refresh: () -> Unit) {
+        val text = clipboardText(activity)
+        if (text.isNullOrBlank()) { message(activity, R.string.shortcut_import_empty); return }
+        val imported = runCatching { ShortcutCodec.decode(text, BatteryCardSettings.legacyTarget(activity)) }
+            .getOrDefault(emptyList())
+        if (imported.isEmpty()) { message(activity, R.string.shortcut_import_invalid); return }
+        val existing = CarPlayShortcuts.load(activity).toMutableList()
+        var added = 0
+        for (rule in imported) {
+            if (existing.none { it.id == rule.id }) { existing.add(rule); added++ }
+        }
+        if (added == 0) { message(activity, R.string.shortcut_import_none); return }
+        if (CarPlayShortcuts.save(activity, existing)) {
+            message(activity, activity.getString(R.string.shortcut_imported, added))
+            refresh()
+        } else message(activity, R.string.shortcut_invalid)
     }
 
     private fun waitLabel(activity: Activity, millis: Long) =
@@ -288,13 +360,21 @@ internal object ShortcutEditor {
         val theme = SettingsTheme.card(palette)
         fun dp(value: Int) = theme.dp(context, value)
         fun column() = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        fun row() = LinearLayout(context).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        /** Equal-width children of one height, so a row of chips never mixes sizes. */
+        fun addWeighted(parent: LinearLayout, child: View, height: Int) {
+            parent.addView(child, LinearLayout.LayoutParams(0, dp(height), 1f).apply {
+                marginStart = if (parent.childCount == 0) 0 else dp(CONTROL_GAP_DP)
+            })
+        }
         fun add(parent: LinearLayout, child: View, gap: Int = CONTROL_GAP_DP) {
             parent.addView(child, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(gap) })
         }
-        fun shape(color: Int, height: Int = dp(CONTROL_HEIGHT_DP)) = GradientDrawable().apply {
+        fun shape(color: Int, height: Int = dp(CONTROL_HEIGHT_DP), strokeColor: Int = palette.outline,
+            strokeWidth: Int = dp(OUTLINE_DP)) = GradientDrawable().apply {
             setColor(color)
             cornerRadius = SettingsControlMetrics.radius(height, context.resources.displayMetrics.density)
-            setStroke(dp(OUTLINE_DP), palette.outline)
+            setStroke(strokeWidth, strokeColor)
         }
         fun focusRing(height: Int = dp(CONTROL_HEIGHT_DP)) = StateListDrawable().apply {
             addState(intArrayOf(android.R.attr.state_focused), shape(Color.TRANSPARENT, height).apply {
@@ -316,7 +396,7 @@ internal object ShortcutEditor {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER
             minHeight = dp(CONTROL_HEIGHT_DP); minimumWidth = 0
-            setPaddingRelative(dp(BLOCK_GAP_DP), dp(CONTROL_GAP_DP), dp(BLOCK_GAP_DP), dp(CONTROL_GAP_DP))
+            setPaddingRelative(dp(BLOCK_GAP_DP), 0, dp(BLOCK_GAP_DP), 0)
             stateListAnimator = null
             fun style(height: Int) {
                 background = RippleDrawable(ColorStateList.valueOf(theme.ripple), shape(if (primary) theme.accent else palette.button, height), null)
@@ -325,6 +405,66 @@ internal object ShortcutEditor {
             style(dp(CONTROL_HEIGHT_DP))
             doOnLayout { style(height) }
             setOnClickListener { click() }
+        }
+        private fun checkIcon(tint: Int) =
+            context.getDrawable(R.drawable.ic_dp_check)?.mutate()?.apply { setTint(tint) }
+        /** One row of a choice list: compact, two text lines still fit, [selected] marks the current choice. */
+        fun listChip(title: String, tag: String, selected: Boolean = false, heightDp: Int = COMPACT_CONTROL_HEIGHT_DP,
+            click: () -> Unit) = Button(context).apply {
+            text = title; this.tag = tag; isAllCaps = false; textSize = 14f
+            setTextColor(if (selected) theme.buttonText else theme.textPrimary)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            minHeight = dp(heightDp); minimumWidth = 0
+            setPaddingRelative(dp(CONTROL_GAP_DP), 0, dp(CONTROL_GAP_DP), 0)
+            stateListAnimator = null
+            isSelected = selected
+            fun style(height: Int) {
+                background = RippleDrawable(ColorStateList.valueOf(theme.ripple),
+                    shape(if (selected) theme.accent else palette.surface, height), null)
+                foreground = focusRing(height)
+                compoundDrawablePadding = dp(CONTROL_GAP_DP) / 2
+                setCompoundDrawablesRelativeWithIntrinsicBounds(
+                    if (selected) checkIcon(theme.buttonText) else null, null, null, null)
+            }
+            style(dp(heightDp))
+            doOnLayout { style(height) }
+            setOnClickListener { click() }
+        }
+        fun listChip(resource: Int, tag: String, selected: Boolean = false, heightDp: Int = COMPACT_CONTROL_HEIGHT_DP,
+            click: () -> Unit) = listChip(activity.getString(resource), tag, selected, heightDp, click)
+        /** Accent-outlined compact button for the step tools row, kept apart from the step buttons. */
+        fun tool(resource: Int, tag: String, click: () -> Unit) = Button(context).apply {
+            text = activity.getString(resource); this.tag = tag; isAllCaps = false; textSize = 14f
+            setTextColor(theme.accent)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            minHeight = dp(COMPACT_CONTROL_HEIGHT_DP); minimumWidth = 0
+            setPaddingRelative(dp(CONTROL_GAP_DP), 0, dp(CONTROL_GAP_DP), 0)
+            stateListAnimator = null
+            fun style(height: Int) {
+                background = RippleDrawable(ColorStateList.valueOf(theme.ripple),
+                    shape(palette.surface, height, theme.accent, dp(TOOL_OUTLINE_DP)), null)
+                foreground = focusRing(height)
+            }
+            style(dp(COMPACT_CONTROL_HEIGHT_DP))
+            doOnLayout { style(height) }
+            setOnClickListener { click() }
+        }
+        /** Drag handle of one step row; touching it picks the step up at once. */
+        fun dragHandle() = TextView(context).apply {
+            tag = "shortcut_step_handle"
+            contentDescription = activity.getString(R.string.shortcut_drag_handle)
+            isClickable = true; isFocusable = true
+            gravity = Gravity.CENTER
+            background = RippleDrawable(ColorStateList.valueOf(theme.ripple), null,
+                GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    cornerRadius = SettingsControlMetrics.radius(dp(CONTROL_HEIGHT_DP), context.resources.displayMetrics.density)
+                })
+            setCompoundDrawablesRelativeWithIntrinsicBounds(
+                context.getDrawable(R.drawable.ic_dp_drag)?.mutate()?.apply { setTint(theme.textSecondary) }, null, null, null)
+            compoundDrawablePadding = 0
         }
         fun input(value: String, resource: Int, tag: String, numeric: Boolean = false, max: Int = NAME_MAX_LENGTH) = EditText(context).apply {
             this.tag = tag; hint = activity.getString(resource); contentDescription = hint
@@ -451,25 +591,49 @@ internal object ShortcutEditor {
                 root.requestLayout()
             }
         }
-        /** Some head units send no insets when the keyboard closes; a cheap recheck covers them. */
+        /**
+         * Some head units report neither insets nor a restored frame when the keyboard closes, so the
+         * shrunken wrap-content window never grows again on its own. The watch then keeps measuring the
+         * page against the host's full height: the window manager keeps clamping the dialog while the
+         * keyboard is up and grants the height as soon as the keyboard is really gone.
+         */
         private val heightWatch = object : Runnable {
+            private var lastRoom = -1
+            private var stableTicks = 0
             override fun run() {
                 if (!dialog.isShowing) return
                 checkHeight.run()
+                val room = frameRoom()
+                if (room != lastRoom) { lastRoom = room; stableTicks = 0; probeFullRoom = false }
+                else if (++stableTicks >= 2 && room < fullRoom() - ui.dp(BLOCK_GAP_DP)) {
+                    probeFullRoom = true
+                    root.requestLayout()
+                }
                 root.postDelayed(this, HEIGHT_WATCH_MILLIS)
             }
         }
+        /** While set, the page measures against the host height instead of a frame that may be stale. */
+        private var probeFullRoom = false
         /**
          * Use the focused dialog's visible frame for IME changes, but the host's full height:
          * the dialog's own wrap-content height must never become the next page's height limit.
          */
         private fun availableHeight(): Int {
             testAvailableHeight?.let { return it() }
+            return if (probeFullRoom) fullRoom() else frameRoom()
+        }
+        private fun frameRoom(): Int {
             val decor = activity.window.decorView
             val visibleDecor = if (dialog.isShowing) dialog.window?.decorView ?: decor else decor
             val visible = android.graphics.Rect().also(visibleDecor::getWindowVisibleDisplayFrame).height()
             val height = listOf(visible, decor.height).filter { it > 0 }.minOrNull()
                 ?: activity.resources.displayMetrics.heightPixels
+            return height - 2 * ui.dp(BLOCK_GAP_DP)
+        }
+        /** The room without any keyboard: the host window, which never resizes for this dialog's IME. */
+        private fun fullRoom(): Int {
+            val decor = activity.window.decorView
+            val height = decor.height.takeIf { it > 0 } ?: activity.resources.displayMetrics.heightPixels
             return height - 2 * ui.dp(BLOCK_GAP_DP)
         }
         private fun page(resource: Int, onBack: () -> Unit = { editor() }) {
@@ -520,11 +684,16 @@ internal object ShortcutEditor {
             ui.add(basic, ui.text(activity.getString(R.string.shortcut_draft_hint), secondary = true))
             val event = card(R.string.shortcut_event)
             ui.add(event, ui.text(trigger(activity, draft)).apply { tag = "shortcut_trigger" })
-            ui.add(event, ui.button(R.string.shortcut_connected, "shortcut_connected") {
+            val triggers = ui.row()
+            ui.addWeighted(triggers, ui.listChip(R.string.shortcut_connected, "shortcut_connected",
+                draft.event == ShortcutEvent.CONNECTED, TRIGGER_CHIP_HEIGHT_DP) {
                 draft = draft.copy(event = ShortcutEvent.CONNECTED, keyCode = 0, scanCode = 0, clickCount = 1, vehicleEvent = null); editor()
-            })
-            ui.add(event, ui.button(R.string.shortcut_learn, "shortcut_learn") { learn() })
-            ui.add(event, ui.button(R.string.shortcut_vehicle_event, "shortcut_vehicle_event") { chooseVehicleEvent() })
+            }, TRIGGER_CHIP_HEIGHT_DP)
+            ui.addWeighted(triggers, ui.listChip(R.string.shortcut_learn, "shortcut_learn",
+                draft.event == ShortcutEvent.KEY, TRIGGER_CHIP_HEIGHT_DP) { learn() }, TRIGGER_CHIP_HEIGHT_DP)
+            ui.addWeighted(triggers, ui.listChip(R.string.shortcut_vehicle_event, "shortcut_vehicle_event",
+                draft.event == ShortcutEvent.VEHICLE, TRIGGER_CHIP_HEIGHT_DP) { chooseVehicleEvent() }, TRIGGER_CHIP_HEIGHT_DP)
+            ui.add(event, triggers)
             if (draft.event == ShortcutEvent.VEHICLE) {
                 ui.add(event, ui.text(activity.getString(R.string.shortcut_vehicle_hint), secondary = true))
             }
@@ -547,8 +716,19 @@ internal object ShortcutEditor {
             }
             val steps = card(R.string.shortcut_steps)
             if (draft.steps.isEmpty()) ui.add(steps, ui.text(activity.getString(R.string.shortcut_no_steps), secondary = true))
+            else ui.add(steps, ui.text(activity.getString(R.string.shortcut_steps_hint), secondary = true))
+            val stepRows = ArrayList<View>(draft.steps.size)
             draft.steps.forEachIndexed { index, step ->
-                ui.add(steps, ui.button("${index + 1}. ${summary(activity, step)}", "shortcut_step_$index") { editStep(index) })
+                val row = ui.row().apply { tag = "shortcut_step_row_$index" }
+                val handle = ui.dragHandle()
+                val button = ui.button("${index + 1}. ${summary(activity, step)}", "shortcut_step_$index") { editStep(index) }
+                row.addView(handle, LinearLayout.LayoutParams(ui.dp(HANDLE_WIDTH_DP), LinearLayout.LayoutParams.MATCH_PARENT))
+                row.addView(button, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f).apply {
+                    marginStart = ui.dp(CONTROL_GAP_DP)
+                })
+                stepRows.add(row)
+                ui.add(steps, row)
+                makeStepDraggable(row, handle, stepRows)
             }
             if (draft.steps.any { it.action in ShortcutAction.PLAY..ShortcutAction.PREVIOUS } &&
                 !AirPlayPersistence.loadCarPlayOwnsMainAudio(activity)) {
@@ -556,12 +736,13 @@ internal object ShortcutEditor {
                     activity.getString(R.string.settings_carplay_owns_main_audio)), secondary = true)
                     .apply { tag = "shortcut_media_hint" })
             }
-            ui.add(steps, ui.button(R.string.shortcut_add_action, "shortcut_add_action") {
+            val tools = ui.row()
+            ui.addWeighted(tools, ui.tool(R.string.shortcut_add_action, "shortcut_add_action") {
                 if (draft.steps.size >= ShortcutCodec.MAX_STEPS || draft.steps.lastOrNull()?.action == ShortcutAction.SIRI)
                     message(activity, R.string.shortcut_invalid)
                 else chooseAction(null)
-            })
-            ui.add(steps, ui.button(R.string.shortcut_record_taps, "shortcut_record_taps") {
+            }, COMPACT_CONTROL_HEIGHT_DP)
+            ui.addWeighted(tools, ui.tool(R.string.shortcut_record_taps, "shortcut_record_taps") {
                 if (CarPlayShortcuts.touchSession() == null || CarPlayShortcuts.hasCapture() || hasTouchTransfer()) {
                     message(activity, R.string.shortcut_unavailable)
                 } else confirm(R.string.shortcut_record_taps_hint) {
@@ -576,24 +757,40 @@ internal object ShortcutEditor {
                     }
                     else { transfer = null; message(activity, R.string.shortcut_unavailable); editor() }
                 }
-            })
-            ui.add(steps, ui.button(R.string.shortcut_record_keys, "shortcut_record") { record() })
+            }, COMPACT_CONTROL_HEIGHT_DP)
+            ui.addWeighted(tools, ui.tool(R.string.shortcut_record_keys, "shortcut_record") { record() }, COMPACT_CONTROL_HEIGHT_DP)
+            ui.add(steps, tools)
             val replay = draft.steps.any { it.action == ShortcutAction.ORIGINAL_CLICK }
             val testing = card(R.string.shortcut_test)
             ui.add(testing, ui.text(activity.getString(if (replay) R.string.shortcut_original_click_hint else R.string.shortcut_confirm_run), secondary = true))
-            ui.add(testing, ui.button(R.string.shortcut_test, "shortcut_test") {
+            val testRow = ui.row()
+            ui.addWeighted(testRow, ui.button(R.string.shortcut_test, "shortcut_test") {
                 if (!ShortcutCodec.executable(draft)) message(activity, R.string.shortcut_invalid)
                 else confirm(R.string.shortcut_confirm_run) {
                     message(activity, if (CarPlayShortcuts.test(draft)) R.string.shortcut_queued else R.string.shortcut_unavailable); editor()
                 }
-            }.apply { isEnabled = !replay && ShortcutCodec.executable(draft); alpha = if (isEnabled) 1f else 0.5f })
-            ui.add(testing, ui.button(R.string.shortcut_stop, "shortcut_stop") { CarPlayShortcuts.stop() })
-            if (existing) ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_rule") {
-                confirm(R.string.shortcut_delete_confirm) {
-                    if (CarPlayShortcuts.save(activity, CarPlayShortcuts.load(activity).filterNot { it.id == draft.id })) finish()
-                    else message(activity, R.string.shortcut_invalid)
-                }
-            })
+            }.apply { isEnabled = !replay && ShortcutCodec.executable(draft); alpha = if (isEnabled) 1f else 0.5f }, CONTROL_HEIGHT_DP)
+            ui.addWeighted(testRow, ui.button(R.string.shortcut_stop, "shortcut_stop") { CarPlayShortcuts.stop() }, CONTROL_HEIGHT_DP)
+            ui.add(testing, testRow)
+            if (existing) {
+                val manage = ui.row()
+                ui.addWeighted(manage, ui.button(R.string.shortcut_duplicate, "shortcut_duplicate") {
+                    val copy = draft.copy(id = java.util.UUID.randomUUID().toString(),
+                        name = "${draft.name.trim()} ${activity.getString(R.string.shortcut_duplicate_suffix)}")
+                    val saved = CarPlayShortcuts.load(activity).toMutableList().apply { add(copy) }
+                    if (CarPlayShortcuts.save(activity, saved)) {
+                        message(activity, R.string.shortcut_duplicated)
+                        finish()
+                    } else message(activity, R.string.shortcut_invalid)
+                }, CONTROL_HEIGHT_DP)
+                ui.addWeighted(manage, ui.button(R.string.shortcut_delete, "shortcut_delete_rule") {
+                    confirm(R.string.shortcut_delete_confirm) {
+                        if (CarPlayShortcuts.save(activity, CarPlayShortcuts.load(activity).filterNot { it.id == draft.id })) finish()
+                        else message(activity, R.string.shortcut_invalid)
+                    }
+                }.apply { setTextColor(ui.palette.danger) }, CONTROL_HEIGHT_DP)
+                ui.add(body, manage)
+            }
             addFooter(ui.button(R.string.shortcut_save, "shortcut_save", primary = true) { save() })
             cancelButton { dialog.dismiss() }
         }
@@ -602,11 +799,11 @@ internal object ShortcutEditor {
             ui.add(body, ui.text(activity.getString(R.string.shortcut_vehicle_hint), secondary = true))
             BydVehicleEvent.entries.forEach { event ->
                 val selected = draft.event == ShortcutEvent.VEHICLE && draft.vehicleEvent == event
-                ui.add(body, ui.button(vehicleLabels.getValue(event), "shortcut_vehicle_${event.name}", primary = selected) {
+                ui.add(body, ui.listChip(vehicleLabels.getValue(event), "shortcut_vehicle_${event.name}", selected) {
                     draft = draft.copy(event = ShortcutEvent.VEHICLE, vehicleEvent = event, keyCode = 0, scanCode = 0,
                         clickCount = 1, steps = draft.steps.filterNot { it.action == ShortcutAction.ORIGINAL_CLICK })
                     editor()
-                }.apply { isSelected = selected })
+                })
             }
             cancelButton()
         }
@@ -614,7 +811,7 @@ internal object ShortcutEditor {
             page(R.string.shortcut_add_condition)
             val used = draft.conditions.map { it.key }.toSet()
             ShortcutConditionKey.entries.filter { it !in used }.forEach { key ->
-                ui.add(body, ui.button(conditionLabels.getValue(key), "shortcut_condition_key_${key.name}") {
+                ui.add(body, ui.listChip(conditionLabels.getValue(key), "shortcut_condition_key_${key.name}") {
                     chooseConditionValues(null, key, emptySet())
                 })
             }
@@ -628,11 +825,10 @@ internal object ShortcutEditor {
                 ui.add(body, ui.text(activity.getString(R.string.shortcut_condition_values_hint), secondary = true))
                 key.values.forEach { value ->
                     val selected = value in chosen
-                    ui.add(body, ui.button((if (selected) "✓ " else "") + valueLabel(activity, key, value),
-                        "shortcut_condition_value_$value", primary = selected) {
+                    ui.add(body, ui.listChip(valueLabel(activity, key, value), "shortcut_condition_value_$value", selected) {
                         if (!chosen.remove(value)) chosen.add(value)
                         render()
-                    }.apply { isSelected = selected })
+                    })
                 }
                 if (index != null) ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_condition") {
                     draft = draft.copy(conditions = draft.conditions.filterIndexed { at, _ -> at != index }); editor()
@@ -655,9 +851,9 @@ internal object ShortcutEditor {
             page(R.string.shortcut_click_count)
             ui.add(body, ui.text(activity.getString(R.string.shortcut_click_hint), secondary = true))
             for (count in 1..4) {
-                ui.add(body, ui.button(clickLabel(activity, count), "shortcut_click_$count", primary = count == draft.clickCount) {
+                ui.add(body, ui.listChip(clickLabel(activity, count), "shortcut_click_$count", count == draft.clickCount) {
                     draft = draft.copy(clickCount = count); editor()
-                }.apply { isSelected = count == draft.clickCount })
+                })
             }
             cancelButton()
         }
@@ -679,27 +875,256 @@ internal object ShortcutEditor {
             addFooter(ui.button(android.R.string.ok, "shortcut_confirm", primary = true, click = accept))
             cancelButton()
         }
+        /** Opens the editor for the action itself: every action edits in place, without a detour page. */
         private fun editStep(index: Int) {
-            val step = draft.steps[index]
-            page(R.string.shortcut_edit_action)
-            ui.add(body, ui.text(summary(activity, step), heading = true))
-            ui.add(body, ui.button(if (step.action == ShortcutAction.KEY_PRESS) R.string.shortcut_assign_action else R.string.shortcut_edit_action,
-                "shortcut_change_action") { chooseAction(index) })
-            fun move(offset: Int) {
-                val steps = draft.steps.toMutableList()
-                steps.add(index + offset, steps.removeAt(index)); draft = draft.copy(steps = steps); editor()
+            when (val action = draft.steps[index].action) {
+                ShortcutAction.TAP -> tapCoordinates(index)
+                ShortcutAction.PINCH_IN, ShortcutAction.PINCH_OUT -> pinchEditor(index, action)
+                ShortcutAction.WAIT -> waitUriEditor(index, ShortcutAction.WAIT)
+                ShortcutAction.URI -> waitUriEditor(index, ShortcutAction.URI)
+                ShortcutAction.KEY_PRESS -> keyPressEditor(index)
+                else -> chooseAction(index)
             }
-            if (index > 0) ui.add(body, ui.button(R.string.shortcut_move_up, "shortcut_move_up") { move(-1) })
-            if (index < draft.steps.lastIndex) ui.add(body, ui.button(R.string.shortcut_move_down, "shortcut_move_down") { move(1) })
-            ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_step") {
-                draft = draft.copy(steps = draft.steps.filterIndexed { at, _ -> at != index }); editor()
-            })
-            cancelButton()
         }
+        /** Re-learns the key a KEY_PRESS step presses, without going through the action chooser. */
+        private fun keyPressEditor(index: Int) {
+            val step = draft.steps[index]
+            val status = capturePage(R.string.shortcut_assign_action)
+            if (step.keyCode >= 0 && step.scanCode >= 0) status.apply {
+                textDirection = View.TEXT_DIRECTION_LTR
+                text = activity.getString(R.string.shortcut_key_codes, step.keyCode, step.scanCode)
+            }
+            ui.add(body, ui.button(R.string.shortcut_edit_action, "shortcut_change_action") { cancelCapture(); chooseAction(index) })
+            ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_step") { cancelCapture(); deleteStep(index) })
+            captureActive = true
+            CarPlayShortcuts.startLearning({ code, scan ->
+                if (captureActive) {
+                    captureActive = false
+                    val steps = draft.steps.toMutableList()
+                    steps[index] = step.copy(keyCode = code, scanCode = scan)
+                    draft = draft.copy(steps = steps); editor()
+                }
+            }, { message(activity, R.string.shortcut_unsupported) }, { captureEnded() }, { captureEnded() })
+            WheelKeyService.restoreIfNeeded(activity)
+        }
+        private fun moveStep(index: Int, offset: Int) {
+            val steps = draft.steps.toMutableList()
+            steps.add(index + offset, steps.removeAt(index)); draft = draft.copy(steps = steps); editor()
+        }
+        private fun deleteStep(index: Int) {
+            draft = draft.copy(steps = draft.steps.filterIndexed { at, _ -> at != index }); editor()
+        }
+
+        // ---- drag a step by its handle, or long-press the row, to reorder ------------------------
+        private var stepDragArmed = false
+        /** The dragged row's layout top, tracked across swaps so the finger stays on the same spot. */
+        private var stepDragLayoutTop = 0
+        private fun armStepDrag(row: View) {
+            if (stepDragArmed) return
+            stepDragArmed = true
+            stepDragLayoutTop = row.top
+            row.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            row.isPressed = false
+            row.translationZ = ui.dp(4).toFloat()
+            row.alpha = 0.92f
+            (row.parent as? ViewGroup)?.requestDisallowInterceptTouchEvent(true)
+        }
+        private fun makeStepDraggable(row: View, handle: View, rows: MutableList<View>) {
+            val slop = ViewConfiguration.get(activity).scaledTouchSlop
+            val longPress = Runnable { armStepDrag(row) }
+            var downY = 0f
+            row.setOnTouchListener { view, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downY = event.rawY
+                        view.postDelayed(longPress, ViewConfiguration.getLongPressTimeout().toLong())
+                        false
+                    }
+                    MotionEvent.ACTION_MOVE -> if (stepDragArmed) {
+                        moveDraggedStep(view, rows, event.rawY - downY); true
+                    } else {
+                        if (Math.abs(event.rawY - downY) > slop) view.removeCallbacks(longPress)
+                        false
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        view.removeCallbacks(longPress)
+                        if (stepDragArmed) { endStepDrag(view, rows); true } else false
+                    }
+                    else -> stepDragArmed
+                }
+            }
+            // The handle picks the step up at once, without the long-press wait.
+            handle.setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> { downY = event.rawY; armStepDrag(row); true }
+                    MotionEvent.ACTION_MOVE -> { moveDraggedStep(row, rows, event.rawY - downY); true }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (stepDragArmed) { endStepDrag(row, rows); true } else false
+                    }
+                    else -> true
+                }
+            }
+        }
+        private fun moveDraggedStep(view: View, rows: MutableList<View>, dy: Float) {
+            view.translationY = dy
+            val from = rows.indexOf(view)
+            if (from < 0) return
+            val center = stepDragLayoutTop + dy + view.height / 2f
+            if (from > 0) {
+                val above = rows[from - 1]
+                if (center < above.top + above.height / 2f) { swapStepRows(view, rows, from, from - 1); return }
+            }
+            if (from < rows.size - 1) {
+                val below = rows[from + 1]
+                if (center > below.top + below.height / 2f) swapStepRows(view, rows, from, from + 1)
+            }
+        }
+        /** Swaps two neighbouring rows in the list and the layout, keeping the dragged row under the finger. */
+        private fun swapStepRows(view: View, rows: MutableList<View>, from: Int, to: Int) {
+            val parent = view.parent as? ViewGroup ?: return
+            val other = rows[to]
+            val visualTop = stepDragLayoutTop + view.translationY
+            stepDragLayoutTop = if (to > from) stepDragLayoutTop + other.height +
+                (other.layoutParams as ViewGroup.MarginLayoutParams).bottomMargin else other.top
+            rows[from] = other; rows[to] = view
+            val position = parent.indexOfChild(view)
+            parent.removeView(view)
+            parent.addView(view, position + (to - from))
+            view.translationY = visualTop - stepDragLayoutTop
+        }
+        /** The step a drag row stands for, from the row wrapper or the button inside it. */
+        private fun stepRowNumber(row: View): Int? {
+            (row.tag as? String)?.removePrefix("shortcut_step_row_")?.toIntOrNull()?.let { return it }
+            if (row is ViewGroup) for (index in 0 until row.childCount) {
+                (row.getChildAt(index).tag as? String)?.removePrefix("shortcut_step_")?.toIntOrNull()?.let { return it }
+            }
+            return (row.tag as? String)?.removePrefix("shortcut_step_")?.toIntOrNull()
+        }
+        /** Commits the dragged order to the draft; an untouched order only drops the pickup visuals. */
+        private fun endStepDrag(view: View, rows: MutableList<View>) {
+            stepDragArmed = false
+            view.translationZ = 0f
+            view.alpha = 1f
+            view.translationY = 0f
+            view.isPressed = false
+            (view.parent as? ViewGroup)?.requestDisallowInterceptTouchEvent(false)
+            val order = rows.mapNotNull(::stepRowNumber)
+            if (order.size == draft.steps.size && order != List(order.size) { it }) {
+                draft = draft.copy(steps = order.map { draft.steps[it] })
+                editor()
+            }
+        }
+        private fun tapCoordinates(index: Int) {
+            val step = draft.steps[index]
+            page(R.string.shortcut_tap_coordinates) { editor() }
+            ui.add(body, ui.text(activity.getString(R.string.shortcut_tap_coordinates_hint), secondary = true))
+            val x = ui.input(Math.round(step.tapX.coerceIn(0.0, 1.0) * 100).toString(),
+                R.string.shortcut_tap_x, "shortcut_tap_x", numeric = true, max = 3)
+            val y = ui.input(Math.round(step.tapY.coerceIn(0.0, 1.0) * 100).toString(),
+                R.string.shortcut_tap_y, "shortcut_tap_y", numeric = true, max = 3)
+            ui.add(body, ui.text(activity.getString(R.string.shortcut_tap_x)))
+            ui.add(body, x)
+            ui.add(body, ui.text(activity.getString(R.string.shortcut_tap_y)))
+            ui.add(body, y)
+            ui.add(body, ui.button(R.string.shortcut_edit_action, "shortcut_change_action") { chooseAction(index) })
+            ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_step") { deleteStep(index) })
+            addFooter(ui.button(android.R.string.ok, "shortcut_accept_tap", primary = true) {
+                val cx = x.text.toString().toIntOrNull()?.takeIf { it in 0..100 }
+                val cy = y.text.toString().toIntOrNull()?.takeIf { it in 0..100 }
+                if (cx == null || cy == null) message(activity, R.string.shortcut_invalid)
+                else {
+                    val steps = draft.steps.toMutableList()
+                    steps[index] = step.copy(tapX = cx / 100.0, tapY = cy / 100.0)
+                    draft = draft.copy(steps = steps)
+                    editor()
+                }
+            })
+            cancelButton { editor() }
+        }
+        private fun pinchEditor(index: Int?, action: ShortcutAction) {
+            val previous = index?.let { draft.steps[it] }
+            page(labels.getValue(action)) { if (index == null) chooseAction(null) else editor() }
+            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_hint), secondary = true))
+            val x = ui.input(Math.round((previous?.zoomCenterX ?: 0.5) * 100).toString(),
+                R.string.settings_shortcut_pinch_x, "shortcut_pinch_x", numeric = true, max = 2)
+            val y = ui.input(Math.round((previous?.zoomCenterY ?: 0.5) * 100).toString(),
+                R.string.settings_shortcut_pinch_y, "shortcut_pinch_y", numeric = true, max = 2)
+            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_x)))
+            ui.add(body, x)
+            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_y)))
+            ui.add(body, y)
+            val scaleLabel = ui.text("").apply { tag = "shortcut_pinch_scale_value" }
+            val scale = SeekBar(ui.context).apply {
+                tag = "shortcut_pinch_scale"
+                max = 69
+                progress = (Math.round((previous?.pinchScale ?: com.shilapi.xcertplay.orchestration.CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE) * 10).toInt() - 11).coerceIn(0, max)
+                minimumHeight = ui.dp(CONTROL_HEIGHT_DP)
+                progressTintList = ColorStateList.valueOf(ui.theme.accent)
+                thumbTintList = ColorStateList.valueOf(ui.theme.accent)
+                fun update(value: Int) {
+                    scaleLabel.text = activity.getString(R.string.settings_shortcut_pinch_scale_value, (value + 11) / 10.0)
+                    contentDescription = scaleLabel.text
+                }
+                update(progress)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) { update(value) }
+                    override fun onStartTrackingTouch(bar: SeekBar?) = Unit
+                    override fun onStopTrackingTouch(bar: SeekBar?) = Unit
+                })
+            }
+            ui.add(body, scaleLabel)
+            ui.add(body, scale)
+            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_scale_hint), secondary = true))
+            if (index != null) {
+                ui.add(body, ui.button(R.string.shortcut_edit_action, "shortcut_change_action") { chooseAction(index) })
+                ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_step") { deleteStep(index) })
+            }
+            addFooter(ui.button(android.R.string.ok, "shortcut_accept_action", primary = true) {
+                val cx = x.text.toString().toIntOrNull()?.takeIf { it in 5..95 }
+                val cy = y.text.toString().toIntOrNull()?.takeIf { it in 5..95 }
+                if (cx == null || cy == null) message(activity, R.string.shortcut_invalid)
+                else {
+                    val step = ShortcutStep(action, zoomCenterX = cx / 100.0, zoomCenterY = cy / 100.0,
+                        pinchScale = (scale.progress + 11) / 10.0).copy(keyCode = previous?.keyCode ?: -1, scanCode = previous?.scanCode ?: -1)
+                    draft = draft.copy(steps = draft.steps.toMutableList().apply { if (index == null) add(step) else set(index, step) })
+                    editor()
+                }
+            })
+            cancelButton { if (index == null) chooseAction(null) else editor() }
+        }
+        private fun waitUriEditor(index: Int?, action: ShortcutAction) {
+            val previous = index?.let { draft.steps[it] }
+            val numeric = action == ShortcutAction.WAIT
+            page(labels.getValue(action)) { if (index == null) chooseAction(null) else editor() }
+            val input = ui.input(if (numeric) previous?.waitMs?.takeIf { it > 0 }?.toString() ?: "1000" else previous?.url.orEmpty(),
+                labels.getValue(action), "shortcut_action_value", numeric, if (numeric) 5 else 2048)
+            ui.add(body, input)
+            if (index != null) {
+                ui.add(body, ui.button(R.string.shortcut_edit_action, "shortcut_change_action") { chooseAction(index) })
+                ui.add(body, ui.button(R.string.shortcut_delete, "shortcut_delete_step") { deleteStep(index) })
+            }
+            addFooter(ui.button(android.R.string.ok, "shortcut_accept_action", primary = true) {
+                val value = input.text.toString()
+                val step = (if (numeric) value.toLongOrNull()?.takeIf { it in 0..30_000 }?.let { ShortcutStep(action, waitMs = it) }
+                    else ShortcutCodec.safeUrl(value)?.let { ShortcutStep(action, url = it) })
+                    ?.copy(keyCode = previous?.keyCode ?: -1, scanCode = previous?.scanCode ?: -1)
+                if (step == null) message(activity, R.string.shortcut_invalid)
+                else {
+                    draft = draft.copy(steps = draft.steps.toMutableList().apply { if (index == null) add(step) else set(index, step) })
+                    editor()
+                }
+            })
+            cancelButton { if (index == null) chooseAction(null) else editor() }
+        }
+        /** The action list: adding appends a step; editing replaces it, with the current action marked. */
         private fun chooseAction(index: Int?) {
-            page(R.string.shortcut_add_action)
-            selectableActions.filter { it != ShortcutAction.ORIGINAL_CLICK || draft.event == ShortcutEvent.KEY }.forEach { action ->
-                ui.add(body, ui.button(labels.getValue(action), "shortcut_action_${action.name}") {
+            page(if (index == null) R.string.shortcut_add_action else R.string.shortcut_edit_action)
+            val current = index?.let { draft.steps.getOrNull(it)?.action }
+            selectableActions.filter { action ->
+                (action != ShortcutAction.ORIGINAL_CLICK || draft.event == ShortcutEvent.KEY) &&
+                    (action != ShortcutAction.TAP || current == ShortcutAction.TAP)
+            }.forEach { action ->
+                ui.add(body, ui.listChip(labels.getValue(action), "shortcut_action_${action.name}", current == action) {
                     val previous = index?.let { draft.steps[it] }
                     fun accept(step: ShortcutStep) {
                         val withKey = step.copy(keyCode = previous?.keyCode ?: -1, scanCode = previous?.scanCode ?: -1)
@@ -707,69 +1132,25 @@ internal object ShortcutEditor {
                         editor()
                     }
                     when (action) {
-                        ShortcutAction.PINCH_IN, ShortcutAction.PINCH_OUT -> {
-                            page(labels.getValue(action)) { chooseAction(index) }
-                            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_hint), secondary = true))
-                            val x = ui.input(Math.round((previous?.zoomCenterX ?: 0.5) * 100).toString(),
-                                R.string.settings_shortcut_pinch_x, "shortcut_pinch_x", numeric = true, max = 2)
-                            val y = ui.input(Math.round((previous?.zoomCenterY ?: 0.5) * 100).toString(),
-                                R.string.settings_shortcut_pinch_y, "shortcut_pinch_y", numeric = true, max = 2)
-                            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_x)))
-                            ui.add(body, x)
-                            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_y)))
-                            ui.add(body, y)
-                            val scaleLabel = ui.text("").apply { tag = "shortcut_pinch_scale_value" }
-                            val scale = SeekBar(ui.context).apply {
-                                tag = "shortcut_pinch_scale"
-                                max = 69
-                                progress = (Math.round((previous?.pinchScale ?: com.shilapi.xcertplay.orchestration.CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE) * 10).toInt() - 11).coerceIn(0, max)
-                                minimumHeight = ui.dp(CONTROL_HEIGHT_DP)
-                                progressTintList = ColorStateList.valueOf(ui.theme.accent)
-                                thumbTintList = ColorStateList.valueOf(ui.theme.accent)
-                                fun update(value: Int) {
-                                    scaleLabel.text = activity.getString(R.string.settings_shortcut_pinch_scale_value, (value + 11) / 10.0)
-                                    contentDescription = scaleLabel.text
-                                }
-                                update(progress)
-                                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                                    override fun onProgressChanged(bar: SeekBar?, value: Int, fromUser: Boolean) { update(value) }
-                                    override fun onStartTrackingTouch(bar: SeekBar?) = Unit
-                                    override fun onStopTrackingTouch(bar: SeekBar?) = Unit
-                                })
-                            }
-                            ui.add(body, scaleLabel)
-                            ui.add(body, scale)
-                            ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_scale_hint), secondary = true))
-                            addFooter(ui.button(android.R.string.ok, "shortcut_accept_action", primary = true) {
-                                val cx = x.text.toString().toIntOrNull()?.takeIf { it in 5..95 }
-                                val cy = y.text.toString().toIntOrNull()?.takeIf { it in 5..95 }
-                                if (cx == null || cy == null) message(activity, R.string.shortcut_invalid)
-                                else accept(ShortcutStep(action, zoomCenterX = cx / 100.0, zoomCenterY = cy / 100.0,
-                                    pinchScale = (scale.progress + 11) / 10.0))
-                            })
-                            cancelButton { chooseAction(index) }
-                        }
-                        ShortcutAction.WAIT, ShortcutAction.URI -> {
-                            page(labels.getValue(action)) { chooseAction(index) }
-                            val numeric = action == ShortcutAction.WAIT
-                            val input = ui.input(if (numeric) previous?.waitMs?.takeIf { it > 0 }?.toString() ?: "1000" else previous?.url.orEmpty(),
-                                labels.getValue(action), "shortcut_action_value", numeric, if (numeric) 5 else 2048)
-                            ui.add(body, input)
-                            addFooter(ui.button(android.R.string.ok, "shortcut_accept_action", primary = true) {
-                                val value = input.text.toString()
-                                val step = if (numeric) value.toLongOrNull()?.takeIf { it in 0..30_000 }?.let { ShortcutStep(action, waitMs = it) }
-                                    else ShortcutCodec.safeUrl(value)?.let { ShortcutStep(action, url = it) }
-                                if (step == null) message(activity, R.string.shortcut_invalid) else accept(step)
-                            })
-                            cancelButton { chooseAction(index) }
-                        }
+                        ShortcutAction.PINCH_IN, ShortcutAction.PINCH_OUT -> pinchEditor(index, action)
+                        ShortcutAction.WAIT, ShortcutAction.URI -> waitUriEditor(index, action)
                         ShortcutAction.ORIGINAL_CLICK -> {
                             if (!com.shilapi.xcertplay.input.ShellKeyReplay.safeCode(draft.keyCode)) message(activity, R.string.shortcut_invalid)
                             else accept(ShortcutStep(action))
                         }
-                        else -> accept(ShortcutStep(action))
+                        else -> accept(previous?.takeIf { it.action == action } ?: ShortcutStep(action))
                     }
                 })
+            }
+            if (index != null) {
+                val reorder = ui.row()
+                ui.addWeighted(reorder, ui.button(R.string.shortcut_move_up, "shortcut_move_up") { moveStep(index, -1) }
+                    .apply { isEnabled = index > 0; alpha = if (isEnabled) 1f else 0.5f }, CONTROL_HEIGHT_DP)
+                ui.addWeighted(reorder, ui.button(R.string.shortcut_move_down, "shortcut_move_down") { moveStep(index, 1) }
+                    .apply { isEnabled = index < draft.steps.lastIndex; alpha = if (isEnabled) 1f else 0.5f }, CONTROL_HEIGHT_DP)
+                ui.addWeighted(reorder, ui.button(R.string.shortcut_delete, "shortcut_delete_step") { deleteStep(index) }
+                    .apply { setTextColor(ui.palette.danger) }, CONTROL_HEIGHT_DP)
+                ui.add(body, reorder)
             }
             cancelButton()
         }
@@ -819,7 +1200,7 @@ internal object ShortcutEditor {
             ui.add(body, recorded, BLOCK_GAP_DP)
             ui.add(body, ui.text(activity.getString(R.string.shortcut_add_action), heading = true))
             selectableActions.filter { it != ShortcutAction.WAIT && it != ShortcutAction.URI }.forEach { action ->
-                ui.add(body, ui.button(labels.getValue(action), "shortcut_record_${action.name}") { CarPlayShortcuts.recordAction(action) })
+                ui.add(body, ui.listChip(labels.getValue(action), "shortcut_record_${action.name}") { CarPlayShortcuts.recordAction(action) })
             }
             addFooter(ui.button(R.string.shortcut_record_accept, "shortcut_record_accept", primary = true) { CarPlayShortcuts.stopRecording() }, 0)
             captureActive = true

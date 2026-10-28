@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">Pausa entre toques</string>
     <string name="settings_carplay_tap_gap_recorded">Como se grabó</string>
     <string name="settings_carplay_tap_gap_hint">Una pausa grabada es lo que hizo tu dedo por casualidad. La animación de un panel tarda un tiempo fijo, así que una pausa fija suele ser más estable: demasiado corta y el siguiente toque cae antes de que cambie la pantalla; demasiado larga y el viaje empieza tarde.</string>
+    <string name="settings_carplay_tap_edit">Editar posiciones de los toques</string>
+    <string name="settings_carplay_tap_number">Toque %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X (0–100%, desde la izquierda)</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y (0–100%, desde arriba)</string>
+    <string name="settings_carplay_tap_delay">Retardo antes del toque (250–4000 ms)</string>
+    <string name="settings_carplay_tap_invalid">Comprueba cada posición (0–100) y el retardo (250–4000 ms).</string>
 </resources>

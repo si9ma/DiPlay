@@ -169,6 +169,11 @@ internal object CarPlayGuidanceStopper {
         Action.START -> AirPlayPersistence.loadCarPlayStartTaps(context)
     })
 
+    /** Replaces the stored sequence with an edited one, keeping the action's other settings. */
+    fun saveTaps(context: Context, action: Action, taps: List<Tap>) {
+        save(context, action, encode(taps))
+    }
+
     private fun save(context: Context, action: Action, json: String) = when (action) {
         Action.STOP -> AirPlayPersistence.saveCarPlayStopTaps(context, json)
         Action.START -> AirPlayPersistence.saveCarPlayStartTaps(context, json)

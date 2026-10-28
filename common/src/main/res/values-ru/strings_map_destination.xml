@@ -76,4 +76,10 @@
     <string name="settings_carplay_tap_gap">Пауза между нажатиями</string>
     <string name="settings_carplay_tap_gap_recorded">Как записано</string>
     <string name="settings_carplay_tap_gap_hint">Записанная пауза — это случайность вашего движения. Анимация панели занимает фиксированное время, поэтому фиксированная пауза обычно стабильнее: слишком короткая — следующее нажатие придётся на ещё не сменившийся экран, слишком длинная — поездка начнётся позже.</string>
+    <string name="settings_carplay_tap_edit">Изменить позиции касаний</string>
+    <string name="settings_carplay_tap_number">Касание %1$d</string>
+    <string name="settings_carplay_tap_x" formatted="false">X (0–100% слева)</string>
+    <string name="settings_carplay_tap_y" formatted="false">Y (0–100% сверху)</string>
+    <string name="settings_carplay_tap_delay">Задержка перед касанием (250–4000 мс)</string>
+    <string name="settings_carplay_tap_invalid">Проверьте каждую позицию (0–100) и задержку (250–4000 мс).</string>
 </resources>
