@@ -1341,4 +1341,36 @@
 
     <string name="settings_hotspot_interface">Hotspot interface (optional)</string>
     <string name="settings_hotspot_interface_description">Only for head units that run their hotspot on a network interface Android does not report as a Wi-Fi hotspot, for example eth0.3 on some Geely, Lynk &amp; Co and other Qualcomm units. Leave empty to find it automatically.</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">External device</string>
+    <string name="settings_external_device_summary">CarMeter watch clock: connect over Bluetooth or Wi-Fi and send it time and navigation.</string>
+    <string name="settings_carmeter_enabled">Send to CarMeter</string>
+    <string name="settings_carmeter_enabled_description">Connect to the CarMeter watch and send it time and navigation while DiPlay is open.</string>
+    <string name="settings_carmeter_status_ble">Connected · Bluetooth (%1$s)</string>
+    <string name="settings_carmeter_status_udp">Connected · Wi-Fi (%1$s)</string>
+    <string name="settings_carmeter_scanning">Scanning for CarMeter…</string>
+    <string name="settings_carmeter_not_connected">Not connected</string>
+    <string name="settings_carmeter_scan_connect">Scan and connect</string>
+    <string name="settings_carmeter_disconnect">Disconnect</string>
+    <string name="settings_carmeter_auto_reconnect">Reconnect automatically</string>
+    <string name="settings_carmeter_auto_reconnect_description">Try again to reach the last CarMeter when the Bluetooth link drops.</string>
+    <string name="settings_carmeter_send_navigation">Send navigation</string>
+    <string name="settings_carmeter_send_navigation_description">While the iPhone guides, send remaining distance, remaining time and arrival time.</string>
+    <string name="settings_carmeter_send_time">Send time</string>
+    <string name="settings_carmeter_send_time_description">Set the CarMeter clock from this head unit, then keep it in sync every minute.</string>
+    <string name="settings_carmeter_udp_host">Wi-Fi address</string>
+    <string name="settings_carmeter_udp_unset">not set</string>
+    <string name="settings_carmeter_udp_description">Backup link over Wi-Fi when Bluetooth cannot connect. The watch shows its address under Settings, Hardware info; the port is 8899.</string>
+    <string name="settings_carmeter_test_title">Test sends</string>
+    <string name="settings_carmeter_test_time">Send time</string>
+    <string name="settings_carmeter_test_distance">Send remaining distance</string>
+    <string name="settings_carmeter_test_duration">Send remaining time</string>
+    <string name="settings_carmeter_test_eta">Send arrival time</string>
+    <string name="settings_carmeter_test_sent">Sent to CarMeter</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter is not connected yet</string>
+    <string name="settings_carmeter_test_description">Sends example values so the watch face can be checked while parked.</string>
+    <string name="settings_carmeter_pick">Choose a CarMeter</string>
+    <string name="settings_carmeter_none_found">No CarMeter found</string>
+    <string name="settings_carmeter_permission_title">Nearby devices</string>
+    <string name="settings_carmeter_permission_body">Allow nearby devices so DiPlay can scan for and connect to the CarMeter watch.</string>
 </resources>

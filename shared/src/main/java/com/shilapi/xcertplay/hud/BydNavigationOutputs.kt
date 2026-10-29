@@ -16,6 +16,8 @@ object BydNavigationOutputs {
         if (BydOutputSettings.batteryToIphoneActive(context)) BydBatteryStatus.start(context)
         // DiLink 3 creates its cluster map display only once the cluster has projected.
         if (BydOutputSettings.enabled(context)) BydClusterBridge.prepareProjectionDisplay(context.applicationContext)
+        // 外接设备(CarMeter)：设置里启用过才扫描/回连
+        com.shilapi.xcertplay.external.CarMeterOutput.start(context)
     }
     fun setDiagnosticHold(hold: Boolean) { BydStandaloneHudOutput.syntheticHold = hold }
     @Volatile private var useStandalone = false
@@ -125,6 +127,8 @@ object BydNavigationOutputs {
             current
         }
         overlayListener?.invoke(next)
+        // 外接设备(CarMeter)与仪表小窗共享同一份转向卡片(含到达时间/剩余距离)
+        com.shilapi.xcertplay.external.CarMeterOutput.onGuidance(next)
     }
 
     private fun currentOverlay(): ClusterTurnGuidance? = synchronized(overlayLock) {

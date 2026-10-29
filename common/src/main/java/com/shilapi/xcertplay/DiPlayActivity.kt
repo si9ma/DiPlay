@@ -106,7 +106,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 internal enum class SettingsCategory {
-    OVERVIEW, CONNECTION, DISPLAY, CLUSTER_WINDOWS, AUDIO, NAVIGATION, SHORTCUTS, VEHICLE, LANGUAGE, DIAGNOSTICS, ADVANCED, ABOUT,
+    OVERVIEW, CONNECTION, DISPLAY, CLUSTER_WINDOWS, AUDIO, NAVIGATION, SHORTCUTS, VEHICLE, EXTERNAL_DEVICE, LANGUAGE, DIAGNOSTICS, ADVANCED, ABOUT,
 }
 
 /** A settings card. Every entry needs one category in [SettingsInformationArchitecture]; see AGENTS.md. */
@@ -131,6 +131,7 @@ internal enum class SettingsSection {
     SHORTCUTS,
     LAUNCHER_BUBBLE,
     BATTERY_CARD,
+    EXTERNAL_DEVICE,
     BYD_NAVIGATION,
     MAP_DESTINATION,
     PERMISSIONS_AND_HELP,
@@ -163,6 +164,7 @@ internal object SettingsInformationArchitecture {
             SettingsSection.WHEEL_KEYS,
             SettingsSection.CAR_BUTTON,
         ),
+        SettingsCategory.EXTERNAL_DEVICE to setOf(SettingsSection.EXTERNAL_DEVICE),
         SettingsCategory.DIAGNOSTICS to setOf(SettingsSection.DIAGNOSTICS),
         SettingsCategory.SHORTCUTS to setOf(SettingsSection.SHORTCUTS),
         SettingsCategory.ADVANCED to setOf(
@@ -227,6 +229,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
     private var testToneTrack: AudioTrack? = null
     private var toneStop: Runnable? = null
     private var exportButton: Button? = null
+    private var externalDeviceStatus: TextView? = null
+    private var carMeterStatusWired = false
     private var rootScroll: ScrollView? = null
     private var settingsRailScroll: ScrollView? = null
     private var reconnectBar: View? = null
@@ -333,6 +337,14 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             DiPlayPreferences.saveConnectOnPhoneBluetooth(this, false)
             render()
             permissionHelp(getString(R.string.nearby_devices), getString(R.string.allow_nearby_devices_so_diplay_can_connect_to_your_paired))
+        }
+    }
+    private val carMeterBlePermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants.values.all { it }) {
+            carMeterScanFlow()
+        } else {
+            permissionHelp(getString(R.string.settings_carmeter_permission_title),
+                getString(R.string.settings_carmeter_permission_body))
         }
     }
     private val locationPermission = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -1177,6 +1189,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         SettingsCategory.NAVIGATION -> R.drawable.ic_dp_navigation
         SettingsCategory.SHORTCUTS -> R.drawable.ic_dp_controls
         SettingsCategory.VEHICLE -> R.drawable.ic_dp_car
+        SettingsCategory.EXTERNAL_DEVICE -> R.drawable.ic_dp_external
         SettingsCategory.DIAGNOSTICS -> R.drawable.ic_dp_diagnostics
         SettingsCategory.ADVANCED -> R.drawable.ic_dp_advanced
         SettingsCategory.LANGUAGE -> R.drawable.ic_dp_language
@@ -1192,6 +1205,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         SettingsCategory.NAVIGATION -> R.string.settings_navigation
         SettingsCategory.SHORTCUTS -> R.string.settings_shortcuts
         SettingsCategory.VEHICLE -> R.string.settings_vehicle
+        SettingsCategory.EXTERNAL_DEVICE -> R.string.settings_external_device
         SettingsCategory.DIAGNOSTICS -> R.string.diagnostics
         SettingsCategory.ADVANCED -> R.string.settings_advanced
         SettingsCategory.LANGUAGE -> R.string.language_section_title
@@ -1214,6 +1228,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 renderSections(content, SettingsInformationArchitecture.sectionsByCategory.getValue(SettingsCategory.SHORTCUTS))
             }
             SettingsCategory.VEHICLE -> vehicleSettings(content)
+            SettingsCategory.EXTERNAL_DEVICE -> {
+                settingsPageTitle(content, getString(R.string.settings_external_device), getString(R.string.settings_external_device_summary))
+                renderSections(content, SettingsInformationArchitecture.sectionsByCategory.getValue(SettingsCategory.EXTERNAL_DEVICE))
+            }
             SettingsCategory.DIAGNOSTICS -> diagnosticsSettings(content)
             SettingsCategory.ADVANCED -> advancedSettings(content)
             SettingsCategory.LANGUAGE -> {
@@ -1254,6 +1272,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             SettingsCategory.NAVIGATION to R.string.settings_navigation_summary,
             SettingsCategory.SHORTCUTS to R.string.settings_shortcuts_description,
             SettingsCategory.VEHICLE to R.string.settings_vehicle_summary,
+            SettingsCategory.EXTERNAL_DEVICE to R.string.settings_external_device_summary,
             SettingsCategory.LANGUAGE to R.string.settings_language_summary,
             SettingsCategory.ABOUT to R.string.about_diplay,
             SettingsCategory.DIAGNOSTICS to R.string.settings_diagnostics_summary,
@@ -1857,6 +1876,10 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             toggle(card, getString(R.string.settings_report_raw_car_log), getString(R.string.settings_report_raw_car_log_description),
                 AirPlayPersistence.loadReportRawCarLog(this)) { AirPlayPersistence.saveReportRawCarLog(this, it) }
         }
+        filteredSection(content, SettingsSection.EXTERNAL_DEVICE,
+            getString(R.string.settings_external_device), R.drawable.ic_dp_external) { card ->
+                externalDeviceSettings(card)
+            }
         filteredSection(content, SettingsSection.AUTOMATIC_CONNECTION,
             getString(R.string.automatic_connection), R.drawable.ic_dp_automation) { card ->
             toggle(card, getString(R.string.connect_when_diplay_opens), getString(R.string.default_connection_description), DiPlayPreferences.autoConnect(this)) { DiPlayPreferences.saveAutoConnect(this, it) }
@@ -7583,6 +7606,124 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         build(card)
         if (page == "settings") normalizeSpacing(card)
         parent.addView(card, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(SETTINGS_BLOCK_GAP_DP) })
+    }
+
+    // ---- 外接设备（CarMeter）----
+
+    private fun carMeterStatusText(status: com.shilapi.xcertplay.external.CarMeterOutput.Status): String = when {
+        status.connected -> getString(
+            if (status.transport == com.shilapi.xcertplay.external.CarMeterOutput.Transport.UDP) R.string.settings_carmeter_status_udp
+            else R.string.settings_carmeter_status_ble,
+            status.deviceName ?: status.deviceAddress ?: "")
+        status.scanning -> getString(R.string.settings_carmeter_scanning)
+        else -> getString(R.string.settings_carmeter_not_connected)
+    }
+
+    private fun carMeterPicker(devices: Map<String, String>) {
+        if (devices.isEmpty()) {
+            toast(getString(R.string.settings_carmeter_none_found))
+            return
+        }
+        val addresses = devices.keys.toList()
+        val names = addresses.map { devices[it] ?: it }.toTypedArray()
+        appDialogBuilder().setTitle(getString(R.string.settings_carmeter_pick))
+            .setItems(names) { _, which ->
+                com.shilapi.xcertplay.external.CarMeterOutput.connectAddress(applicationContext, addresses[which], names[which])
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
+    private fun carMeterScanFlow() {
+        if (Build.VERSION.SDK_INT >= 31 &&
+            (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED ||
+                checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED)) {
+            carMeterBlePermission.launch(arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT))
+            return
+        }
+        com.shilapi.xcertplay.external.CarMeterOutput.scan(applicationContext) { devices ->
+            runOnUiThread { if (!isFinishing && !isDestroyed) carMeterPicker(devices) }
+        }
+    }
+
+    private fun carMeterTest(frame: String) {
+        if (!com.shilapi.xcertplay.external.CarMeterOutput.status().connected) {
+            toast(getString(R.string.settings_carmeter_test_not_sent))
+            return
+        }
+        com.shilapi.xcertplay.external.CarMeterOutput.testSend(frame)
+        toast(getString(R.string.settings_carmeter_test_sent))
+    }
+
+    private fun externalDeviceSettings(card: LinearLayout) {
+        if (!carMeterStatusWired) {
+            carMeterStatusWired = true
+            com.shilapi.xcertplay.external.CarMeterOutput.setStatusListener { status ->
+                runOnUiThread { if (!isFinishing && !isDestroyed) externalDeviceStatus?.text = carMeterStatusText(status) }
+            }
+        }
+        val status = com.shilapi.xcertplay.external.CarMeterOutput.status()
+        externalDeviceStatus = label(carMeterStatusText(status), 14, MUTED)
+        card.addView(externalDeviceStatus)
+        card.addView(button(getString(R.string.settings_carmeter_scan_connect), false) {
+            carMeterScanFlow()
+        }, matchButton(12, 60))
+        card.addView(button(getString(R.string.settings_carmeter_disconnect), false) {
+            com.shilapi.xcertplay.external.CarMeterOutput.disconnect()
+        }.apply { isEnabled = status.connected }, matchButton(0, 60))
+
+        toggle(card, getString(R.string.settings_carmeter_enabled),
+            getString(R.string.settings_carmeter_enabled_description),
+            com.shilapi.xcertplay.external.CarMeterSettings.enabled(this)) { on ->
+                com.shilapi.xcertplay.external.CarMeterSettings.setEnabled(this, on)
+                if (on) com.shilapi.xcertplay.external.CarMeterOutput.start(applicationContext)
+                else com.shilapi.xcertplay.external.CarMeterOutput.stop()
+            }
+        toggle(card, getString(R.string.settings_carmeter_auto_reconnect),
+            getString(R.string.settings_carmeter_auto_reconnect_description),
+            com.shilapi.xcertplay.external.CarMeterSettings.autoReconnect(this)) {
+                com.shilapi.xcertplay.external.CarMeterSettings.setAutoReconnect(this, it)
+            }
+        toggle(card, getString(R.string.settings_carmeter_send_navigation),
+            getString(R.string.settings_carmeter_send_navigation_description),
+            com.shilapi.xcertplay.external.CarMeterSettings.sendNavigation(this)) {
+                com.shilapi.xcertplay.external.CarMeterSettings.setSendNavigation(this, it)
+            }
+        toggle(card, getString(R.string.settings_carmeter_send_time),
+            getString(R.string.settings_carmeter_send_time_description),
+            com.shilapi.xcertplay.external.CarMeterSettings.sendTime(this)) {
+                com.shilapi.xcertplay.external.CarMeterSettings.setSendTime(this, it)
+            }
+
+        val host = com.shilapi.xcertplay.external.CarMeterSettings.udpHost(this)
+        card.addView(button(getString(R.string.settings_carmeter_udp_host) + " · " +
+            host.ifEmpty { getString(R.string.settings_carmeter_udp_unset) }, false) {
+            textInput(getString(R.string.settings_carmeter_udp_host),
+                com.shilapi.xcertplay.external.CarMeterSettings.udpHost(this), false) { value ->
+                    com.shilapi.xcertplay.external.CarMeterSettings.setUdpHost(this, value)
+                    render()
+                }
+        }, matchButton(0, 60))
+        card.addView(label(getString(R.string.settings_carmeter_udp_description), 14, MUTED))
+
+        card.addView(label(getString(R.string.settings_carmeter_test_title), 22, TEXT, true).apply {
+            setPadding(0, dp(12), 0, dp(8))
+        })
+        card.addView(button(getString(R.string.settings_carmeter_test_time), false) {
+            carMeterTest(com.shilapi.xcertplay.external.CarMeterFrames.testTime(System.currentTimeMillis()))
+        }, matchButton(0, 56))
+        card.addView(button(getString(R.string.settings_carmeter_test_distance), false) {
+            carMeterTest(com.shilapi.xcertplay.external.CarMeterFrames.testDistance(System.currentTimeMillis()))
+        }, matchButton(6, 56))
+        card.addView(button(getString(R.string.settings_carmeter_test_duration), false) {
+            carMeterTest(com.shilapi.xcertplay.external.CarMeterFrames.testDuration(System.currentTimeMillis()))
+        }, matchButton(6, 56))
+        card.addView(button(getString(R.string.settings_carmeter_test_eta), false) {
+            // 演示用：下一个整 15 分钟为预计到达
+            val eta = (System.currentTimeMillis() / 900_000L + 1) * 900_000L
+            carMeterTest(com.shilapi.xcertplay.external.CarMeterFrames.testArrival(System.currentTimeMillis(), eta))
+        }, matchButton(6, 56))
+        card.addView(label(getString(R.string.settings_carmeter_test_description), 14, MUTED))
     }
     private fun audioFocusControls(parent: LinearLayout) {
         toggle(parent, getString(R.string.settings_disable_media_key_audio_focus),

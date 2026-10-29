@@ -1244,4 +1244,36 @@
 
     <string name="settings_hotspot_interface">واجهة نقطة الاتصال (اختياري)</string>
     <string name="settings_hotspot_interface_description">لوحدات الرأس التي تشغّل نقطة الاتصال على واجهة شبكة لا يبلّغ عنها أندرويد كنقطة اتصال Wi-Fi، مثل eth0.3 في بعض وحدات Geely وLynk &amp; Co وغيرها من وحدات Qualcomm. اتركه فارغاً للعثور عليها تلقائياً.</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">جهاز خارجي</string>
+    <string name="settings_external_device_summary">ساعة CarMeter: اتصل عبر البلوتوث أو Wi-Fi وأرسل لها الوقت والتنقل.</string>
+    <string name="settings_carmeter_enabled">إرسال إلى CarMeter</string>
+    <string name="settings_carmeter_enabled_description">يتصل DiPlay بساعة CarMeter ويرسل إليها الوقت والتنقل أثناء عمله.</string>
+    <string name="settings_carmeter_status_ble">متصل · بلوتوث (%1$s)</string>
+    <string name="settings_carmeter_status_udp">متصل · Wi-Fi (%1$s)</string>
+    <string name="settings_carmeter_scanning">جارٍ البحث عن CarMeter…</string>
+    <string name="settings_carmeter_not_connected">غير متصل</string>
+    <string name="settings_carmeter_scan_connect">بحث واتصال</string>
+    <string name="settings_carmeter_disconnect">قطع الاتصال</string>
+    <string name="settings_carmeter_auto_reconnect">إعادة الاتصال تلقائيًا</string>
+    <string name="settings_carmeter_auto_reconnect_description">عند انقطاع البلوتوث تتم محاولة الوصول إلى آخر ساعة CarMeter تلقائيًا.</string>
+    <string name="settings_carmeter_send_navigation">إرسال التنقل</string>
+    <string name="settings_carmeter_send_navigation_description">أثناء تنقل الـ iPhone يتم إرسال المسافة المتبقية والوقت المتبقي ووقت الوصول.</string>
+    <string name="settings_carmeter_send_time">إرسال الوقت</string>
+    <string name="settings_carmeter_send_time_description">مزامنة وقت هذا الجهاز مع CarMeter ثم معايرته كل دقيقة.</string>
+    <string name="settings_carmeter_udp_host">عنوان Wi-Fi</string>
+    <string name="settings_carmeter_udp_unset">غير محدد</string>
+    <string name="settings_carmeter_udp_description">وصلة احتياطية عبر Wi-Fi عندما يفشل البلوتوث. يظهر عنوان الساعة في الإعدادات ثم معلومات الجهاز، والمنفذ 8899.</string>
+    <string name="settings_carmeter_test_title">إرسالات تجريبية</string>
+    <string name="settings_carmeter_test_time">إرسال الوقت</string>
+    <string name="settings_carmeter_test_distance">إرسال المسافة المتبقية</string>
+    <string name="settings_carmeter_test_duration">إرسال الوقت المتبقي</string>
+    <string name="settings_carmeter_test_eta">إرسال وقت الوصول</string>
+    <string name="settings_carmeter_test_sent">تم الإرسال إلى CarMeter</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter غير متصل بعد</string>
+    <string name="settings_carmeter_test_description">يرسل قيمًا نموذجية للتحقق من الواجهة أثناء التوقف.</string>
+    <string name="settings_carmeter_pick">اختيار CarMeter</string>
+    <string name="settings_carmeter_none_found">لم يتم العثور على CarMeter</string>
+    <string name="settings_carmeter_permission_title">الأجهزة القريبة</string>
+    <string name="settings_carmeter_permission_body">اسمح بالوصول إلى الأجهزة القريبة ليتمكن DiPlay من البحث عن ساعة CarMeter والاتصال بها.</string>
 </resources>

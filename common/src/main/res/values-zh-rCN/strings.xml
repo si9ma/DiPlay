@@ -1298,4 +1298,36 @@
 
     <string name="settings_hotspot_interface">热点网络接口（可选）</string>
     <string name="settings_hotspot_interface_description">仅用于把热点放在 Android 不认为是 Wi-Fi 热点的网络接口上的车机，例如部分吉利、领克及其它高通车机上的 eth0.3。留空则自动查找。</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">外接设备</string>
+    <string name="settings_external_device_summary">CarMeter 仪表表盘：通过蓝牙或 Wi-Fi 连接，发送时间与导航信息。</string>
+    <string name="settings_carmeter_enabled">发送到 CarMeter</string>
+    <string name="settings_carmeter_enabled_description">DiPlay 运行期间连接 CarMeter，持续发送时间与导航信息。</string>
+    <string name="settings_carmeter_status_ble">已连接 · 蓝牙（%1$s）</string>
+    <string name="settings_carmeter_status_udp">已连接 · Wi-Fi（%1$s）</string>
+    <string name="settings_carmeter_scanning">正在扫描 CarMeter…</string>
+    <string name="settings_carmeter_not_connected">未连接</string>
+    <string name="settings_carmeter_scan_connect">扫描并连接</string>
+    <string name="settings_carmeter_disconnect">断开连接</string>
+    <string name="settings_carmeter_auto_reconnect">自动重连</string>
+    <string name="settings_carmeter_auto_reconnect_description">蓝牙断开后，自动回连上一次使用的 CarMeter。</string>
+    <string name="settings_carmeter_send_navigation">发送导航</string>
+    <string name="settings_carmeter_send_navigation_description">iPhone 导航期间发送剩余距离、剩余时间和预计到达时间。</string>
+    <string name="settings_carmeter_send_time">发送时间</string>
+    <string name="settings_carmeter_send_time_description">把车机时间同步给 CarMeter，此后每分钟校准一次。</string>
+    <string name="settings_carmeter_udp_host">Wi-Fi 地址</string>
+    <string name="settings_carmeter_udp_unset">未设置</string>
+    <string name="settings_carmeter_udp_description">蓝牙连不上时的备用链路。表盘地址在 设置 > 硬件信息 中查看，端口固定 8899。</string>
+    <string name="settings_carmeter_test_title">测试发送</string>
+    <string name="settings_carmeter_test_time">发送时间</string>
+    <string name="settings_carmeter_test_distance">发送剩余距离</string>
+    <string name="settings_carmeter_test_duration">发送剩余时间</string>
+    <string name="settings_carmeter_test_eta">发送预计到达</string>
+    <string name="settings_carmeter_test_sent">已发送到 CarMeter</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter 尚未连接</string>
+    <string name="settings_carmeter_test_description">发送演示数值，方便停车时检查表盘显示。</string>
+    <string name="settings_carmeter_pick">选择 CarMeter</string>
+    <string name="settings_carmeter_none_found">未发现 CarMeter</string>
+    <string name="settings_carmeter_permission_title">附近的设备</string>
+    <string name="settings_carmeter_permission_body">允许访问附近的设备，DiPlay 才能扫描并连接 CarMeter。</string>
 </resources>

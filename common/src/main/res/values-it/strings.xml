@@ -1021,4 +1021,36 @@
     <string name="settings_cluster_weight_normal">Normale</string>
     <string name="settings_cluster_weight_medium">Medio</string>
     <string name="settings_cluster_weight_bold">Grassetto</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">Dispositivo esterno</string>
+    <string name="settings_external_device_summary">Orologio CarMeter: collegati via Bluetooth o Wi-Fi e invia ora e navigazione.</string>
+    <string name="settings_carmeter_enabled">Invia a CarMeter</string>
+    <string name="settings_carmeter_enabled_description">DiPlay si collega all\'orologio CarMeter e gli invia ora e navigazione mentre è aperto.</string>
+    <string name="settings_carmeter_status_ble">Connesso · Bluetooth (%1$s)</string>
+    <string name="settings_carmeter_status_udp">Connesso · Wi-Fi (%1$s)</string>
+    <string name="settings_carmeter_scanning">Ricerca CarMeter…</string>
+    <string name="settings_carmeter_not_connected">Non connesso</string>
+    <string name="settings_carmeter_scan_connect">Cerca e collega</string>
+    <string name="settings_carmeter_disconnect">Disconnetti</string>
+    <string name="settings_carmeter_auto_reconnect">Riconnetti automaticamente</string>
+    <string name="settings_carmeter_auto_reconnect_description">Se il Bluetooth si interrompe, riprova automaticamente l\'ultimo CarMeter.</string>
+    <string name="settings_carmeter_send_navigation">Invia navigazione</string>
+    <string name="settings_carmeter_send_navigation_description">Mentre l\'iPhone naviga invia distanza rimanente, tempo rimanente e orario di arrivo.</string>
+    <string name="settings_carmeter_send_time">Invia ora</string>
+    <string name="settings_carmeter_send_time_description">Sincronizza l\'ora della head unit con CarMeter e la ricalibra ogni minuto.</string>
+    <string name="settings_carmeter_udp_host">Indirizzo Wi-Fi</string>
+    <string name="settings_carmeter_udp_unset">non impostato</string>
+    <string name="settings_carmeter_udp_description">Collegamento di riserva via Wi-Fi se il Bluetooth non connette. L\'indirizzo dell\'orologio è in Impostazioni, Info hardware; la porta è 8899.</string>
+    <string name="settings_carmeter_test_title">Invii di prova</string>
+    <string name="settings_carmeter_test_time">Invia ora</string>
+    <string name="settings_carmeter_test_distance">Invia distanza rimanente</string>
+    <string name="settings_carmeter_test_duration">Invia tempo rimanente</string>
+    <string name="settings_carmeter_test_eta">Invia orario di arrivo</string>
+    <string name="settings_carmeter_test_sent">Inviato a CarMeter</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter non è ancora connesso</string>
+    <string name="settings_carmeter_test_description">Invia valori di esempio per controllare il quadrante da fermi.</string>
+    <string name="settings_carmeter_pick">Scegli un CarMeter</string>
+    <string name="settings_carmeter_none_found">Nessun CarMeter trovato</string>
+    <string name="settings_carmeter_permission_title">Dispositivi vicini</string>
+    <string name="settings_carmeter_permission_body">Consenti l\'accesso ai dispositivi vicini così DiPlay può cercare e collegare l\'orologio CarMeter.</string>
 </resources>

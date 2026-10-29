@@ -1327,4 +1327,36 @@
 
     <string name="settings_hotspot_interface">ホットスポットのインターフェース（任意）</string>
     <string name="settings_hotspot_interface_description">Android が Wi-Fi ホットスポットとして報告しないネットワークインターフェースでホットスポットを動かすヘッドユニット専用です。一部の Geely、Lynk &amp; Co、その他の Qualcomm ユニットでは eth0.3 です。空欄のままにすると自動で検出します。</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">外部デバイス</string>
+    <string name="settings_external_device_summary">CarMeter ウォッチ時計：Bluetooth または Wi-Fi で接続し、時刻とナビを送信します。</string>
+    <string name="settings_carmeter_enabled">CarMeter へ送信</string>
+    <string name="settings_carmeter_enabled_description">DiPlay 起動中は CarMeter に接続し、時刻とナビを送り続けます。</string>
+    <string name="settings_carmeter_status_ble">接続中 · Bluetooth（%1$s）</string>
+    <string name="settings_carmeter_status_udp">接続中 · Wi-Fi（%1$s）</string>
+    <string name="settings_carmeter_scanning">CarMeter を検索中…</string>
+    <string name="settings_carmeter_not_connected">未接続</string>
+    <string name="settings_carmeter_scan_connect">検索して接続</string>
+    <string name="settings_carmeter_disconnect">切断</string>
+    <string name="settings_carmeter_auto_reconnect">自動で再接続</string>
+    <string name="settings_carmeter_auto_reconnect_description">Bluetooth が切れたら、前回の CarMeter へ自動で再接続します。</string>
+    <string name="settings_carmeter_send_navigation">ナビを送信</string>
+    <string name="settings_carmeter_send_navigation_description">iPhone のナビ中に残距離・残時間・到着時刻を送ります。</string>
+    <string name="settings_carmeter_send_time">時刻を送信</string>
+    <string name="settings_carmeter_send_time_description">車機の時刻を CarMeter に同期し、毎分補正します。</string>
+    <string name="settings_carmeter_udp_host">Wi-Fi アドレス</string>
+    <string name="settings_carmeter_udp_unset">未設定</string>
+    <string name="settings_carmeter_udp_description">Bluetooth が繋がらないときの予備経路。ウォッチのアドレスは 設定 > ハードウェア情報 で確認、ポートは 8899 固定です。</string>
+    <string name="settings_carmeter_test_title">テスト送信</string>
+    <string name="settings_carmeter_test_time">時刻を送信</string>
+    <string name="settings_carmeter_test_distance">残距離を送信</string>
+    <string name="settings_carmeter_test_duration">残時間を送信</string>
+    <string name="settings_carmeter_test_eta">到着時刻を送信</string>
+    <string name="settings_carmeter_test_sent">CarMeter へ送信しました</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter は未接続です</string>
+    <string name="settings_carmeter_test_description">サンプル値を送り、駐車中に文字盤を確認できます。</string>
+    <string name="settings_carmeter_pick">CarMeter を選択</string>
+    <string name="settings_carmeter_none_found">CarMeter が見つかりません</string>
+    <string name="settings_carmeter_permission_title">付近のデバイス</string>
+    <string name="settings_carmeter_permission_body">付近のデバイスへのアクセスを許可すると、DiPlay が CarMeter を検索して接続できます。</string>
 </resources>

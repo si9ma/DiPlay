@@ -1194,4 +1194,36 @@
 
     <string name="settings_hotspot_interface">Інтерфейс точки доступу (необов’язково)</string>
     <string name="settings_hotspot_interface_description">Лише для головних пристроїв, які тримають точку доступу на мережевому інтерфейсі, що Android не вважає точкою доступу Wi-Fi, наприклад eth0.3 на деяких пристроях Geely, Lynk &amp; Co та інших Qualcomm. Залиште порожнім для автоматичного пошуку.</string>
+    <!-- External device (CarMeter) -->
+    <string name="settings_external_device">Зовнішній пристрій</string>
+    <string name="settings_external_device_summary">Годинник CarMeter: підключення через Bluetooth або Wi-Fi та передача часу й навігації.</string>
+    <string name="settings_carmeter_enabled">Передавати на CarMeter</string>
+    <string name="settings_carmeter_enabled_description">DiPlay підключається до годинника CarMeter і передає йому час і навігацію, поки відкритий.</string>
+    <string name="settings_carmeter_status_ble">Підключено · Bluetooth (%1$s)</string>
+    <string name="settings_carmeter_status_udp">Підключено · Wi-Fi (%1$s)</string>
+    <string name="settings_carmeter_scanning">Пошук CarMeter…</string>
+    <string name="settings_carmeter_not_connected">Немає підключення</string>
+    <string name="settings_carmeter_scan_connect">Знайти й підключити</string>
+    <string name="settings_carmeter_disconnect">Відключити</string>
+    <string name="settings_carmeter_auto_reconnect">Перепідключатися автоматично</string>
+    <string name="settings_carmeter_auto_reconnect_description">Коли Bluetooth обривається, знову підключається до останнього CarMeter.</string>
+    <string name="settings_carmeter_send_navigation">Передавати навігацію</string>
+    <string name="settings_carmeter_send_navigation_description">Поки iPhone веде маршрутом, передаються залишок шляху, час і час прибуття.</string>
+    <string name="settings_carmeter_send_time">Передавати час</string>
+    <string name="settings_carmeter_send_time_description">Синхронізує час головного пристрою з CarMeter і звіряє щохвилини.</string>
+    <string name="settings_carmeter_udp_host">Адреса Wi-Fi</string>
+    <string name="settings_carmeter_udp_unset">не задано</string>
+    <string name="settings_carmeter_udp_description">Резервний канал через Wi-Fi, якщо Bluetooth не підключається. Адреса годинника — у розділі Налаштування, Відомості про пристрій; порт 8899.</string>
+    <string name="settings_carmeter_test_title">Тестові надсилання</string>
+    <string name="settings_carmeter_test_time">Надіслати час</string>
+    <string name="settings_carmeter_test_distance">Надіслати залишок шляху</string>
+    <string name="settings_carmeter_test_duration">Надіслати час, що залишився</string>
+    <string name="settings_carmeter_test_eta">Надіслати час прибуття</string>
+    <string name="settings_carmeter_test_sent">Надіслано на CarMeter</string>
+    <string name="settings_carmeter_test_not_sent">CarMeter ще не підключено</string>
+    <string name="settings_carmeter_test_description">Надсилає демонстраційні значення, щоб перевірити циферблат на парковці.</string>
+    <string name="settings_carmeter_pick">Вибрати CarMeter</string>
+    <string name="settings_carmeter_none_found">CarMeter не знайдено</string>
+    <string name="settings_carmeter_permission_title">Пристрої поблизу</string>
+    <string name="settings_carmeter_permission_body">Дозвольте доступ до пристроїв поблизу, щоб DiPlay міг знайти й підключити годинник CarMeter.</string>
 </resources>
