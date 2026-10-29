@@ -7724,6 +7724,57 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             carMeterTest(com.shilapi.xcertplay.external.CarMeterFrames.testArrival(System.currentTimeMillis(), eta))
         }, matchButton(6, 56))
         card.addView(label(getString(R.string.settings_carmeter_test_description), 14, MUTED))
+        carMeterMapStreamControls(card)
+    }
+
+    private fun carMeterMapStatusText(status: CarMeterMapStream.Status): String = when {
+        !status.running -> getString(R.string.settings_carmeter_map_status_off)
+        status.error != null -> getString(R.string.settings_carmeter_map_status_error, status.error)
+        !status.receiving -> getString(R.string.settings_carmeter_map_status_waiting, status.host)
+        else -> getString(R.string.settings_carmeter_map_status_running, status.fps, status.kbPerFrame, status.host)
+    }
+
+    // 推送仪表地图(测试)：CarPlay 仪表地图的正方形取景 → CarMeter 圆屏，见 CarMeterMapStream
+    private fun carMeterMapStreamControls(card: LinearLayout) {
+        card.addView(label(getString(R.string.settings_carmeter_map_title), 22, TEXT, true).apply {
+            setPadding(0, dp(12), 0, dp(8))
+        })
+        toggle(card, getString(R.string.settings_carmeter_map_stream),
+            getString(R.string.settings_carmeter_map_stream_description), CarMeterMapStream.running) { on ->
+                if (!on) CarMeterMapStream.stop()
+                else if (!CarMeterMapStream.start(applicationContext)) {
+                    toast(getString(R.string.settings_carmeter_map_start_failed))
+                    render()
+                }
+            }
+        val status = label(carMeterMapStatusText(CarMeterMapStream.status()), 14, MUTED)
+        card.addView(status)
+        CarMeterMapStream.statusListener = { s ->
+            if (!isFinishing && !isDestroyed && status.isAttachedToWindow) status.text = carMeterMapStatusText(s)
+        }
+
+        val external = com.shilapi.xcertplay.external.CarMeterSettings
+        fun slider(title: String, values: List<Int>, current: Int, describe: (Int) -> String, save: (Int) -> Unit) {
+            card.addView(overlaySliderRow(title, values, current, describe).also { row ->
+                row.onSave = { save(it); CarMeterMapStream.settingsChanged(this) }
+            })
+        }
+        val percent = (0..100).toList()
+        slider(getString(R.string.settings_carmeter_map_center_x), percent, external.mapCenterX(this), { "$it %" }) {
+            external.setMapCenterX(this, it)
+        }
+        slider(getString(R.string.settings_carmeter_map_center_y), percent, external.mapCenterY(this), { "$it %" }) {
+            external.setMapCenterY(this, it)
+        }
+        slider(getString(R.string.settings_carmeter_map_size),
+            (external.MAP_SIZE_MIN..100 step 5).toList(), external.mapSize(this), { "$it %" }) {
+            external.setMapSize(this, it)
+        }
+        slider(getString(R.string.settings_carmeter_map_quality), (50..95 step 5).toList(),
+            external.mapQuality(this), { "$it" }) { external.setMapQuality(this, it) }
+        slider(getString(R.string.settings_carmeter_map_fps), listOf(10, 15, 20, 25, 30),
+            external.mapFps(this), { "$it fps" }) { external.setMapFps(this, it) }
+        card.addView(label(getString(R.string.settings_carmeter_map_description), 14, MUTED))
     }
     private fun audioFocusControls(parent: LinearLayout) {
         toggle(parent, getString(R.string.settings_disable_media_key_audio_focus),

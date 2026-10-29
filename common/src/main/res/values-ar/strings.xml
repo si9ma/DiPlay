@@ -1276,4 +1276,18 @@
     <string name="settings_carmeter_none_found">لم يتم العثور على CarMeter</string>
     <string name="settings_carmeter_permission_title">الأجهزة القريبة</string>
     <string name="settings_carmeter_permission_body">اسمح بالوصول إلى الأجهزة القريبة ليتمكن DiPlay من البحث عن ساعة CarMeter والاتصال بها.</string>
+    <string name="settings_carmeter_map_title">إرسال خريطة لوحة العدادات</string>
+    <string name="settings_carmeter_map_stream">إرسال خريطة لوحة العدادات إلى CarMeter (تجريبي)</string>
+    <string name="settings_carmeter_map_stream_description">يرسل جزءًا مربعًا من خريطة لوحة العدادات في CarPlay إلى شاشة CarMeter الدائرية كفيديو JPEG بدقة 464×464 عبر Wi-Fi (المنفذان 8899 و8900، مع تنعيم على الساعة). أثناء الإرسال توقف الساعة البلوتوث وتعرض الخريطة فقط، وتعود إلى الواجهة عند إيقاف هذا الخيار أو توقف الخريطة. يجب أن تكون الوحدة الرئيسية متصلة بشبكة Wi-Fi الخاصة بـ CarMeter. إذا لم يُحدَّد عنوان Wi-Fi أعلاه، يرسل DiPlay إلى 192.168.4.1. يبقى مفعّلًا حتى إغلاق DiPlay.</string>
+    <string name="settings_carmeter_map_start_failed">تعذّر بدء إرسال الخريطة</string>
+    <string name="settings_carmeter_map_status_off">لا يوجد إرسال</string>
+    <string name="settings_carmeter_map_status_waiting">بانتظار خريطة لوحة العدادات… (%1$s)</string>
+    <string name="settings_carmeter_map_status_running">جارٍ الإرسال · %1$d fps · %2$d KB لكل إطار · %3$s</string>
+    <string name="settings_carmeter_map_status_error">خطأ في الإرسال: %1$s</string>
+    <string name="settings_carmeter_map_center_x" formatted="false">مركز العرض X (% من اليسار)</string>
+    <string name="settings_carmeter_map_center_y" formatted="false">مركز العرض Y (% من الأعلى)</string>
+    <string name="settings_carmeter_map_size" formatted="false">حجم العرض (% من ارتفاع الخريطة)</string>
+    <string name="settings_carmeter_map_quality">جودة الصورة (JPEG)</string>
+    <string name="settings_carmeter_map_fps">حد معدل الإطارات</string>
+    <string name="settings_carmeter_map_description">كلما صغر العرض كبرت الخريطة. تُطبَّق التغييرات فورًا أثناء الإرسال. لا يرسل CarPlay خريطة لوحة العدادات إلا أثناء عرضها في نافذة خريطة أو البطاقة المركزية أو خريطة المشغّل.</string>
 </resources>

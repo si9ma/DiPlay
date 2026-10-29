@@ -1226,4 +1226,18 @@
     <string name="settings_carmeter_none_found">CarMeter не знайдено</string>
     <string name="settings_carmeter_permission_title">Пристрої поблизу</string>
     <string name="settings_carmeter_permission_body">Дозвольте доступ до пристроїв поблизу, щоб DiPlay міг знайти й підключити годинник CarMeter.</string>
+    <string name="settings_carmeter_map_title">Передавання карти панелі приладів</string>
+    <string name="settings_carmeter_map_stream">Передавати карту панелі приладів на CarMeter (експериментально)</string>
+    <string name="settings_carmeter_map_stream_description">Передає квадратну частину карти панелі приладів CarPlay на круглий екран CarMeter як відео JPEG 464×464 через Wi-Fi (порти 8899 і 8900, зі згладжуванням на годиннику). Під час передавання годинник призупиняє Bluetooth і показує лише карту; циферблат повернеться, коли ви вимкнете передавання або карта зупиниться. Головний пристрій має бути підключений до Wi-Fi CarMeter. Якщо адресу Wi-Fi вище не задано, DiPlay надсилає на 192.168.4.1. Працює, доки DiPlay відкритий.</string>
+    <string name="settings_carmeter_map_start_failed">Не вдалося почати передавання карти</string>
+    <string name="settings_carmeter_map_status_off">Передавання вимкнено</string>
+    <string name="settings_carmeter_map_status_waiting">Очікування карти панелі приладів… (%1$s)</string>
+    <string name="settings_carmeter_map_status_running">Передавання · %1$d fps · %2$d КБ на кадр · %3$s</string>
+    <string name="settings_carmeter_map_status_error">Помилка передавання: %1$s</string>
+    <string name="settings_carmeter_map_center_x" formatted="false">Центр області X (% зліва)</string>
+    <string name="settings_carmeter_map_center_y" formatted="false">Центр області Y (% згори)</string>
+    <string name="settings_carmeter_map_size" formatted="false">Розмір області (% висоти карти)</string>
+    <string name="settings_carmeter_map_quality">Якість зображення (JPEG)</string>
+    <string name="settings_carmeter_map_fps">Обмеження частоти кадрів</string>
+    <string name="settings_carmeter_map_description">Що менша область, то більша карта. Зміни застосовуються одразу під час передавання. CarPlay передає карту панелі приладів, лише поки її показує вікно карти, центральна картка або карта лаунчера.</string>
 </resources>

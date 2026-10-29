@@ -13,6 +13,9 @@ import java.util.concurrent.CopyOnWriteArraySet
 internal object MapMirrors {
     const val CARD = "card"
 
+    /** The map pushed to the CarMeter watch ([CarMeterMapStream]); not on any head-unit screen. */
+    const val CARMETER = "carmeter"
+
     /** The physical dashboard stream's shape (1920x720, sent scaled to 1600x600 by default). */
     const val PHYSICAL_STREAM_ASPECT = 8.0 / 3
 
@@ -65,7 +68,7 @@ internal object MapMirrors {
     val any: Boolean get() = surfaces.isNotEmpty()
 
     /** Whether a launcher shows the map (see [MapEmbedService]), so the centre card is not needed. */
-    val launcherShowsMap: Boolean get() = surfaces.keys.any { it != CARD }
+    val launcherShowsMap: Boolean get() = surfaces.keys.any { it != CARD && it != CARMETER }
 
     fun setStreamActive(active: Boolean) {
         main.post {

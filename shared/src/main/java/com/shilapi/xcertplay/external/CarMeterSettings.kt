@@ -45,5 +45,31 @@ object CarMeterSettings {
         prefs(context).edit().remove(KEY_LAST_DEVICE).remove(KEY_LAST_DEVICE_NAME).apply()
     }
 
+    // ---- 推送仪表地图(测试，见 CarMeterMapStream / CarMeterVideo) ----
+    private const val KEY_MAP_CENTER_X = "map_stream_center_x"
+    private const val KEY_MAP_CENTER_Y = "map_stream_center_y"
+    private const val KEY_MAP_SIZE = "map_stream_size"
+    private const val KEY_MAP_QUALITY = "map_stream_quality"
+    private const val KEY_MAP_FPS = "map_stream_fps"
+
+    /** 取景中心(%，从左/上算起)。默认地图正中。 */
+    fun mapCenterX(context: Context): Int = prefs(context).getInt(KEY_MAP_CENTER_X, 50).coerceIn(0, 100)
+    fun mapCenterY(context: Context): Int = prefs(context).getInt(KEY_MAP_CENTER_Y, 50).coerceIn(0, 100)
+    fun setMapCenterX(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_CENTER_X, value.coerceIn(0, 100)).apply()
+    fun setMapCenterY(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_CENTER_Y, value.coerceIn(0, 100)).apply()
+
+    /** 正方形取景边长占地图画面高度的百分比(越小 = 放得越大)。 */
+    fun mapSize(context: Context): Int = prefs(context).getInt(KEY_MAP_SIZE, 100).coerceIn(MAP_SIZE_MIN, 100)
+    fun setMapSize(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_SIZE, value.coerceIn(MAP_SIZE_MIN, 100)).apply()
+    const val MAP_SIZE_MIN = 30
+
+    /** JPEG 质量(50..95)。85 在 464² 上约 15~40KB/帧。 */
+    fun mapQuality(context: Context): Int = prefs(context).getInt(KEY_MAP_QUALITY, 85).coerceIn(50, 95)
+    fun setMapQuality(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_QUALITY, value.coerceIn(50, 95)).apply()
+
+    /** 推流帧率上限(10..30)。CarMeter 实测 464² 稳定 30。 */
+    fun mapFps(context: Context): Int = prefs(context).getInt(KEY_MAP_FPS, 30).coerceIn(10, 30)
+    fun setMapFps(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_FPS, value.coerceIn(10, 30)).apply()
+
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

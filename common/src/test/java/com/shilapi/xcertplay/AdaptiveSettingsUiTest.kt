@@ -716,9 +716,11 @@ class AdaptiveSettingsUiTest {
         assertTrue(text(R.string.settings_carmeter_send_navigation) in external)
         assertTrue(text(R.string.settings_carmeter_send_time) in external)
         assertTrue(text(R.string.settings_carmeter_scan_connect) in external)
+        assertTrue(text(R.string.settings_carmeter_map_stream) in external)
         listOf(overview, display, audio, vehicle, navigation, advanced, connection).forEach {
             assertFalse(text(R.string.settings_carmeter_send_navigation) in it)
             assertFalse(text(R.string.settings_carmeter_scan_connect) in it)
+            assertFalse(text(R.string.settings_carmeter_map_stream) in it)
         }
         assertTrue(display.any { it.startsWith(text(R.string.settings_usage_access) + " · ") })
         listOf(overview, audio, vehicle, navigation, advanced, connection).forEach { category ->

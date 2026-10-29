@@ -1373,4 +1373,18 @@
     <string name="settings_carmeter_none_found">No CarMeter found</string>
     <string name="settings_carmeter_permission_title">Nearby devices</string>
     <string name="settings_carmeter_permission_body">Allow nearby devices so DiPlay can scan for and connect to the CarMeter watch.</string>
+    <string name="settings_carmeter_map_title">Push dashboard map</string>
+    <string name="settings_carmeter_map_stream">Push the dashboard map to CarMeter (experimental)</string>
+    <string name="settings_carmeter_map_stream_description">Streams a square part of the CarPlay dashboard map to the round CarMeter screen as 464×464 JPEG video over Wi-Fi (ports 8899 and 8900, dithered on the watch). While it streams, the watch pauses Bluetooth and shows only the map; it returns to the watch face when you turn this off or the map stops. The head unit must be on the CarMeter Wi-Fi. With no Wi-Fi address above, DiPlay sends to 192.168.4.1. Stays on until DiPlay closes.</string>
+    <string name="settings_carmeter_map_start_failed">Could not start the map stream</string>
+    <string name="settings_carmeter_map_status_off">Not streaming</string>
+    <string name="settings_carmeter_map_status_waiting">Waiting for the dashboard map… (%1$s)</string>
+    <string name="settings_carmeter_map_status_running">Streaming · %1$d fps · %2$d KB per frame · %3$s</string>
+    <string name="settings_carmeter_map_status_error">Stream error: %1$s</string>
+    <string name="settings_carmeter_map_center_x" formatted="false">View centre X (% from left)</string>
+    <string name="settings_carmeter_map_center_y" formatted="false">View centre Y (% from top)</string>
+    <string name="settings_carmeter_map_size" formatted="false">View size (% of map height)</string>
+    <string name="settings_carmeter_map_quality">Picture quality (JPEG)</string>
+    <string name="settings_carmeter_map_fps">Frame rate limit</string>
+    <string name="settings_carmeter_map_description">A smaller view zooms in. Changes apply while streaming. CarPlay only sends the dashboard map while a map window, the centre card or a launcher map is showing it.</string>
 </resources>

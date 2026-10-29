@@ -1330,4 +1330,18 @@
     <string name="settings_carmeter_none_found">未发现 CarMeter</string>
     <string name="settings_carmeter_permission_title">附近的设备</string>
     <string name="settings_carmeter_permission_body">允许访问附近的设备，DiPlay 才能扫描并连接 CarMeter。</string>
+    <string name="settings_carmeter_map_title">推送仪表地图</string>
+    <string name="settings_carmeter_map_stream">把仪表地图推送到 CarMeter（实验性）</string>
+    <string name="settings_carmeter_map_stream_description">把 CarPlay 仪表地图的一块正方形区域，以 464×464 JPEG 视频经 Wi-Fi 推送到 CarMeter 圆屏（端口 8899 和 8900，手表端开启抖动）。推送期间手表暂停蓝牙、只显示地图；关闭此开关或地图停止后恢复表盘。车机需要连上 CarMeter 的 Wi-Fi；上方 Wi-Fi 地址留空时发往 192.168.4.1。DiPlay 关闭后自动停止。</string>
+    <string name="settings_carmeter_map_start_failed">无法启动地图推送</string>
+    <string name="settings_carmeter_map_status_off">未推送</string>
+    <string name="settings_carmeter_map_status_waiting">等待仪表地图画面…（%1$s）</string>
+    <string name="settings_carmeter_map_status_running">推送中 · %1$d fps · 每帧 %2$d KB · %3$s</string>
+    <string name="settings_carmeter_map_status_error">推送出错：%1$s</string>
+    <string name="settings_carmeter_map_center_x" formatted="false">取景中心 X（%，从左侧算起）</string>
+    <string name="settings_carmeter_map_center_y" formatted="false">取景中心 Y（%，从顶部算起）</string>
+    <string name="settings_carmeter_map_size" formatted="false">取景大小（占地图高度 %）</string>
+    <string name="settings_carmeter_map_quality">画质（JPEG）</string>
+    <string name="settings_carmeter_map_fps">帧率上限</string>
+    <string name="settings_carmeter_map_description">取景越小，地图放得越大。推送中修改立即生效。只有仪表地图窗口、中控地图卡片或桌面地图正在显示时，CarPlay 才会发送仪表地图。</string>
 </resources>

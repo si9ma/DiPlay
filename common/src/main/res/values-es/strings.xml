@@ -1227,4 +1227,18 @@
     <string name="settings_carmeter_none_found">No se encontró ningún CarMeter</string>
     <string name="settings_carmeter_permission_title">Dispositivos cercanos</string>
     <string name="settings_carmeter_permission_body">Permite el acceso a los dispositivos cercanos para que DiPlay busque y conecte el reloj CarMeter.</string>
+    <string name="settings_carmeter_map_title">Enviar mapa del cuadro</string>
+    <string name="settings_carmeter_map_stream">Enviar el mapa del cuadro a CarMeter (experimental)</string>
+    <string name="settings_carmeter_map_stream_description">Envía una parte cuadrada del mapa del cuadro de CarPlay a la pantalla redonda de CarMeter como vídeo JPEG de 464×464 por Wi-Fi (puertos 8899 y 8900, con tramado en el reloj). Mientras envía, el reloj pausa el Bluetooth y solo muestra el mapa; vuelve a la esfera al desactivarlo o si el mapa se detiene. La unidad principal debe estar en la Wi-Fi de CarMeter. Sin dirección Wi-Fi arriba, DiPlay envía a 192.168.4.1. Sigue activo hasta cerrar DiPlay.</string>
+    <string name="settings_carmeter_map_start_failed">No se pudo iniciar el envío del mapa</string>
+    <string name="settings_carmeter_map_status_off">Sin enviar</string>
+    <string name="settings_carmeter_map_status_waiting">Esperando el mapa del cuadro… (%1$s)</string>
+    <string name="settings_carmeter_map_status_running">Enviando · %1$d fps · %2$d KB por imagen · %3$s</string>
+    <string name="settings_carmeter_map_status_error">Error de envío: %1$s</string>
+    <string name="settings_carmeter_map_center_x" formatted="false">Centro de la vista X (% desde la izquierda)</string>
+    <string name="settings_carmeter_map_center_y" formatted="false">Centro de la vista Y (% desde arriba)</string>
+    <string name="settings_carmeter_map_size" formatted="false">Tamaño de la vista (% de la altura del mapa)</string>
+    <string name="settings_carmeter_map_quality">Calidad de imagen (JPEG)</string>
+    <string name="settings_carmeter_map_fps">Límite de fotogramas</string>
+    <string name="settings_carmeter_map_description">Una vista más pequeña acerca el mapa. Los cambios se aplican durante el envío. CarPlay solo envía el mapa del cuadro mientras una ventana de mapa, la tarjeta central o un mapa del lanzador lo muestra.</string>
 </resources>
