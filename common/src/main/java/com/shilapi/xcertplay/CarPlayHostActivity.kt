@@ -466,8 +466,11 @@ class CarPlayHostActivity : ComponentActivity() {
             applyClusterTurnOverlay()
         }
     }
-    // Copies of stream 111 outside the dashboard (centre card, launcher maps) each get their own decoder.
-    private val mirrorSink: (String, Surface?) -> Unit = { key, surface -> sink?.setMirrorSurface(SCREEN_TYPE_ALT, key, surface) }
+    // Copies of stream 111 outside the dashboard (centre card, launcher maps) each get their own decoder;
+    // the CarMeter main-screen copy decodes stream 110 instead.
+    private val mirrorSink: (String, Surface?) -> Unit = { key, surface ->
+        sink?.setMirrorSurface(if (MapMirrors.mirrorsMainScreen(key)) SCREEN_TYPE_MAIN else SCREEN_TYPE_ALT, key, surface)
+    }
     private val mirrorsChanged: () -> Unit = {
         updateClusterMapShown()
         if (MapMirrors.launcherShowsMap) CenterMapOverlay.hide()
@@ -832,6 +835,9 @@ class CarPlayHostActivity : ComponentActivity() {
         CenterMapOverlay.requestShow = ::showCenterMap
         MapMirrors.sink = mirrorSink
         MapMirrors.onChanged = mirrorsChanged
+        // 外接设备(CarMeter)：USB 插入直接拉起本页时 DiPlayActivity 不会先跑，这里也拉起连接与内容控制
+        com.shilapi.xcertplay.external.CarMeterOutput.start(applicationContext)
+        CarMeterContent.attach(applicationContext)
         languagePreferenceAtCreate = AppLocale.preference(this)
         if (isIphoneUsbAttachment(intent)) {
             AirPlayPersistence.saveWirelessEnabled(this, false)
@@ -2174,6 +2180,7 @@ class CarPlayHostActivity : ComponentActivity() {
         if (MapMirrors.sink === mirrorSink) {
             MapMirrors.sink = null
             MapMirrors.setStreamActive(false)
+            MapMirrors.setMainStreamActive(false)
         }
         if (MapMirrors.onChanged === mirrorsChanged) MapMirrors.onChanged = null
         dismissCustomWindows("activity_destroyed")
@@ -5715,6 +5722,9 @@ class CarPlayHostActivity : ComponentActivity() {
             sidePanelTick.run()
             showSidePanelGripHint()
         }
+        if (snapshot.display.width > 0 && snapshot.display.height > 0) {
+            MapMirrors.mainAspect = snapshot.display.width.toDouble() / snapshot.display.height
+        }
         MapMirrors.reapply()
         CarPlayBackgroundSession.store(snapshot.controller, snapshot.sink, snapshot.width, snapshot.height,
             this, snapshot.display) { completion ->
@@ -5833,6 +5843,9 @@ class CarPlayHostActivity : ComponentActivity() {
         sink = renderer
         currentSurface?.let(::attachSurface)
         clusterSurface?.let { renderer.setSurface(SCREEN_TYPE_ALT, it) }
+        if (airPlayConfig.main.widthPixels > 0 && airPlayConfig.main.heightPixels > 0) {
+            MapMirrors.mainAspect = airPlayConfig.main.widthPixels.toDouble() / airPlayConfig.main.heightPixels
+        }
         MapMirrors.reapply()
         val media = createMediaEngine(renderer)
         val pairings = AirPlayPersistence.loadPairings(this) { id, key ->
@@ -6987,6 +7000,7 @@ class CarPlayHostActivity : ComponentActivity() {
         runOnUiThread {
             if (shuttingDown.get() || generation != restartGeneration) return@runOnUiThread
             if (type == SCREEN_TYPE_MAIN && !active) clearIphoneCornerMask()
+            if (type == SCREEN_TYPE_MAIN) MapMirrors.setMainStreamActive(active)
             if (active) {
                 activeScreenStreamTypes.add(type)
             } else {

@@ -23,9 +23,19 @@ object CarMeterVideo {
     const val HEADER_SIZE = 20
     private const val MAGIC = 0xC4D2
 
-    /** dec=0 esp_new_jpeg；dither=1 设备端 RGB888 解码 + 有序抖动(消色带，默认) */
-    fun startCommand(dither: Boolean = true): String =
-        "{\"video\":1,\"bench\":0,\"dec\":0,\"dither\":${if (dither) 1 else 0}}"
+    /**
+     * dec=0 esp_new_jpeg；dither=1 设备端 RGB888 解码 + 有序抖动(消色带，默认)；
+     * te=1 推屏等面板 vblank 防撕裂。抖动模式推一帧约 20ms > 60Hz 的 16.7ms，等 TE 会把帧率锁在 30，
+     * 所以帧率上限超过 30 时发 te=0(可能轻微撕裂，换流畅度)。
+     */
+    fun startCommand(dither: Boolean = true, teSync: Boolean = true): String =
+        "{\"video\":1,\"bench\":0,\"dec\":0,\"dither\":${if (dither) 1 else 0},\"te\":${if (teSync) 1 else 0}}"
+
+    /** 帧率上限 → 是否开 TE 同步 */
+    fun teSyncFor(fps: Int): Boolean = fps <= 30
+
+    /** UDP 8899 发现：CarMeter 收到后回 `{"carmeter":1,...}` 给发送方(固件 udp_car.c) */
+    const val HELLO = "{\"hello\":1}"
 
     const val STOP_COMMAND = "{\"video\":0}"
 

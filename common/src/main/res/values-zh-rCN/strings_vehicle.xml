@@ -66,6 +66,8 @@
     <string name="shortcut_hide_center_battery_card">隐藏中控电池卡片</string>
     <string name="shortcut_show_cluster_battery_card">显示仪表电池卡片</string>
     <string name="shortcut_hide_cluster_battery_card">隐藏仪表电池卡片</string>
+    <string name="shortcut_cycle_carmeter_content">切换外接设备内容</string>
+    <string name="carmeter_content_toast">外接设备：%1$s</string>
     <string name="shortcut_vehicle_carplay_navigation_started">CarPlay 开始导航</string>
     <string name="shortcut_vehicle_carplay_navigation_ended">CarPlay 结束导航</string>
     <string name="shortcut_vehicle_charging_ended">结束充电</string>

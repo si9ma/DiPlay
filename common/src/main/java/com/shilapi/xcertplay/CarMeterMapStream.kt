@@ -29,10 +29,11 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
 /**
- * 「推送仪表地图」测试：把 CarPlay 仪表地图(stream 111)的一块正方形区域，以 464×464 JPEG
- * 视频经 Wi-Fi/UDP 推到 CarMeter 圆屏(协议见 [CarMeterVideo])。
+ * 推送导航地图：把 CarPlay 仪表地图(stream 111)或中控主屏(stream 110，见 [CarMeterSettings.mapSource])
+ * 的一块正方形区域，以 464×464 JPEG 视频经 Wi-Fi/UDP 推到 CarMeter 圆屏(协议见 [CarMeterVideo])。
+ * 何时推由 [CarMeterContent] 决定(导航地图模式 + 正在导航，或设置页的测试开关)。
  *
- * 取帧：作为 [MapMirrors] 的一路镜像(key [MapMirrors.CARMETER])——媒体 sink 为它另开一个解码器，
+ * 取帧：作为 [MapMirrors] 的一路镜像(key [MapMirrors.CARMETER] / [MapMirrors.CARMETER_MAIN])——媒体 sink 为它另开一个解码器，
  * 画到本类自己的 SurfaceTexture 上，不影响仪表/中控已有的地图输出。专用 GL 线程把 OES 纹理按
  * 取景框(中心 X/Y + 大小)裁剪、2×2 超采样缩到 464²、圆外涂黑，glReadPixels 后 Bitmap.compress(JPEG)
  * (系统 libjpeg-turbo，baseline 4:2:0，BT.601 全范围，正是 ESP32 解码器最快的格式)。
@@ -40,7 +41,7 @@ import java.nio.FloatBuffer
  * 发送：有地图画面才发启动命令把设备切进视频模式(之后每 3 秒保活，固件对同参数重复启动静默忽略)，
  * 地图流断了就发停止命令交还表盘；命令走 UDP 8899，帧走 UDP 8900。
  * 地图静止时 CarPlay 不一定出新帧，这里每秒重发上一帧，避免固件 10 秒无包自动停。
- * 只在本次运行有效(不持久化开关)；取景/画质/帧率设置持久化在 [CarMeterSettings]。
+ * 取景/画质/帧率/来源设置持久化在 [CarMeterSettings]。
  *
  * 线程：start/stop/settingsChanged/status 回调都在主线程；GL、编码、UDP 都在 "carmeter-map" 线程。
  */
@@ -71,25 +72,34 @@ internal object CarMeterMapStream {
 
     private val aspectListener: () -> Unit = { appContext?.let { settingsChanged(it) } }
 
+    private fun keyFor(source: CarMeterSettings.MapSource) =
+        if (source == CarMeterSettings.MapSource.MAIN) MapMirrors.CARMETER_MAIN else MapMirrors.CARMETER
+
     /** 主线程。返回 false = GL 线程起不来 */
     fun start(context: Context): Boolean {
         check(Looper.myLooper() == Looper.getMainLooper())
         if (session != null) return true
         val app = context.applicationContext
         appContext = app
-        val host = CarMeterSettings.udpHost(app).ifEmpty { CarMeterVideo.DEFAULT_HOST }
-        val s = try { Session(host, params(app)) } catch (e: RuntimeException) {
+        val host = com.shilapi.xcertplay.external.CarMeterOutput.videoHost(app)
+        val source = CarMeterSettings.mapSource(app)
+        val s = try { Session(host, source, params(app, source)) } catch (e: RuntimeException) {
             Log.w(TAG, "start failed", e); return false
         }
         session = s
         MapMirrors.addAspectListener(aspectListener)
-        MapMirrors.addStreamListener(streamListener)
-        s.streamActive = MapMirrors.streamActive
+        if (source == CarMeterSettings.MapSource.MAIN) {
+            MapMirrors.addMainStreamListener(streamListener)
+            s.streamActive = MapMirrors.mainStreamActive
+        } else {
+            MapMirrors.addStreamListener(streamListener)
+            s.streamActive = MapMirrors.streamActive
+        }
         s.start { surface ->
             // GL 线程建好 Surface 后回到主线程挂镜像；期间已被停掉就不挂
-            if (session === s) MapMirrors.set(MapMirrors.CARMETER, surface)
+            if (session === s) MapMirrors.set(keyFor(source), surface)
         }
-        Log.i(TAG, "map stream -> $host")
+        Log.i(TAG, "map stream ($source) -> $host")
         return true
     }
 
@@ -102,33 +112,45 @@ internal object CarMeterMapStream {
         session = null
         MapMirrors.removeAspectListener(aspectListener)
         MapMirrors.removeStreamListener(streamListener)
+        MapMirrors.removeMainStreamListener(streamListener)
         // 先撤镜像(媒体 sink 关掉那路解码器)，再拆 GL；Surface 晚一点释放，同 MapEmbedService
-        MapMirrors.set(MapMirrors.CARMETER, null)
+        MapMirrors.set(keyFor(s.source), null)
         s.stop()
         statusListener?.invoke(status())
         Log.i(TAG, "map stream stopped")
     }
 
-    /** 取景/画质/帧率改了(主线程)：推流中实时生效 */
+    /** 取景/画质/帧率/画面来源改了(主线程)：推流中实时生效；换来源要换一路镜像，整场重启 */
     fun settingsChanged(context: Context) {
-        session?.update(params(context.applicationContext))
+        val s = session ?: return
+        val app = context.applicationContext
+        val source = CarMeterSettings.mapSource(app)
+        if (source != s.source) {
+            stop()
+            start(app)
+            return
+        }
+        s.update(params(app, source))
     }
 
-    private fun params(context: Context) = Params(
-        crop = CarMeterVideo.squareCrop(MapMirrors.streamAspect,
+    private fun params(context: Context, source: CarMeterSettings.MapSource) = Params(
+        crop = CarMeterVideo.squareCrop(
+            if (source == CarMeterSettings.MapSource.MAIN) MapMirrors.mainAspect else MapMirrors.streamAspect,
             CarMeterSettings.mapCenterX(context), CarMeterSettings.mapCenterY(context), CarMeterSettings.mapSize(context)),
         quality = CarMeterSettings.mapQuality(context),
         fps = CarMeterSettings.mapFps(context),
     )
 
-    private data class Params(val crop: CarMeterVideo.Crop, val quality: Int, val fps: Int)
+    private data class Params(val crop: CarMeterVideo.Crop, val quality: Int, val fps: Int) {
+        val startCommand: String get() = CarMeterVideo.startCommand(dither = true, teSync = CarMeterVideo.teSyncFor(fps))
+    }
 
-    private class Session(private val host: String, initial: Params) {
+    private class Session(private val host: String, val source: CarMeterSettings.MapSource, initial: Params) {
         private val thread = HandlerThread("carmeter-map", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
         private val gl = Handler(thread.looper)
         @Volatile private var params = initial
         @Volatile private var stopped = false
-        /** iPhone 正在推仪表地图流(主线程写) */
+        /** iPhone 正在推所镜像的那路流(主线程写) */
         @Volatile var streamActive = false
 
         // ---- 以下只在 GL 线程访问 ----
@@ -171,7 +193,9 @@ internal object CarMeterMapStream {
                     val e = Egl(N)
                     egl = e
                     val tex = SurfaceTexture(e.texture)
-                    tex.setDefaultBufferSize(1600, 600)
+                    // 只是给生产者的尺寸提示；镜像解码器按流的真实尺寸出图
+                    if (source == CarMeterSettings.MapSource.MAIN) tex.setDefaultBufferSize(1920, 1080)
+                    else tex.setDefaultBufferSize(1600, 600)
                     tex.setOnFrameAvailableListener({ onFrame() }, gl)
                     texture = tex
                     val s = Surface(tex)
@@ -261,13 +285,16 @@ internal object CarMeterMapStream {
                     return
                 }
                 if (!deviceOn) {
-                    sendCommand(CarMeterVideo.startCommand(dither = true))
+                    sendCommand(p.startCommand)
                     deviceOn = true
                     deviceOnAt = now
                     dirty = true
                     return
                 }
-                if (now - lastCommandAt >= KEEPALIVE_COMMAND_MS) sendCommand(CarMeterVideo.startCommand(dither = true))
+                // 保活；帧率跨过 30 时 te 字段随之变化，固件热切换 TE 同步、不重启
+                if (now - lastCommandAt >= KEEPALIVE_COMMAND_MS || p.startCommand != lastStartCommand) {
+                    sendCommand(p.startCommand)
+                }
                 if (now - deviceOnAt < START_SETTLE_MS) return
 
                 val fresh = newFrame || dirty
@@ -325,10 +352,13 @@ internal object CarMeterMapStream {
             }
         }
 
+        private var lastStartCommand: String? = null
+
         private fun sendCommand(command: String) {
             val s = socket ?: return
             val a = address ?: return
             lastCommandAt = SystemClock.uptimeMillis()
+            if (command != CarMeterVideo.STOP_COMMAND) lastStartCommand = command
             try {
                 val bytes = command.toByteArray(Charsets.UTF_8)
                 s.send(DatagramPacket(bytes, bytes.size, a, CarMeterSettings.UDP_PORT))

@@ -66,6 +66,8 @@
     <string name="shortcut_hide_center_battery_card">中央画面のバッテリーカードを非表示</string>
     <string name="shortcut_show_cluster_battery_card">メーターのバッテリーカードを表示</string>
     <string name="shortcut_hide_cluster_battery_card">メーターのバッテリーカードを非表示</string>
+    <string name="shortcut_cycle_carmeter_content">外部デバイスの表示を切り替え</string>
+    <string name="carmeter_content_toast">外部デバイス：%1$s</string>
     <string name="shortcut_vehicle_carplay_navigation_started">CarPlay ナビ開始</string>
     <string name="shortcut_vehicle_carplay_navigation_ended">CarPlay ナビ終了</string>
     <string name="shortcut_vehicle_charging_ended">充電終了</string>

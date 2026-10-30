@@ -417,6 +417,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         rememberLaunchAppearance()
         languagePreferenceAtCreate = AppLocale.preference(this)
         com.shilapi.xcertplay.hud.BydNavigationOutputs.onAppOpened(applicationContext)
+        CarMeterContent.attach(applicationContext)
         BatteryCard.restore(this)
         WheelKeyService.restoreIfNeeded(this)
         HeadUnitMapDestination.sync(this)
@@ -7610,13 +7611,21 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
 
     // ---- 外接设备（CarMeter）----
 
-    private fun carMeterStatusText(status: com.shilapi.xcertplay.external.CarMeterOutput.Status): String = when {
-        status.connected -> getString(
-            if (status.transport == com.shilapi.xcertplay.external.CarMeterOutput.Transport.UDP) R.string.settings_carmeter_status_udp
-            else R.string.settings_carmeter_status_ble,
-            status.deviceName ?: status.deviceAddress ?: "")
-        status.scanning -> getString(R.string.settings_carmeter_scanning)
-        else -> getString(R.string.settings_carmeter_not_connected)
+    private fun carMeterStatusText(status: com.shilapi.xcertplay.external.CarMeterOutput.Status): String {
+        val main = when {
+            status.connected -> getString(
+                if (status.transport == com.shilapi.xcertplay.external.CarMeterOutput.Transport.UDP) R.string.settings_carmeter_status_udp
+                else R.string.settings_carmeter_status_ble,
+                status.deviceName ?: status.deviceAddress ?: "")
+            status.scanning -> getString(R.string.settings_carmeter_scanning)
+            else -> getString(R.string.settings_carmeter_not_connected)
+        }
+        // BLE 主链路之外，再报 Wi-Fi(推送导航地图要用)是否真的可达
+        val wifi = when {
+            status.wifiVerified -> getString(R.string.settings_carmeter_wifi_found, status.wifiHost ?: "")
+            else -> getString(R.string.settings_carmeter_wifi_searching)
+        }
+        return "$main\n$wifi"
     }
 
     private fun carMeterPicker(devices: Map<String, String>) {
@@ -7678,6 +7687,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 com.shilapi.xcertplay.external.CarMeterSettings.setEnabled(this, on)
                 if (on) com.shilapi.xcertplay.external.CarMeterOutput.start(applicationContext)
                 else com.shilapi.xcertplay.external.CarMeterOutput.stop()
+                CarMeterContent.refresh(applicationContext)
             }
         toggle(card, getString(R.string.settings_carmeter_auto_reconnect),
             getString(R.string.settings_carmeter_auto_reconnect_description),
@@ -7734,16 +7744,34 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         else -> getString(R.string.settings_carmeter_map_status_running, status.fps, status.kbPerFrame, status.host)
     }
 
-    // 推送仪表地图(测试)：CarPlay 仪表地图的正方形取景 → CarMeter 圆屏，见 CarMeterMapStream
+    // 导航时显示内容 + 导航地图推送(CarPlay 仪表地图或中控屏幕的正方形取景 → CarMeter 圆屏)，
+    // 见 CarMeterContent / CarMeterMapStream
     private fun carMeterMapStreamControls(card: LinearLayout) {
+        val external = com.shilapi.xcertplay.external.CarMeterSettings
+        val contents = com.shilapi.xcertplay.external.CarMeterSettings.Content.entries
+        choice(card, getString(R.string.settings_carmeter_content), contents.map { CarMeterContent.label(this, it) },
+            contents.indexOf(external.content(this)), reconnects = false) { index ->
+                CarMeterContent.set(this, contents[index])
+            }
+        card.addView(label(getString(R.string.settings_carmeter_content_description), 14, MUTED))
+
         card.addView(label(getString(R.string.settings_carmeter_map_title), 22, TEXT, true).apply {
             setPadding(0, dp(12), 0, dp(8))
         })
+        val sources = com.shilapi.xcertplay.external.CarMeterSettings.MapSource.entries
+        choice(card, getString(R.string.settings_carmeter_map_source), sources.map {
+            getString(if (it == com.shilapi.xcertplay.external.CarMeterSettings.MapSource.MAIN) R.string.settings_carmeter_map_source_main
+                else R.string.settings_carmeter_map_source_cluster)
+        }, sources.indexOf(external.mapSource(this)), reconnects = false) { index ->
+            external.setMapSource(this, sources[index])
+            CarMeterMapStream.settingsChanged(this)
+        }
         toggle(card, getString(R.string.settings_carmeter_map_stream),
-            getString(R.string.settings_carmeter_map_stream_description), CarMeterMapStream.running) { on ->
-                if (!on) CarMeterMapStream.stop()
-                else if (!CarMeterMapStream.start(applicationContext)) {
+            getString(R.string.settings_carmeter_map_stream_description), CarMeterContent.testStream) { on ->
+                CarMeterContent.setTestStream(applicationContext, on)
+                if (on && !CarMeterMapStream.running) {
                     toast(getString(R.string.settings_carmeter_map_start_failed))
+                    CarMeterContent.setTestStream(applicationContext, false)
                     render()
                 }
             }
@@ -7753,7 +7781,6 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             if (!isFinishing && !isDestroyed && status.isAttachedToWindow) status.text = carMeterMapStatusText(s)
         }
 
-        val external = com.shilapi.xcertplay.external.CarMeterSettings
         fun slider(title: String, values: List<Int>, current: Int, describe: (Int) -> String, save: (Int) -> Unit) {
             card.addView(overlaySliderRow(title, values, current, describe).also { row ->
                 row.onSave = { save(it); CarMeterMapStream.settingsChanged(this) }
@@ -7772,7 +7799,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         }
         slider(getString(R.string.settings_carmeter_map_quality), (50..95 step 5).toList(),
             external.mapQuality(this), { "$it" }) { external.setMapQuality(this, it) }
-        slider(getString(R.string.settings_carmeter_map_fps), listOf(10, 15, 20, 25, 30),
+        slider(getString(R.string.settings_carmeter_map_fps), (external.MAP_FPS_MIN..external.MAP_FPS_MAX step 5).toList(),
             external.mapFps(this), { "$it fps" }) { external.setMapFps(this, it) }
         card.addView(label(getString(R.string.settings_carmeter_map_description), 14, MUTED))
     }

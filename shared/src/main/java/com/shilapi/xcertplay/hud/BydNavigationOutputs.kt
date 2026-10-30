@@ -116,10 +116,12 @@ object BydNavigationOutputs {
     private fun updateOverlay(frame: Iap2Frame) {
         val change = synchronized(overlayLock) { overlayRoute.accept(frame.messageId, frame.payload) }
         if (change != BydHudRouteChange.NONE) refreshTurnOverlay()
+        else refreshCarMeter()   // NoRouteSet 不改卡片，但手表要立刻结束导航
     }
 
     /** Called every second while the presentation owner lives, even without incoming frames. */
     fun refreshTurnOverlay() {
+        refreshCarMeter()
         val next = synchronized(overlayLock) {
             val current = currentOverlay()
             if (current == publishedOverlay) return
@@ -127,7 +129,21 @@ object BydNavigationOutputs {
             current
         }
         overlayListener?.invoke(next)
-        // 外接设备(CarMeter)与仪表小窗共享同一份转向卡片(含到达时间/剩余距离)
+    }
+
+    private var publishedCarMeter: ClusterTurnGuidance? = null
+
+    /**
+     * 外接设备(CarMeter)与仪表小窗共享同一份转向卡片(含到达时间/剩余距离)，但导航结束要立刻生效：
+     * 司机结束导航时 iPhone 发 NoRouteSet，仪表卡片为防无线切换误判会再留 5 秒，手表不等。
+     */
+    private fun refreshCarMeter() {
+        val next = synchronized(overlayLock) {
+            val current = if (overlayRoute.endPending()) null else currentOverlay()
+            if (current == publishedCarMeter) return
+            publishedCarMeter = current
+            current
+        }
         com.shilapi.xcertplay.external.CarMeterOutput.onGuidance(next)
     }
 

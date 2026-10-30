@@ -113,6 +113,13 @@ internal class BydHudRouteState(
         holdingAcrossDrop = true
     }
 
+    /**
+     * The iPhone said NoRouteSet while the session stays up: the driver most likely ended guidance,
+     * but [keepAcrossNoRoute] keeps the card for [noRouteHideNs] in case it was a handoff. Outputs that
+     * should end at once (the CarMeter watch) read this instead of waiting.
+     */
+    fun endPending(): Boolean = noRouteSinceNs != null && !holdingAcrossDrop
+
     private fun activeManeuver(): Maneuver? {
         if (!routeActive || activeIndex < 0) return null
         val updated = lastRouteUpdateNs ?: return null

@@ -1317,9 +1317,9 @@
     <string name="settings_carmeter_none_found">未發現 CarMeter</string>
     <string name="settings_carmeter_permission_title">附近的裝置</string>
     <string name="settings_carmeter_permission_body">允許存取附近的裝置，DiPlay 才能掃描並連線 CarMeter。</string>
-    <string name="settings_carmeter_map_title">推送儀表地圖</string>
-    <string name="settings_carmeter_map_stream">把儀表地圖推送到 CarMeter（實驗性）</string>
-    <string name="settings_carmeter_map_stream_description">把 CarPlay 儀表地圖的一塊正方形區域，以 464×464 JPEG 影片經 Wi-Fi 推送到 CarMeter 圓形螢幕（連接埠 8899 和 8900，手錶端開啟抖動）。推送期間手錶暫停藍牙、只顯示地圖；關閉此開關或地圖停止後恢復錶盤。車機需要連上 CarMeter 的 Wi-Fi；上方 Wi-Fi 位址留空時傳送到 192.168.4.1。DiPlay 關閉後自動停止。</string>
+    <string name="settings_carmeter_map_title">導航地圖</string>
+    <string name="settings_carmeter_map_stream">始終推送地圖（實驗性）</string>
+    <string name="settings_carmeter_map_stream_description">用於停車時調取景：不管是否在導航，都把所選畫面以 464×464 影片經 Wi-Fi 推到 CarMeter。關閉後依上方「導航時顯示」決定。DiPlay 關閉後自動停止。</string>
     <string name="settings_carmeter_map_start_failed">無法啟動地圖推送</string>
     <string name="settings_carmeter_map_status_off">未推送</string>
     <string name="settings_carmeter_map_status_waiting">等待儀表地圖畫面…（%1$s）</string>
@@ -1330,5 +1330,15 @@
     <string name="settings_carmeter_map_size" formatted="false">取景大小（佔地圖高度 %）</string>
     <string name="settings_carmeter_map_quality">畫質（JPEG）</string>
     <string name="settings_carmeter_map_fps">影格率上限</string>
-    <string name="settings_carmeter_map_description">取景越小，地圖放得越大。推送中修改立即生效。只有儀表地圖視窗、中控地圖卡片或桌面地圖正在顯示時，CarPlay 才會傳送儀表地圖。</string>
+    <string name="settings_carmeter_map_description">取景越小，地圖放得越大。推送中修改立即生效。影格率超過 30 時手錶關閉防撕裂同步，換更流暢的畫面。選「儀表地圖」時，只有儀表地圖視窗、中控地圖卡片或桌面地圖正在顯示，CarPlay 才會傳送它。</string>
+    <string name="settings_carmeter_content">導航時顯示</string>
+    <string name="settings_carmeter_content_map">導航地圖</string>
+    <string name="settings_carmeter_content_simple">導航簡潔資訊</string>
+    <string name="settings_carmeter_content_none">不顯示導航</string>
+    <string name="settings_carmeter_content_description">只在 iPhone 導航時生效，其餘時間手錶顯示錶盤；導航結束立刻回到錶盤。導航地圖需要車機連上 CarMeter 的 Wi-Fi，推不上時手錶顯示簡潔資訊。快捷指令「切換外接裝置內容」可在三者間循環。</string>
+    <string name="settings_carmeter_map_source">地圖畫面來源</string>
+    <string name="settings_carmeter_map_source_cluster">儀表地圖</string>
+    <string name="settings_carmeter_map_source_main">中控螢幕</string>
+    <string name="settings_carmeter_wifi_found">Wi-Fi：已找到 CarMeter（%1$s）</string>
+    <string name="settings_carmeter_wifi_searching">Wi-Fi：正在尋找 CarMeter…</string>
 </resources>

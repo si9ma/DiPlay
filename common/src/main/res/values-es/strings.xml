@@ -1227,9 +1227,9 @@
     <string name="settings_carmeter_none_found">No se encontró ningún CarMeter</string>
     <string name="settings_carmeter_permission_title">Dispositivos cercanos</string>
     <string name="settings_carmeter_permission_body">Permite el acceso a los dispositivos cercanos para que DiPlay busque y conecte el reloj CarMeter.</string>
-    <string name="settings_carmeter_map_title">Enviar mapa del cuadro</string>
-    <string name="settings_carmeter_map_stream">Enviar el mapa del cuadro a CarMeter (experimental)</string>
-    <string name="settings_carmeter_map_stream_description">Envía una parte cuadrada del mapa del cuadro de CarPlay a la pantalla redonda de CarMeter como vídeo JPEG de 464×464 por Wi-Fi (puertos 8899 y 8900, con tramado en el reloj). Mientras envía, el reloj pausa el Bluetooth y solo muestra el mapa; vuelve a la esfera al desactivarlo o si el mapa se detiene. La unidad principal debe estar en la Wi-Fi de CarMeter. Sin dirección Wi-Fi arriba, DiPlay envía a 192.168.4.1. Sigue activo hasta cerrar DiPlay.</string>
+    <string name="settings_carmeter_map_title">Mapa de navegación</string>
+    <string name="settings_carmeter_map_stream">Enviar siempre el mapa (experimental)</string>
+    <string name="settings_carmeter_map_stream_description">Para ajustar la vista con el coche detenido: envía la imagen elegida a CarMeter como vídeo de 464×464 por Wi-Fi aunque no haya navegación. Desactivado: decide el ajuste de arriba. Se detiene al cerrar DiPlay.</string>
     <string name="settings_carmeter_map_start_failed">No se pudo iniciar el envío del mapa</string>
     <string name="settings_carmeter_map_status_off">Sin enviar</string>
     <string name="settings_carmeter_map_status_waiting">Esperando el mapa del cuadro… (%1$s)</string>
@@ -1240,5 +1240,15 @@
     <string name="settings_carmeter_map_size" formatted="false">Tamaño de la vista (% de la altura del mapa)</string>
     <string name="settings_carmeter_map_quality">Calidad de imagen (JPEG)</string>
     <string name="settings_carmeter_map_fps">Límite de fotogramas</string>
-    <string name="settings_carmeter_map_description">Una vista más pequeña acerca el mapa. Los cambios se aplican durante el envío. CarPlay solo envía el mapa del cuadro mientras una ventana de mapa, la tarjeta central o un mapa del lanzador lo muestra.</string>
+    <string name="settings_carmeter_map_description">Una vista más pequeña acerca el mapa. Los cambios se aplican durante el envío. Por encima de 30 fps el reloj omite la sincronización antidesgarro para mayor fluidez. El mapa del cuadro solo se envía mientras una ventana de mapa, la tarjeta central o un mapa del lanzador lo muestra.</string>
+    <string name="settings_carmeter_content">Durante la navegación, mostrar</string>
+    <string name="settings_carmeter_content_map">Mapa de navegación</string>
+    <string name="settings_carmeter_content_simple">Resumen de navegación</string>
+    <string name="settings_carmeter_content_none">Sin navegación</string>
+    <string name="settings_carmeter_content_description">Solo mientras el iPhone guía; si no, el reloj muestra la esfera. El mapa necesita la unidad principal en la Wi-Fi de CarMeter; si no se puede enviar, el reloj muestra el resumen. La acción de atajo «Cambiar contenido del dispositivo externo» alterna entre los tres.</string>
+    <string name="settings_carmeter_map_source">Imagen del mapa desde</string>
+    <string name="settings_carmeter_map_source_cluster">Mapa del cuadro</string>
+    <string name="settings_carmeter_map_source_main">Pantalla central</string>
+    <string name="settings_carmeter_wifi_found">Wi-Fi: CarMeter encontrado (%1$s)</string>
+    <string name="settings_carmeter_wifi_searching">Wi-Fi: buscando CarMeter…</string>
 </resources>

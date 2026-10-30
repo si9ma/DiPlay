@@ -1276,9 +1276,9 @@
     <string name="settings_carmeter_none_found">لم يتم العثور على CarMeter</string>
     <string name="settings_carmeter_permission_title">الأجهزة القريبة</string>
     <string name="settings_carmeter_permission_body">اسمح بالوصول إلى الأجهزة القريبة ليتمكن DiPlay من البحث عن ساعة CarMeter والاتصال بها.</string>
-    <string name="settings_carmeter_map_title">إرسال خريطة لوحة العدادات</string>
-    <string name="settings_carmeter_map_stream">إرسال خريطة لوحة العدادات إلى CarMeter (تجريبي)</string>
-    <string name="settings_carmeter_map_stream_description">يرسل جزءًا مربعًا من خريطة لوحة العدادات في CarPlay إلى شاشة CarMeter الدائرية كفيديو JPEG بدقة 464×464 عبر Wi-Fi (المنفذان 8899 و8900، مع تنعيم على الساعة). أثناء الإرسال توقف الساعة البلوتوث وتعرض الخريطة فقط، وتعود إلى الواجهة عند إيقاف هذا الخيار أو توقف الخريطة. يجب أن تكون الوحدة الرئيسية متصلة بشبكة Wi-Fi الخاصة بـ CarMeter. إذا لم يُحدَّد عنوان Wi-Fi أعلاه، يرسل DiPlay إلى 192.168.4.1. يبقى مفعّلًا حتى إغلاق DiPlay.</string>
+    <string name="settings_carmeter_map_title">خريطة الملاحة</string>
+    <string name="settings_carmeter_map_stream">إرسال الخريطة دائمًا (تجريبي)</string>
+    <string name="settings_carmeter_map_stream_description">لضبط العرض أثناء التوقف: يرسل الصورة المختارة إلى CarMeter كفيديو 464×464 عبر Wi-Fi حتى دون ملاحة. عند الإيقاف يقرر الإعداد أعلاه. يتوقف عند إغلاق DiPlay.</string>
     <string name="settings_carmeter_map_start_failed">تعذّر بدء إرسال الخريطة</string>
     <string name="settings_carmeter_map_status_off">لا يوجد إرسال</string>
     <string name="settings_carmeter_map_status_waiting">بانتظار خريطة لوحة العدادات… (%1$s)</string>
@@ -1289,5 +1289,15 @@
     <string name="settings_carmeter_map_size" formatted="false">حجم العرض (% من ارتفاع الخريطة)</string>
     <string name="settings_carmeter_map_quality">جودة الصورة (JPEG)</string>
     <string name="settings_carmeter_map_fps">حد معدل الإطارات</string>
-    <string name="settings_carmeter_map_description">كلما صغر العرض كبرت الخريطة. تُطبَّق التغييرات فورًا أثناء الإرسال. لا يرسل CarPlay خريطة لوحة العدادات إلا أثناء عرضها في نافذة خريطة أو البطاقة المركزية أو خريطة المشغّل.</string>
+    <string name="settings_carmeter_map_description">كلما صغر العرض كبرت الخريطة. تُطبَّق التغييرات فورًا أثناء الإرسال. فوق 30 إطارًا في الثانية تتخطى الساعة مزامنة منع التمزق لصالح سلاسة الحركة. لا تُرسل خريطة لوحة العدادات إلا أثناء عرضها في نافذة خريطة أو البطاقة المركزية أو خريطة المشغّل.</string>
+    <string name="settings_carmeter_content">أثناء الملاحة، اعرض</string>
+    <string name="settings_carmeter_content_map">خريطة الملاحة</string>
+    <string name="settings_carmeter_content_simple">ملخص الملاحة</string>
+    <string name="settings_carmeter_content_none">بدون ملاحة</string>
+    <string name="settings_carmeter_content_description">فقط أثناء توجيه iPhone؛ وإلا تعرض الساعة الواجهة. تحتاج الخريطة إلى اتصال الوحدة الرئيسية بشبكة Wi-Fi الخاصة بـ CarMeter؛ وإن تعذّر الإرسال تعرض الساعة الملخص. إجراء الاختصار «تبديل محتوى الجهاز الخارجي» يتنقل بين الثلاثة.</string>
+    <string name="settings_carmeter_map_source">مصدر صورة الخريطة</string>
+    <string name="settings_carmeter_map_source_cluster">خريطة لوحة العدادات</string>
+    <string name="settings_carmeter_map_source_main">الشاشة المركزية</string>
+    <string name="settings_carmeter_wifi_found">Wi-Fi: تم العثور على CarMeter (%1$s)</string>
+    <string name="settings_carmeter_wifi_searching">Wi-Fi: جارٍ البحث عن CarMeter…</string>
 </resources>

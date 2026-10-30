@@ -16,6 +16,35 @@ internal object MapMirrors {
     /** The map pushed to the CarMeter watch ([CarMeterMapStream]); not on any head-unit screen. */
     const val CARMETER = "carmeter"
 
+    /**
+     * Same, but a copy of the main CarPlay screen (stream 110) instead of the dashboard stream;
+     * the host maps this key to the main stream (see CarPlayHostActivity.mirrorSink).
+     */
+    const val CARMETER_MAIN = "carmeter_main"
+
+    /** Which CarPlay stream a mirror [key] copies: true = main screen (110), false = dashboard (111). */
+    fun mirrorsMainScreen(key: String): Boolean = key == CARMETER_MAIN
+
+    /** The negotiated main screen's shape (width/height), set by the CarPlay screen when it starts. */
+    @Volatile var mainAspect: Double = 16.0 / 9
+
+    /** Whether the iPhone streams the main CarPlay screen right now. */
+    var mainStreamActive = false
+        private set
+    private val mainStreamListeners = CopyOnWriteArraySet<(Boolean) -> Unit>()
+
+    fun setMainStreamActive(active: Boolean) {
+        main.post {
+            if (mainStreamActive == active) return@post
+            mainStreamActive = active
+            mainStreamListeners.forEach { it(active) }
+        }
+    }
+
+    fun addMainStreamListener(listener: (Boolean) -> Unit) { mainStreamListeners.add(listener) }
+
+    fun removeMainStreamListener(listener: (Boolean) -> Unit) { mainStreamListeners.remove(listener) }
+
     /** The physical dashboard stream's shape (1920x720, sent scaled to 1600x600 by default). */
     const val PHYSICAL_STREAM_ASPECT = 8.0 / 3
 
@@ -65,10 +94,11 @@ internal object MapMirrors {
         onChanged?.invoke()
     }
 
-    val any: Boolean get() = surfaces.isNotEmpty()
+    /** A copy of the dashboard map exists, so the dashboard map pause must not stop stream 111. */
+    val any: Boolean get() = surfaces.keys.any { !mirrorsMainScreen(it) }
 
     /** Whether a launcher shows the map (see [MapEmbedService]), so the centre card is not needed. */
-    val launcherShowsMap: Boolean get() = surfaces.keys.any { it != CARD && it != CARMETER }
+    val launcherShowsMap: Boolean get() = surfaces.keys.any { it != CARD && it != CARMETER && it != CARMETER_MAIN }
 
     fun setStreamActive(active: Boolean) {
         main.post {

@@ -1227,9 +1227,9 @@
     <string name="settings_carmeter_none_found">CarMeter не найден</string>
     <string name="settings_carmeter_permission_title">Устройства поблизости</string>
     <string name="settings_carmeter_permission_body">Разрешите доступ к устройствам поблизости, чтобы DiPlay мог найти и подключить часы CarMeter.</string>
-    <string name="settings_carmeter_map_title">Передача карты приборной панели</string>
-    <string name="settings_carmeter_map_stream">Передавать карту приборной панели на CarMeter (экспериментально)</string>
-    <string name="settings_carmeter_map_stream_description">Передаёт квадратную часть карты приборной панели CarPlay на круглый экран CarMeter как видео JPEG 464×464 по Wi-Fi (порты 8899 и 8900, со сглаживанием на часах). Во время передачи часы приостанавливают Bluetooth и показывают только карту; циферблат вернётся, когда вы выключите передачу или карта остановится. Головное устройство должно быть подключено к Wi-Fi CarMeter. Если адрес Wi-Fi выше не задан, DiPlay отправляет на 192.168.4.1. Работает, пока DiPlay открыт.</string>
+    <string name="settings_carmeter_map_title">Карта навигации</string>
+    <string name="settings_carmeter_map_stream">Всегда передавать карту (экспериментально)</string>
+    <string name="settings_carmeter_map_stream_description">Для настройки области на парковке: передаёт выбранное изображение на CarMeter как видео 464×464 по Wi-Fi даже без навигации. Выключено — решает настройка выше. Останавливается при закрытии DiPlay.</string>
     <string name="settings_carmeter_map_start_failed">Не удалось начать передачу карты</string>
     <string name="settings_carmeter_map_status_off">Передача выключена</string>
     <string name="settings_carmeter_map_status_waiting">Ожидание карты приборной панели… (%1$s)</string>
@@ -1240,5 +1240,15 @@
     <string name="settings_carmeter_map_size" formatted="false">Размер области (% высоты карты)</string>
     <string name="settings_carmeter_map_quality">Качество изображения (JPEG)</string>
     <string name="settings_carmeter_map_fps">Ограничение частоты кадров</string>
-    <string name="settings_carmeter_map_description">Чем меньше область, тем крупнее карта. Изменения применяются сразу во время передачи. CarPlay передаёт карту приборной панели, только пока её показывает окно карты, центральная карточка или карта лаунчера.</string>
+    <string name="settings_carmeter_map_description">Чем меньше область, тем крупнее карта. Изменения применяются сразу во время передачи. Выше 30 fps часы отключают синхронизацию против разрывов ради плавности. Карта приборной панели передаётся, только пока её показывает окно карты, центральная карточка или карта лаунчера.</string>
+    <string name="settings_carmeter_content">Во время навигации показывать</string>
+    <string name="settings_carmeter_content_map">Карта навигации</string>
+    <string name="settings_carmeter_content_simple">Сводка навигации</string>
+    <string name="settings_carmeter_content_none">Без навигации</string>
+    <string name="settings_carmeter_content_description">Только пока iPhone ведёт по маршруту; иначе часы показывают циферблат. Для карты головное устройство должно быть в Wi-Fi CarMeter; если карту не передать, часы покажут сводку. Действие быстрой команды «Переключить содержимое внешнего устройства» перебирает все три.</string>
+    <string name="settings_carmeter_map_source">Источник изображения карты</string>
+    <string name="settings_carmeter_map_source_cluster">Карта приборной панели</string>
+    <string name="settings_carmeter_map_source_main">Центральный экран</string>
+    <string name="settings_carmeter_wifi_found">Wi-Fi: CarMeter найден (%1$s)</string>
+    <string name="settings_carmeter_wifi_searching">Wi-Fi: поиск CarMeter…</string>
 </resources>

@@ -66,6 +66,8 @@
     <string name="shortcut_hide_center_battery_card">Приховати картку батареї на центральному екрані</string>
     <string name="shortcut_show_cluster_battery_card">Показати картку батареї на панелі приладів</string>
     <string name="shortcut_hide_cluster_battery_card">Приховати картку батареї на панелі приладів</string>
+    <string name="shortcut_cycle_carmeter_content">Перемкнути вміст зовнішнього пристрою</string>
+    <string name="carmeter_content_toast">CarMeter: %1$s</string>
     <string name="shortcut_vehicle_carplay_navigation_started">Навігацію CarPlay розпочато</string>
     <string name="shortcut_vehicle_carplay_navigation_ended">Навігацію CarPlay завершено</string>
     <string name="shortcut_vehicle_charging_ended">Заряджання завершено</string>

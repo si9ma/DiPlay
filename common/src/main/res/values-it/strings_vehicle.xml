@@ -66,6 +66,8 @@
     <string name="shortcut_hide_center_battery_card">Nascondi la scheda batteria dello schermo centrale</string>
     <string name="shortcut_show_cluster_battery_card">Mostra la scheda batteria del quadro</string>
     <string name="shortcut_hide_cluster_battery_card">Nascondi la scheda batteria del quadro</string>
+    <string name="shortcut_cycle_carmeter_content">Cambia contenuto del dispositivo esterno</string>
+    <string name="carmeter_content_toast">CarMeter: %1$s</string>
     <string name="shortcut_vehicle_carplay_navigation_started">Navigazione CarPlay avviata</string>
     <string name="shortcut_vehicle_carplay_navigation_ended">Navigazione CarPlay terminata</string>
     <string name="shortcut_vehicle_charging_ended">Ricarica terminata</string>

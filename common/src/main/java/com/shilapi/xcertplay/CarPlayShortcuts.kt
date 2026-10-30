@@ -24,7 +24,9 @@ internal enum class ShortcutAction {
     WAIT, URI, PLAY, PAUSE, TOGGLE, NEXT, PREVIOUS, SIRI, SELECT, BACK, LEFT, RIGHT, HOME,
     SHOW_WINDOW, HIDE_WINDOW,
     SHOW_CLUSTER_MUSIC, HIDE_CLUSTER_MUSIC, SHOW_CLUSTER_MAP, HIDE_CLUSTER_MAP, KEY_PRESS, TAP, PINCH_IN, PINCH_OUT, ORIGINAL_CLICK,
-    SHOW_CENTER_BATTERY_CARD, HIDE_CENTER_BATTERY_CARD, SHOW_CLUSTER_BATTERY_CARD, HIDE_CLUSTER_BATTERY_CARD;
+    SHOW_CENTER_BATTERY_CARD, HIDE_CENTER_BATTERY_CARD, SHOW_CLUSTER_BATTERY_CARD, HIDE_CLUSTER_BATTERY_CARD,
+    // 外接设备(CarMeter)：导航地图 → 导航简洁信息 → 不显示导航 循环。新动作只能追加在末尾(上面有序号区间)
+    CYCLE_CARMETER_CONTENT;
 
     val legacyWindow get() = this == SHOW_WINDOW || this == HIDE_WINDOW
     val clusterWindow get() = this in SHOW_CLUSTER_MUSIC..HIDE_CLUSTER_MAP
@@ -570,6 +572,7 @@ internal object CarPlayShortcuts {
                 ShortcutAction.HIDE_CENTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CENTER, false) } == true
                 ShortcutAction.SHOW_CLUSTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CLUSTER, true) } == true
                 ShortcutAction.HIDE_CLUSTER_BATTERY_CARD -> context?.let { BatteryCard.setVisible(it, BatteryCardTarget.CLUSTER, false) } == true
+                ShortcutAction.CYCLE_CARMETER_CONTENT -> context?.let { CarMeterContent.cycle(it, announce = true); true } == true
                 ShortcutAction.SHOW_WINDOW, ShortcutAction.HIDE_WINDOW, ShortcutAction.KEY_PRESS -> false
                 ShortcutAction.SELECT -> active.owner.sendKnob(AirPlayKnobState(select = true))
                 ShortcutAction.BACK -> active.owner.sendKnob(AirPlayKnobState(back = true))
@@ -578,7 +581,7 @@ internal object CarPlayShortcuts {
                 ShortcutAction.RIGHT -> active.owner.sendKnob(AirPlayKnobState(wheel = 1))
                 else -> false
             } }.getOrDefault(false)
-            if (step.action.clusterWindow || step.action.batteryCard) {
+            if (step.action.clusterWindow || step.action.batteryCard || step.action == ShortcutAction.CYCLE_CARMETER_CONTENT) {
                 note("step=${active.index} action=${step.action} visibilityRequested=$queued")
             } else note("step=${active.index} action=${step.action} queued=$queued")
             if (!queued || step.action == ShortcutAction.SIRI) { stop(); return }

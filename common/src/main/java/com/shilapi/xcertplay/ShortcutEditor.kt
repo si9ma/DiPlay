@@ -78,6 +78,7 @@ internal object ShortcutEditor {
         ShortcutAction.HIDE_CENTER_BATTERY_CARD to R.string.shortcut_hide_center_battery_card,
         ShortcutAction.SHOW_CLUSTER_BATTERY_CARD to R.string.shortcut_show_cluster_battery_card,
         ShortcutAction.HIDE_CLUSTER_BATTERY_CARD to R.string.shortcut_hide_cluster_battery_card,
+        ShortcutAction.CYCLE_CARMETER_CONTENT to R.string.shortcut_cycle_carmeter_content,
     )
     private val vehicleLabels = mapOf(
         BydVehicleEvent.LEFT_CARD_SHOWN to R.string.shortcut_vehicle_left_card_shown,

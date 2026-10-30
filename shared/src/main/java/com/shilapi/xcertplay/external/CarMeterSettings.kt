@@ -45,7 +45,7 @@ object CarMeterSettings {
         prefs(context).edit().remove(KEY_LAST_DEVICE).remove(KEY_LAST_DEVICE_NAME).apply()
     }
 
-    // ---- 推送仪表地图(测试，见 CarMeterMapStream / CarMeterVideo) ----
+    // ---- 推送导航地图(见 CarMeterMapStream / CarMeterVideo) ----
     private const val KEY_MAP_CENTER_X = "map_stream_center_x"
     private const val KEY_MAP_CENTER_Y = "map_stream_center_y"
     private const val KEY_MAP_SIZE = "map_stream_size"
@@ -67,9 +67,29 @@ object CarMeterSettings {
     fun mapQuality(context: Context): Int = prefs(context).getInt(KEY_MAP_QUALITY, 85).coerceIn(50, 95)
     fun setMapQuality(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_QUALITY, value.coerceIn(50, 95)).apply()
 
-    /** 推流帧率上限(10..30)。CarMeter 实测 464² 稳定 30。 */
-    fun mapFps(context: Context): Int = prefs(context).getInt(KEY_MAP_FPS, 30).coerceIn(10, 30)
-    fun setMapFps(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_FPS, value.coerceIn(10, 30)).apply()
+    /** 推流帧率上限(10..60)。CarMeter 464² 抖动模式满载约 45~50fps；超过 30 时关掉 TE 同步(见 CarMeterVideo)。 */
+    fun mapFps(context: Context): Int = prefs(context).getInt(KEY_MAP_FPS, 30).coerceIn(MAP_FPS_MIN, MAP_FPS_MAX)
+    fun setMapFps(context: Context, value: Int) = prefs(context).edit().putInt(KEY_MAP_FPS, value.coerceIn(MAP_FPS_MIN, MAP_FPS_MAX)).apply()
+    const val MAP_FPS_MIN = 10
+    const val MAP_FPS_MAX = 60
+
+    /** 镜像哪一路 CarPlay 画面推给 CarMeter */
+    enum class MapSource { CLUSTER, MAIN }
+    private const val KEY_MAP_SOURCE = "map_stream_source"
+    fun mapSource(context: Context): MapSource =
+        MapSource.entries.getOrNull(prefs(context).getInt(KEY_MAP_SOURCE, 0)) ?: MapSource.CLUSTER
+    fun setMapSource(context: Context, value: MapSource) = prefs(context).edit().putInt(KEY_MAP_SOURCE, value.ordinal).apply()
+
+    /**
+     * CarMeter 导航期间显示什么(快捷指令「切换外接设备内容」按此顺序循环)：
+     * MAP 推送导航地图视频；SIMPLE 只发导航简洁信息(剩余距离/时间/到达)；NONE 不显示导航(手表保持表盘)。
+     * 非导航时三者都显示表盘。
+     */
+    enum class Content { MAP, SIMPLE, NONE }
+    private const val KEY_CONTENT = "content_mode"
+    fun content(context: Context): Content =
+        Content.entries.getOrNull(prefs(context).getInt(KEY_CONTENT, Content.SIMPLE.ordinal)) ?: Content.SIMPLE
+    fun setContent(context: Context, value: Content) = prefs(context).edit().putInt(KEY_CONTENT, value.ordinal).apply()
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

@@ -1359,9 +1359,9 @@
     <string name="settings_carmeter_none_found">CarMeter が見つかりません</string>
     <string name="settings_carmeter_permission_title">付近のデバイス</string>
     <string name="settings_carmeter_permission_body">付近のデバイスへのアクセスを許可すると、DiPlay が CarMeter を検索して接続できます。</string>
-    <string name="settings_carmeter_map_title">メーター地図の送信</string>
-    <string name="settings_carmeter_map_stream">メーター地図を CarMeter に送信（実験的機能）</string>
-    <string name="settings_carmeter_map_stream_description">CarPlay のメーター地図の正方形の範囲を、464×464 の JPEG 動画として Wi-Fi で CarMeter の円形画面に送ります（ポート 8899 と 8900、時計側でディザリング）。送信中、時計は Bluetooth を止めて地図だけを表示し、オフにするか地図が止まると文字盤に戻ります。車載機は CarMeter の Wi-Fi に接続している必要があります。上の Wi-Fi アドレスが空なら 192.168.4.1 に送ります。DiPlay を閉じると止まります。</string>
+    <string name="settings_carmeter_map_title">ナビ地図</string>
+    <string name="settings_carmeter_map_stream">常に地図を送信（実験的機能）</string>
+    <string name="settings_carmeter_map_stream_description">駐車中に表示範囲を調整するためのものです。ナビ中でなくても、選んだ映像を 464×464 の動画として Wi-Fi で CarMeter に送ります。オフのときは上の「ナビ中の表示」に従います。DiPlay を閉じると止まります。</string>
     <string name="settings_carmeter_map_start_failed">地図の送信を開始できません</string>
     <string name="settings_carmeter_map_status_off">送信していません</string>
     <string name="settings_carmeter_map_status_waiting">メーター地図を待っています…（%1$s）</string>
@@ -1372,5 +1372,15 @@
     <string name="settings_carmeter_map_size" formatted="false">表示範囲（地図の高さに対する %）</string>
     <string name="settings_carmeter_map_quality">画質（JPEG）</string>
     <string name="settings_carmeter_map_fps">フレームレート上限</string>
-    <string name="settings_carmeter_map_description">範囲を小さくすると拡大されます。送信中の変更はすぐ反映されます。CarPlay がメーター地図を送るのは、地図ウィンドウ、センターカード、ランチャーの地図のいずれかが表示中のときだけです。</string>
+    <string name="settings_carmeter_map_description">範囲を小さくすると拡大されます。送信中の変更はすぐ反映されます。30 fps を超えると、時計はティアリング防止の同期を省いて滑らかさを優先します。メーター地図は、地図ウィンドウ、センターカード、ランチャーの地図のいずれかが表示中のときだけ送られます。</string>
+    <string name="settings_carmeter_content">ナビ中の表示</string>
+    <string name="settings_carmeter_content_map">ナビ地図</string>
+    <string name="settings_carmeter_content_simple">ナビの要約</string>
+    <string name="settings_carmeter_content_none">ナビを表示しない</string>
+    <string name="settings_carmeter_content_description">iPhone がナビ中のときだけ有効で、それ以外は文字盤を表示します。ナビ地図には車載機が CarMeter の Wi-Fi に接続している必要があり、送れないときは要約を表示します。ショートカットの「外部デバイスの表示を切り替え」で 3 つを順に切り替えます。</string>
+    <string name="settings_carmeter_map_source">地図の映像元</string>
+    <string name="settings_carmeter_map_source_cluster">メーター地図</string>
+    <string name="settings_carmeter_map_source_main">センター画面</string>
+    <string name="settings_carmeter_wifi_found">Wi-Fi：CarMeter が見つかりました（%1$s）</string>
+    <string name="settings_carmeter_wifi_searching">Wi-Fi：CarMeter を探しています…</string>
 </resources>
