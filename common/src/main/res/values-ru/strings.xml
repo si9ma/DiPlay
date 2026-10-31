@@ -1246,6 +1246,9 @@
     <string name="settings_carmeter_content_simple">Сводка навигации</string>
     <string name="settings_carmeter_content_none">Без навигации</string>
     <string name="settings_carmeter_content_description">Только пока iPhone ведёт по маршруту; иначе часы показывают циферблат. Для карты головное устройство должно быть в Wi-Fi CarMeter; если карту не передать, часы покажут сводку. Действие быстрой команды «Переключить содержимое внешнего устройства» перебирает все три.</string>
+    <string name="settings_carmeter_nav_start">При начале навигации</string>
+    <string name="settings_carmeter_nav_start_keep">Помнить последний выбор</string>
+    <string name="settings_carmeter_nav_start_description">При каждом старте навигации на iPhone содержимое возвращается к этому режиму, игнорируя переключения через ярлыки.</string>
     <string name="settings_carmeter_map_source">Источник изображения карты</string>
     <string name="settings_carmeter_map_source_cluster">Карта приборной панели</string>
     <string name="settings_carmeter_map_source_main">Центральный экран</string>

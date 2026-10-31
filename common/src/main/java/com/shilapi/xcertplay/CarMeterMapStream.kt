@@ -285,6 +285,10 @@ internal object CarMeterMapStream {
                     return
                 }
                 if (!deviceOn) {
+                    // 推流即意图 FULL：先发外部强制指令把设备顶回完整模式(覆盖
+                    // PWR 键的 LITE/OFF，否则视频会被拒、黑屏)。保活不带 navm ——
+                    // 推流期间设备侧仍可 PWR 切走(视频停)，切回 FULL 由保活自动续上。
+                    sendCommand(CarMeterVideo.navModeCommand(CarMeterVideo.NAV_MODE_FULL))
                     sendCommand(p.startCommand)
                     deviceOn = true
                     deviceOnAt = now

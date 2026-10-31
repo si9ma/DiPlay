@@ -1349,6 +1349,9 @@
     <string name="settings_carmeter_content_simple">导航简洁信息</string>
     <string name="settings_carmeter_content_none">不显示导航</string>
     <string name="settings_carmeter_content_description">只在 iPhone 导航时生效，其余时间手表显示表盘；导航结束立刻回到表盘。导航地图需要车机连上 CarMeter 的 Wi-Fi，推不上时手表显示简洁信息。快捷指令「切换外接设备内容」可在三者间循环。</string>
+    <string name="settings_carmeter_nav_start">导航开始时</string>
+    <string name="settings_carmeter_nav_start_keep">记住上次的选择</string>
+    <string name="settings_carmeter_nav_start_description">每次 iPhone 开始导航，显示内容都会回到这里，忽略快捷指令上次切到的模式。</string>
     <string name="settings_carmeter_map_source">地图画面来源</string>
     <string name="settings_carmeter_map_source_cluster">仪表地图</string>
     <string name="settings_carmeter_map_source_main">中控屏幕</string>

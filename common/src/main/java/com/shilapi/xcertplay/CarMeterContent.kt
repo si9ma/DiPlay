@@ -17,6 +17,7 @@ import com.shilapi.xcertplay.host.R
  * - 导航相关的内容只在导航时生效：非导航时一律表盘，地图推流停掉。
  * - 导航结束：[CarMeterOutput] 立刻发 nav:0，这里同时停掉地图推流(手表回表盘)。
  * - 快捷指令「切换外接设备内容」调 [cycle]：导航地图 → 导航简洁信息 → 不显示导航 → …，立即生效。
+ * - 导航开始时按 [CarMeterSettings.navStart] 强制回到默认内容(「记住上次的选择」= 不重置)。
  * - 设置页的「无论是否导航都推送(测试)」开关走 [setTestStream]，与上面独立。
  *
  * 主线程。
@@ -34,7 +35,13 @@ internal object CarMeterContent {
     /** 设置页刷新用(主线程回调) */
     var onChanged: (() -> Unit)? = null
 
-    private val navigationListener: (Boolean) -> Unit = { apply() }
+    // 导航开始：按「导航开始时」设置强制回到默认内容(忽略上次快捷指令切到哪)；结束只刷新推流
+    private val navigationListener: (Boolean) -> Unit = { active ->
+        val context = appContext
+        val reset = if (active) context?.let { CarMeterSettings.navStart(it).content() } else null
+        if (context != null && reset != null && reset != CarMeterSettings.content(context)) set(context, reset)
+        else apply()
+    }
 
     /** 幂等；DiPlayActivity/CarPlayHostActivity 打开时调用 */
     fun attach(context: Context) {
@@ -84,6 +91,13 @@ internal object CarMeterContent {
         Content.SIMPLE -> R.string.settings_carmeter_content_simple
         Content.NONE -> R.string.settings_carmeter_content_none
     })
+
+    /** 设置页「导航开始时」选项的文字：KEEP 用专门的「记住上次」，其余复用内容名称 */
+    fun navStartLabel(context: Context, start: CarMeterSettings.NavStart): String {
+        val content = start.content()
+        return if (content == null) context.getString(R.string.settings_carmeter_nav_start_keep)
+        else label(context, content)
+    }
 
     /** 推流是否应该开着 */
     fun streamWanted(context: Context): Boolean {

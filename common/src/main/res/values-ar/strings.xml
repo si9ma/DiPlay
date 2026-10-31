@@ -1295,6 +1295,9 @@
     <string name="settings_carmeter_content_simple">ملخص الملاحة</string>
     <string name="settings_carmeter_content_none">بدون ملاحة</string>
     <string name="settings_carmeter_content_description">فقط أثناء توجيه iPhone؛ وإلا تعرض الساعة الواجهة. تحتاج الخريطة إلى اتصال الوحدة الرئيسية بشبكة Wi-Fi الخاصة بـ CarMeter؛ وإن تعذّر الإرسال تعرض الساعة الملخص. إجراء الاختصار «تبديل محتوى الجهاز الخارجي» يتنقل بين الثلاثة.</string>
+    <string name="settings_carmeter_nav_start">عند بدء التنقل</string>
+    <string name="settings_carmeter_nav_start_keep">تذكّر آخر اختيار</string>
+    <string name="settings_carmeter_nav_start_description">في كل مرة يبدأ فيها الـ iPhone التنقل، يعود المحتوى المعروض إلى هذا الخيار، متجاهلاً ما بدّلته الاختصارات.</string>
     <string name="settings_carmeter_map_source">مصدر صورة الخريطة</string>
     <string name="settings_carmeter_map_source_cluster">خريطة لوحة العدادات</string>
     <string name="settings_carmeter_map_source_main">الشاشة المركزية</string>

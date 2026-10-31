@@ -1378,6 +1378,9 @@
     <string name="settings_carmeter_content_simple">ナビの要約</string>
     <string name="settings_carmeter_content_none">ナビを表示しない</string>
     <string name="settings_carmeter_content_description">iPhone がナビ中のときだけ有効で、それ以外は文字盤を表示します。ナビ地図には車載機が CarMeter の Wi-Fi に接続している必要があり、送れないときは要約を表示します。ショートカットの「外部デバイスの表示を切り替え」で 3 つを順に切り替えます。</string>
+    <string name="settings_carmeter_nav_start">ナビ開始時</string>
+    <string name="settings_carmeter_nav_start_keep">前回の選択を保持</string>
+    <string name="settings_carmeter_nav_start_description">iPhone がナビを開始するたび、表示内容はこの選択へ戻ります。ショートカットで切り替えた内容は無視されます。</string>
     <string name="settings_carmeter_map_source">地図の映像元</string>
     <string name="settings_carmeter_map_source_cluster">メーター地図</string>
     <string name="settings_carmeter_map_source_main">センター画面</string>

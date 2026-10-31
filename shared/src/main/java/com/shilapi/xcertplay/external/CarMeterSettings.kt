@@ -91,5 +91,18 @@ object CarMeterSettings {
         Content.entries.getOrNull(prefs(context).getInt(KEY_CONTENT, Content.SIMPLE.ordinal)) ?: Content.SIMPLE
     fun setContent(context: Context, value: Content) = prefs(context).edit().putInt(KEY_CONTENT, value.ordinal).apply()
 
+    /**
+     * 导航开始时「显示内容」回到哪：KEEP 记住上次的选择(默认，即当前行为)；
+     * MAP/SIMPLE/NONE 每次导航开始都强制回到该模式，忽略快捷指令上次切到哪。
+     */
+    enum class NavStart {
+        KEEP, MAP, SIMPLE, NONE;
+        fun content(): Content? = when (this) { KEEP -> null; MAP -> Content.MAP; SIMPLE -> Content.SIMPLE; NONE -> Content.NONE }
+    }
+    private const val KEY_NAV_START = "nav_start_content"
+    fun navStart(context: Context): NavStart =
+        NavStart.entries.getOrNull(prefs(context).getInt(KEY_NAV_START, NavStart.KEEP.ordinal)) ?: NavStart.KEEP
+    fun setNavStart(context: Context, value: NavStart) = prefs(context).edit().putInt(KEY_NAV_START, value.ordinal).apply()
+
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }

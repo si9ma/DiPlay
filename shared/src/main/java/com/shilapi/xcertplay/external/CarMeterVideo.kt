@@ -39,6 +39,14 @@ object CarMeterVideo {
 
     const val STOP_COMMAND = "{\"video\":0}"
 
+    /** 仪表导航展示模式(与固件 cm_nav_mode_t 对应)。{"navm":N} 为外部强制指令，
+     *  覆盖设备侧 PWR 键的当前设置；可与 "video" 同帧组合。 */
+    const val NAV_MODE_FULL = 0   // 导航卡片 + 车道级视频
+    const val NAV_MODE_LITE = 1   // 仅导航卡片
+    const val NAV_MODE_OFF = 2    // 纯时间表盘
+
+    fun navModeCommand(mode: Int): String = "{\"navm\":$mode}"
+
     /** 把一帧切成数据报(含头)。frameId 取低 32 位。 */
     fun packets(frameId: Long, jpeg: ByteArray, length: Int = jpeg.size): List<ByteArray> {
         require(length in 1..MAX_FRAME_BYTES) { "frame size $length" }

@@ -42,3 +42,4 @@ release-signing.properties
 keystore.env
 runtime-assets/
 tmp/
+.venv/

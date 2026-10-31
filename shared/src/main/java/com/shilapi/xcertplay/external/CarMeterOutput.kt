@@ -149,6 +149,24 @@ object CarMeterOutput {
     /** 推送导航地图的目标：同上，都没有时退到 CarMeter 热点网关 192.168.4.1 */
     fun videoHost(context: Context): String = udpTarget(context).ifEmpty { CarMeterVideo.DEFAULT_HOST }
 
+    /** 强制仪表导航展示模式(外部指令 {"navm":N}，UDP 8899 与视频命令同通道，见
+     *  [CarMeterVideo.NAV_MODE_FULL] 等)。覆盖设备侧 PWR 键设置；任意线程可调，
+     *  设备不可达时静默失败(只打日志)。 */
+    fun sendNavMode(context: Context, mode: Int) {
+        val host = videoHost(context)
+        val bytes = CarMeterVideo.navModeCommand(mode).toByteArray(Charsets.UTF_8)
+        Thread({
+            try {
+                DatagramSocket().use { s ->
+                    s.send(DatagramPacket(bytes, bytes.size, InetAddress.getByName(host), CarMeterSettings.UDP_PORT))
+                }
+                Log.i(TAG, "nav mode command sent: $mode -> $host")
+            } catch (e: Exception) {
+                Log.w(TAG, "sendNavMode failed: ${e.message}")
+            }
+        }, "carmeter-navm").apply { isDaemon = true; start() }
+    }
+
     private fun publishStatus() {
         val snapshot = status()
         handler.post { statusListener?.invoke(snapshot) }

@@ -1392,6 +1392,9 @@
     <string name="settings_carmeter_content_simple">Navigation summary</string>
     <string name="settings_carmeter_content_none">No navigation</string>
     <string name="settings_carmeter_content_description">Only while the iPhone guides; otherwise the watch shows its face. The navigation map needs the head unit on the CarMeter Wi-Fi; if the map cannot be sent, the watch shows the summary. The shortcut action “Switch external device content” cycles through the three.</string>
+    <string name="settings_carmeter_nav_start">When navigation starts</string>
+    <string name="settings_carmeter_nav_start_keep">Keep last choice</string>
+    <string name="settings_carmeter_nav_start_description">Every time the iPhone starts guidance, the display content resets to this choice, ignoring what a shortcut last switched to.</string>
     <string name="settings_carmeter_map_source">Map picture from</string>
     <string name="settings_carmeter_map_source_cluster">Dashboard map</string>
     <string name="settings_carmeter_map_source_main">Centre screen</string>

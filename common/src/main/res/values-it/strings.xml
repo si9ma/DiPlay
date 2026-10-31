@@ -1072,6 +1072,9 @@
     <string name="settings_carmeter_content_simple">Riepilogo navigazione</string>
     <string name="settings_carmeter_content_none">Nessuna navigazione</string>
     <string name="settings_carmeter_content_description">Solo mentre l\'iPhone guida; altrimenti l\'orologio mostra il quadrante. La mappa richiede l\'unità principale sulla Wi-Fi di CarMeter; se non si può inviare, l\'orologio mostra il riepilogo. L\'azione rapida «Cambia contenuto del dispositivo esterno» passa tra i tre.</string>
+    <string name="settings_carmeter_nav_start">All\'avvio della navigazione</string>
+    <string name="settings_carmeter_nav_start_keep">Mantieni l\'ultima scelta</string>
+    <string name="settings_carmeter_nav_start_description">Ogni volta che l\'iPhone avvia la navigazione, i contenuti visualizzati tornano a questa scelta, ignorando le modifiche apportate da una scorciatoia.</string>
     <string name="settings_carmeter_map_source">Immagine della mappa da</string>
     <string name="settings_carmeter_map_source_cluster">Mappa del quadro</string>
     <string name="settings_carmeter_map_source_main">Schermo centrale</string>

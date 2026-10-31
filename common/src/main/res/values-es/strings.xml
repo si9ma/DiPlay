@@ -1246,6 +1246,9 @@
     <string name="settings_carmeter_content_simple">Resumen de navegación</string>
     <string name="settings_carmeter_content_none">Sin navegación</string>
     <string name="settings_carmeter_content_description">Solo mientras el iPhone guía; si no, el reloj muestra la esfera. El mapa necesita la unidad principal en la Wi-Fi de CarMeter; si no se puede enviar, el reloj muestra el resumen. La acción de atajo «Cambiar contenido del dispositivo externo» alterna entre los tres.</string>
+    <string name="settings_carmeter_nav_start">Al iniciar la navegación</string>
+    <string name="settings_carmeter_nav_start_keep">Mantener la última elección</string>
+    <string name="settings_carmeter_nav_start_description">Cada vez que el iPhone inicia la navegación, el contenido mostrado vuelve a esta opción, ignorando lo que haya cambiado un atajo.</string>
     <string name="settings_carmeter_map_source">Imagen del mapa desde</string>
     <string name="settings_carmeter_map_source_cluster">Mapa del cuadro</string>
     <string name="settings_carmeter_map_source_main">Pantalla central</string>

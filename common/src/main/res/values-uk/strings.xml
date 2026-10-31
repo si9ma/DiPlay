@@ -1245,6 +1245,9 @@
     <string name="settings_carmeter_content_simple">Підсумок навігації</string>
     <string name="settings_carmeter_content_none">Без навігації</string>
     <string name="settings_carmeter_content_description">Лише поки iPhone веде маршрутом; інакше годинник показує циферблат. Для карти головний пристрій має бути у Wi-Fi CarMeter; якщо карту не передати, годинник покаже підсумок. Дія швидкої команди «Перемкнути вміст зовнішнього пристрою» перебирає всі три.</string>
+    <string name="settings_carmeter_nav_start">На початку навігації</string>
+    <string name="settings_carmeter_nav_start_keep">Пам\'ятати останній вибір</string>
+    <string name="settings_carmeter_nav_start_description">При кожному початку навігації на iPhone вміст повертається до цього режиму, ігноруючи перемикання через ярлики.</string>
     <string name="settings_carmeter_map_source">Джерело зображення карти</string>
     <string name="settings_carmeter_map_source_cluster">Карта панелі приладів</string>
     <string name="settings_carmeter_map_source_main">Центральний екран</string>

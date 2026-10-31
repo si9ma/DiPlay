@@ -7755,6 +7755,13 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             }
         card.addView(label(getString(R.string.settings_carmeter_content_description), 14, MUTED))
 
+        val navStarts = com.shilapi.xcertplay.external.CarMeterSettings.NavStart.entries
+        choice(card, getString(R.string.settings_carmeter_nav_start), navStarts.map { CarMeterContent.navStartLabel(this, it) },
+            navStarts.indexOf(external.navStart(this)), reconnects = false) { index ->
+                external.setNavStart(this, navStarts[index])
+            }
+        card.addView(label(getString(R.string.settings_carmeter_nav_start_description), 14, MUTED))
+
         card.addView(label(getString(R.string.settings_carmeter_map_title), 22, TEXT, true).apply {
             setPadding(0, dp(12), 0, dp(8))
         })
