@@ -9,8 +9,13 @@ import java.nio.ByteOrder
  * - 启停：JSON 发到 UDP 8899(与导航帧同一通道)。推流期间固件会卸载 BLE，
  *   所以启停和保活都必须走 UDP，不能走 [CarMeterOutput] 的 BLE 分支。
  * - 帧：一帧 JPEG 切成 ≤1448B 的分片发到 UDP 8900，每片前加 20B 小端头：
- *   u16 magic(0xC4D2) | u16 flags(bit0=帧首包) | u32 frame | u32 total | u32 off | u16 npkt | u16 plen
+ *   u16 magic(0xC4D2) | u16 flags | u32 frame | u32 total | u32 off | u16 npkt | u16 plen
  *   (20+1448+8+20=1496 ≤ 1500，不分 IP 片)。
+ *   flags：bit0=帧首包；bit1=携带预旋转角，bits4..12=本帧已顺时针预转的角度(0..359)。
+ * - 预旋转：设备在 hello 回复、每条视频命令(启动/保活)的回复里、以及屏幕角度变化时主动
+ *   回 `{"carmeter":1,"rot":N}`(原路回到发命令的 socket)。N = 帧在编码前应绕中心顺时针转的
+ *   角度(图像坐标 y 向下；HUD 镜像/180° 硬件翻转设备已扣除)。发送端转好并在帧头声明后，
+ *   设备只补差值，差值 0 时零开销直推；老固件不回 rot、也不看 flags 高位，按 0° 发即兼容。
  * - 固件单帧上限 128KB，超过整帧丢弃。推荐 464×464(16 整倍 MCU，设备居中直推不缩放)、
  *   baseline JPEG、4:2:0；圆屏外涂黑可省码率和解码时间。
  */
@@ -22,6 +27,18 @@ object CarMeterVideo {
     const val PAYLOAD_MAX = 1448
     const val HEADER_SIZE = 20
     private const val MAGIC = 0xC4D2
+    private const val FLAG_FIRST = 0x0001
+    private const val FLAG_ROT = 0x0002
+    private const val ROT_SHIFT = 4
+
+    private val ROT_FIELD = Regex("\"rot\"\\s*:\\s*(-?\\d+)")
+
+    /** 从设备上行报文里取预旋转角(0..359)；不是 CarMeter 报文或不带 rot(老固件)返回 null */
+    fun parseRotation(text: String): Int? {
+        if (!text.contains("\"carmeter\"")) return null
+        val v = ROT_FIELD.find(text)?.groupValues?.get(1)?.toIntOrNull() ?: return null
+        return ((v % 360) + 360) % 360
+    }
 
     /**
      * dec=0 esp_new_jpeg；dither=1 设备端 RGB888 解码 + 有序抖动(消色带，默认)；
@@ -47,16 +64,18 @@ object CarMeterVideo {
 
     fun navModeCommand(mode: Int): String = "{\"navm\":$mode}"
 
-    /** 把一帧切成数据报(含头)。frameId 取低 32 位。 */
-    fun packets(frameId: Long, jpeg: ByteArray, length: Int = jpeg.size): List<ByteArray> {
+    /** 把一帧切成数据报(含头)。frameId 取低 32 位。
+     *  rotation=null 不声明角度(旧格式)；否则在 flags 里声明本帧已预转的角度。 */
+    fun packets(frameId: Long, jpeg: ByteArray, length: Int = jpeg.size, rotation: Int? = null): List<ByteArray> {
         require(length in 1..MAX_FRAME_BYTES) { "frame size $length" }
         val count = (length + PAYLOAD_MAX - 1) / PAYLOAD_MAX
+        val base = if (rotation == null) 0 else FLAG_ROT or ((((rotation % 360) + 360) % 360) shl ROT_SHIFT)
         return (0 until count).map { i ->
             val off = i * PAYLOAD_MAX
             val plen = minOf(PAYLOAD_MAX, length - off)
             ByteBuffer.allocate(HEADER_SIZE + plen).order(ByteOrder.LITTLE_ENDIAN).apply {
                 putShort(MAGIC.toShort())
-                putShort((if (i == 0) 1 else 0).toShort())
+                putShort((base or (if (i == 0) FLAG_FIRST else 0)).toShort())
                 putInt(frameId.toInt())
                 putInt(length)
                 putInt(off)

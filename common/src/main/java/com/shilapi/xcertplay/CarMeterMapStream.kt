@@ -17,6 +17,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
+import com.shilapi.xcertplay.external.CarMeterOutput
 import com.shilapi.xcertplay.external.CarMeterSettings
 import com.shilapi.xcertplay.external.CarMeterVideo
 import java.io.ByteArrayOutputStream
@@ -168,6 +169,8 @@ internal object CarMeterMapStream {
         private var deviceOn = false
         private var deviceOnAt = 0L
         private var lastJpeg: ByteArray? = null
+        /** lastJpeg 编码时预转的角度(帧头声明给设备)；-1 = 还没编过 */
+        private var encodedRot = -1
         private var frameId = 0L
         private var lastCommandAt = 0L
         private var lastSentAt = 0L
@@ -201,7 +204,10 @@ internal object CarMeterMapStream {
                     val s = Surface(tex)
                     surface = s
                     bitmap = Bitmap.createBitmap(N, N, Bitmap.Config.ARGB_8888)
-                    socket = DatagramSocket()
+                    val sock = DatagramSocket()
+                    socket = sock
+                    // 设备把屏幕角度原路回到发命令的 socket(命令回复 + 角度变化推送)
+                    Thread({ readReplies(sock) }, "carmeter-map-rx").apply { isDaemon = true; start() }
                     address = InetAddress.getByName(host)
                     windowStart = SystemClock.uptimeMillis()
                     main.post { attach(s) }
@@ -301,25 +307,28 @@ internal object CarMeterMapStream {
                 }
                 if (now - deviceOnAt < START_SETTLE_MS) return
 
+                // 屏幕角度变了：地图静止也要按新角度重编一帧
+                val rot = CarMeterOutput.deviceRotation.coerceAtLeast(0)
+                if (rot != encodedRot) dirty = true
                 val fresh = newFrame || dirty
                 if (!fresh && now - lastSentAt < KEEPALIVE_FRAME_MS) return
                 if (fresh) {
                     newFrame = false
                     dirty = false
-                    if (!encode(p)) return
+                    if (!encode(p, rot)) return
                 }
-                lastJpeg?.let { send(it) }
+                lastJpeg?.let { send(it, encodedRot) }
                 lastSentAt = now
                 accountWindow(now)
             }
         }
 
-        /** 渲染 + 回读 + JPEG。超过固件 128KB 上限时下调质量重来。 */
-        private fun encode(p: Params): Boolean {
+        /** 渲染(含预旋转 [rot]°) + 回读 + JPEG。超过固件 128KB 上限时下调质量重来。 */
+        private fun encode(p: Params, rot: Int): Boolean {
             val e = egl ?: return false
             val bmp = bitmap ?: return false
             return try {
-                e.draw(stMatrix, p.crop)
+                e.draw(stMatrix, p.crop, rot)
                 pixels.rewind()
                 GLES20.glReadPixels(0, 0, N, N, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, pixels)
                 pixels.rewind()
@@ -334,6 +343,7 @@ internal object CarMeterMapStream {
                 }
                 if (jpegOut.size() > CarMeterVideo.MAX_FRAME_BYTES) throw IOException("frame_too_large")
                 lastJpeg = jpegOut.toByteArray()
+                encodedRot = rot
                 true
             } catch (ex: Exception) {
                 fail("encode: ${ex.message ?: ex.javaClass.simpleName}")
@@ -341,11 +351,11 @@ internal object CarMeterMapStream {
             }
         }
 
-        private fun send(jpeg: ByteArray) {
+        private fun send(jpeg: ByteArray, rot: Int) {
             val s = socket ?: return
             val a = address ?: return
             try {
-                for (packet in CarMeterVideo.packets(frameId++, jpeg)) {
+                for (packet in CarMeterVideo.packets(frameId++, jpeg, rotation = rot)) {
                     s.send(DatagramPacket(packet, packet.size, a, CarMeterVideo.VIDEO_PORT))
                 }
                 windowFrames++
@@ -357,6 +367,23 @@ internal object CarMeterMapStream {
         }
 
         private var lastStartCommand: String? = null
+
+        /** 独立线程收设备回复({"carmeter":1,"rot":N})；release 关 socket 后自然退出 */
+        private fun readReplies(s: DatagramSocket) {
+            val buf = ByteArray(256)
+            try { s.soTimeout = 1_000 } catch (_: IOException) { }
+            while (!s.isClosed) {
+                try {
+                    val packet = DatagramPacket(buf, buf.size)
+                    s.receive(packet)
+                    CarMeterVideo.parseRotation(String(packet.data, 0, packet.length, Charsets.UTF_8))
+                        ?.let { CarMeterOutput.noteRotation(it) }
+                } catch (_: java.net.SocketTimeoutException) {
+                } catch (_: IOException) {
+                    if (s.isClosed) break
+                }
+            }
+        }
 
         private fun sendCommand(command: String) {
             val s = socket ?: return
@@ -403,6 +430,7 @@ internal object CarMeterMapStream {
         private val uSt: Int
         private val uCrop: Int
         private val uSize: Int
+        private val uRot: Int
 
         init {
             check(display != EGL14.EGL_NO_DISPLAY) { "no egl display" }
@@ -430,6 +458,7 @@ internal object CarMeterMapStream {
             uSt = GLES20.glGetUniformLocation(program, "u_st")
             uCrop = GLES20.glGetUniformLocation(program, "u_crop")
             uSize = GLES20.glGetUniformLocation(program, "u_size")
+            uRot = GLES20.glGetUniformLocation(program, "u_rot")
             val t = IntArray(1)
             GLES20.glGenTextures(1, t, 0)
             texture = t[0]
@@ -440,7 +469,8 @@ internal object CarMeterMapStream {
             GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
         }
 
-        fun draw(st: FloatArray, crop: CarMeterVideo.Crop) {
+        /** [rotDeg]：输出绕中心顺时针预转的角度(CarMeter 屏幕角度，见 [CarMeterVideo]) */
+        fun draw(st: FloatArray, crop: CarMeterVideo.Crop, rotDeg: Int) {
             GLES20.glViewport(0, 0, size, size)
             GLES20.glUseProgram(program)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
@@ -448,6 +478,8 @@ internal object CarMeterMapStream {
             GLES20.glUniformMatrix4fv(uSt, 1, false, st, 0)
             GLES20.glUniform4f(uCrop, crop.x, crop.y, crop.width, crop.height)
             GLES20.glUniform1f(uSize, size.toFloat())
+            val r = Math.toRadians(rotDeg.toDouble())
+            GLES20.glUniform2f(uRot, Math.cos(r).toFloat(), Math.sin(r).toFloat())
             GLES20.glEnableVertexAttribArray(aPos)
             GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_FLOAT, false, 0, quad)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
@@ -502,6 +534,8 @@ void main() { gl_Position = vec4(a_pos, 0.0, 1.0); }
 
     // gl_FragCoord.y=0 是回读的第 0 行 = Bitmap 顶行，所以 o.y 直接当"从上往下"的比例用；
     // 纹理坐标 v 是自下而上，采样前翻转。2×2 超采样(间距半个输出像素)抑制缩小时的锯齿。
+    // 预旋转：输出点 o 绕中心逆转 u_rot=(cos,sin) 得到取景框内的取样点 q，
+    // 即画面整体顺时针转(y 向下)，与固件 rot_fill 同一公式；圆内取样点恒在取景框内。
     private const val FRAGMENT = """
 #extension GL_OES_EGL_image_external : require
 #ifdef GL_FRAGMENT_PRECISION_HIGH
@@ -513,6 +547,7 @@ uniform samplerExternalOES u_tex;
 uniform mat4 u_st;
 uniform vec4 u_crop;
 uniform float u_size;
+uniform vec2 u_rot;
 vec4 tap(vec2 p) {
     vec2 t = (u_st * vec4(p.x, 1.0 - p.y, 0.0, 1.0)).xy;
     return texture2D(u_tex, t);
@@ -520,7 +555,9 @@ vec4 tap(vec2 p) {
 void main() {
     vec2 o = gl_FragCoord.xy / u_size;
     if (distance(o, vec2(0.5)) > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-    vec2 p = u_crop.xy + o * u_crop.zw;
+    vec2 r = o - vec2(0.5);
+    vec2 q = vec2(0.5) + vec2(u_rot.x * r.x + u_rot.y * r.y, -u_rot.y * r.x + u_rot.x * r.y);
+    vec2 p = u_crop.xy + q * u_crop.zw;
     vec2 d = u_crop.zw * (0.25 / u_size);
     vec4 c = tap(p + vec2(-d.x, -d.y)) + tap(p + vec2(d.x, -d.y)) + tap(p + vec2(-d.x, d.y)) + tap(p + vec2(d.x, d.y));
     gl_FragColor = vec4(c.rgb * 0.25, 1.0);

@@ -116,6 +116,20 @@ object CarMeterOutput {
     @Volatile private var discoveredHost: String? = null
     @Volatile private var lastHelloReplyAt = 0L
 
+    /**
+     * CarMeter 上报的视频预旋转角(0..359，帧编码前绕中心顺时针转多少度，见 [CarMeterVideo])；
+     * -1 = 未知(还没收到 / 老固件不报)。来源：发现包回复，以及推流 socket 收到的命令回复/变化推送
+     * (经 [noteRotation])。推流线程每帧读。
+     */
+    @Volatile var deviceRotation: Int = -1
+        private set
+
+    fun noteRotation(rotation: Int) {
+        val r = ((rotation % 360) + 360) % 360
+        if (r != deviceRotation) Log.i(TAG, "CarMeter screen rotation: pre-rotate video $r°")
+        deviceRotation = r
+    }
+
     /** UI 注册状态回调（主线程回调） */
     fun setStatusListener(listener: ((Status) -> Unit)?) {
         statusListener = listener
@@ -454,7 +468,10 @@ object CarMeterOutput {
                             val packet = DatagramPacket(buf, buf.size)
                             socket.receive(packet)
                             val text = String(packet.data, 0, packet.length, Charsets.UTF_8)
-                            if (text.contains("\"carmeter\"")) onHelloReply(packet.address)
+                            if (text.contains("\"carmeter\"")) {
+                                onHelloReply(packet.address)
+                                CarMeterVideo.parseRotation(text)?.let { noteRotation(it) }
+                            }
                         } catch (_: SocketTimeoutException) { }
                     }
                     if (wasAlive && !wifiAlive()) {

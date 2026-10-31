@@ -45,6 +45,21 @@ class CarMeterVideoTest {
         assertEquals(true, packets.all { it.size + 8 + 20 <= 1500 })
     }
 
+    @Test fun preRotationIsDeclaredInTheFlags() {
+        val packets = CarMeterVideo.packets(1, ByteArray(2000), rotation = 270)
+        val flags = packets.map { ByteBuffer.wrap(it).order(ByteOrder.LITTLE_ENDIAN).getShort(2).toInt() and 0xFFFF }
+        assertEquals(listOf(0x2 or (270 shl 4) or 1, 0x2 or (270 shl 4)), flags)
+        val neg = CarMeterVideo.packets(1, ByteArray(10), rotation = -90)
+        assertEquals(270, (ByteBuffer.wrap(neg[0]).order(ByteOrder.LITTLE_ENDIAN).getShort(2).toInt() shr 4) and 0x1FF)
+    }
+
+    @Test fun rotationIsParsedFromDeviceReplies() {
+        assertEquals(135, CarMeterVideo.parseRotation("{\"carmeter\":1,\"rot\":135}"))
+        assertEquals(0, CarMeterVideo.parseRotation("{\"carmeter\":1,\"rot\":360}"))
+        assertEquals(null, CarMeterVideo.parseRotation("{\"carmeter\":1}"))     // 老固件
+        assertEquals(null, CarMeterVideo.parseRotation("{\"rot\":90}"))         // 不是 CarMeter 上行
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun oversizedFramesAreRejected() {
         CarMeterVideo.packets(1, ByteArray(CarMeterVideo.MAX_FRAME_BYTES + 1))
