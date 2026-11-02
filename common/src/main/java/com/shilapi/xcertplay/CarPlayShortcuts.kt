@@ -38,7 +38,14 @@ internal enum class ShortcutEvent { CONNECTED, KEY, VEHICLE }
 internal data class ShortcutStep(val action: ShortcutAction, val waitMs: Long = 0, val url: String = "",
     val keyCode: Int = -1, val scanCode: Int = -1, val tapX: Double = -1.0, val tapY: Double = -1.0,
     val zoomCenterX: Double = 0.5, val zoomCenterY: Double = 0.5,
-    val pinchScale: Double = CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE)
+    val pinchScale: Double = CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE,
+    /**
+     * TAP and pinch only. True: the point ([tapX]/[tapY], or the pinch's [zoomCenterX]/[zoomCenterY]) is a
+     * fraction of DiPlay's CarPlay window as the driver sees it, mapped to the CarPlay canvas when replayed,
+     * so the same spot stays the same spot whatever canvas or view area the session uses. False (steps made
+     * by earlier versions): a fraction of the CarPlay canvas, sent as it is.
+     */
+    val inWindow: Boolean = false)
 /** Runs when its trigger fires and every one of [conditions] holds. Several rules may share a trigger; all that hold run. */
 internal data class ShortcutRule(
     val id: String = UUID.randomUUID().toString(), val name: String = "", val enabled: Boolean = false,
@@ -54,6 +61,11 @@ internal object ShortcutCodec {
     const val MAX_STEPS = 32
     /** The whole rule set; as large as a settings backup may be. */
     const val MAX_BYTES = 512 * 1024
+    /**
+     * A TAP's or pinch's "space": the window DiPlay shows CarPlay in. Absent means the CarPlay canvas. An app
+     * that predates it ignores the key and replays the point on the canvas, as it did before.
+     */
+    private const val SPACE_WINDOW = "window"
     fun valid(rule: ShortcutRule): Boolean = rule.id.length in 1..64 && rule.name.length in 1..64 &&
         rule.name.none { it.isISOControl() } && rule.keyCode in 0..65535 && rule.scanCode in 0..65535 &&
         rule.clickCount in 1..4 && (rule.event == ShortcutEvent.KEY || rule.clickCount == 1) &&
@@ -69,6 +81,7 @@ internal object ShortcutCodec {
             ((step.keyCode == -1 && step.scanCode == -1) ||
                 (step.keyCode in 0..65535 && step.scanCode in 0..65535)) &&
                 (step.action == ShortcutAction.TAP || step.tapX == -1.0 && step.tapY == -1.0) &&
+                (step.action == ShortcutAction.TAP || step.action.pinch || !step.inWindow) &&
                 (step.action.pinch || step.zoomCenterX == 0.5 && step.zoomCenterY == 0.5 &&
                     step.pinchScale == CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE) && when (step.action) {
                 ShortcutAction.PINCH_IN, ShortcutAction.PINCH_OUT -> step.waitMs == 0L && step.url.isEmpty() &&
@@ -144,7 +157,8 @@ internal object ShortcutCodec {
                         if (step.has("zoomCenterX")) (step.get("zoomCenterX") as Number).toDouble() else 0.5,
                         if (step.has("zoomCenterY")) (step.get("zoomCenterY") as Number).toDouble() else 0.5,
                         if (step.has("pinchScale")) (step.get("pinchScale") as Number).toDouble()
-                            else CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE)
+                            else CarPlayController.DEFAULT_SHORTCUT_PINCH_SCALE,
+                        inWindow = step.optString("space") == SPACE_WINDOW)
                 },
             )
             val retained = if (rule.steps.any { it.action.legacyWindow }) rule.copy(enabled = false) else rule
@@ -183,6 +197,7 @@ internal object ShortcutCodec {
                             if (it.action.pinch) {
                                 put("zoomCenterX", it.zoomCenterX); put("zoomCenterY", it.zoomCenterY); put("pinchScale", it.pinchScale)
                             }
+                            if (it.inWindow) put("space", SPACE_WINDOW)
                         }) }
                 })) }
         }).toString().also { require(it.toByteArray(Charsets.UTF_8).size <= MAX_BYTES) }
@@ -275,11 +290,12 @@ internal object CarPlayShortcuts {
         main.postDelayed(poll, 250)
         return true
     }
+    /** Records a tap at [x], [y] as fractions of DiPlay's CarPlay window (see [ShortcutStep.inWindow]). */
     @Synchronized fun recordTap(x: Double, y: Double): Boolean {
         val capture = touchCapture ?: return false
         if (!currentTouch(capture)) { cancelCapture(); return false }
         if (!x.isFinite() || !y.isFinite() || x !in 0.0..1.0 || y !in 0.0..1.0) return false
-        return recordStep(ShortcutStep(ShortcutAction.TAP, tapX = x, tapY = y))
+        return recordStep(ShortcutStep(ShortcutAction.TAP, tapX = x, tapY = y, inWindow = true))
     }
     private var learned: ((Int, Int) -> Unit)? = null
     private var recorded: ((List<ShortcutStep>) -> Unit)? = null
@@ -525,9 +541,10 @@ internal object CarPlayShortcuts {
             val token = Any()
             active.awaiting = token
             active.due = now + 5_000L
+            val (centerX, centerY) = pinchTarget(step, active.index)
             val queued = runCatching {
                 active.owner.sendShortcutPinch(step.action == ShortcutAction.PINCH_IN,
-                    step.zoomCenterX, step.zoomCenterY, active.session, active.stream, step.pinchScale) { result ->
+                    centerX, centerY, active.session, active.stream, step.pinchScale) { result ->
                     main.post { synchronized(this) {
                         if (run === active && active.awaiting === token) {
                             note("step=${active.index} action=${step.action} result=$result")
@@ -561,7 +578,9 @@ internal object CarPlayShortcuts {
             return
         } else {
             val queued = runCatching { when (step.action) {
-                ShortcutAction.TAP -> active.owner.sendShortcutTap(step.tapX, step.tapY, active.session, active.stream)
+                ShortcutAction.TAP -> tapTarget(step, active.index).let { (x, y) ->
+                    active.owner.sendShortcutTap(x, y, active.session, active.stream)
+                }
                 ShortcutAction.URI -> active.owner.requestUi(step.url)
                 ShortcutAction.SIRI -> active.owner.requestSiri()
                 ShortcutAction.SHOW_CLUSTER_MUSIC -> context?.let { ClusterWindowVisibility.setVisible(it, active.owner, ClusterWindowPanel.MUSIC, true) } == true
@@ -587,6 +606,35 @@ internal object CarPlayShortcuts {
             if (!queued || step.action == ShortcutAction.SIRI) { stop(); return }
         }
         main.post(advance)
+    }
+
+    /** The canvas point to send for a TAP; see [canvasPoint]. */
+    private fun tapTarget(step: ShortcutStep, index: Int): Pair<Double, Double> =
+        canvasPoint("step=$index tap", step.tapX, step.tapY, step.inWindow)
+
+    /**
+     * The canvas centre to send for a pinch. The gesture needs room around its centre, so a window centre
+     * near a letterbox bar is kept inside the range the controller accepts.
+     */
+    private fun pinchTarget(step: ShortcutStep, index: Int): Pair<Double, Double> =
+        canvasPoint("step=$index pinch centre", step.zoomCenterX, step.zoomCenterY, step.inWindow).let { (x, y) ->
+            x.coerceIn(0.05, 0.95) to y.coerceIn(0.05, 0.95)
+        }
+
+    /**
+     * A window point goes through the host's mapping; without a host (a session kept in the background) it is
+     * sent as it is, which matches whenever the canvas fills the window. A canvas point is sent as it is.
+     */
+    private fun canvasPoint(label: String, x: Double, y: Double, inWindow: Boolean): Pair<Double, Double> {
+        if (!inWindow) {
+            note("$label canvas=${CarPlayWindowTaps.fraction(x)},${CarPlayWindowTaps.fraction(y)} (set on the canvas)")
+            return x to y
+        }
+        val mapped = CarPlayWindowTaps.toCanvas("Shortcut $label", x, y)
+        note("$label window=${CarPlayWindowTaps.fraction(x)},${CarPlayWindowTaps.fraction(y)} -> " + (mapped?.let {
+            "canvas=${CarPlayWindowTaps.fraction(it.x)},${CarPlayWindowTaps.fraction(it.y)} ${it.detail}"
+        } ?: "canvas=unmapped (no CarPlay window), sent as set"))
+        return mapped?.let { it.x to it.y } ?: (x to y)
     }
 
     private fun mediaButton(action: ShortcutAction) = when (action) {
@@ -795,6 +843,67 @@ internal object CarPlayShortcuts {
         history.addLast(message)
     }
     @Synchronized fun report(): List<String> = listOf("Shortcuts: rules=${rules.size} enabled=${rules.count { it.enabled }} running=${run != null} capture=${hasCapture()} vehicle=$followingVehicle conditions=$followingGroups") + history.toList() + BydVehicleMonitor.report()
+}
+
+/**
+ * A recorded tap is kept as a fraction of DiPlay's CarPlay window, the spot the driver pressed. Touches
+ * reach the iPhone as fractions of the CarPlay canvas, which the window shows letterboxed, or only one view
+ * area of; the same spot is a different canvas fraction when the session's canvas or area differs.
+ */
+internal object ShortcutTapSpace {
+    /** Fractions of a [viewWidth] x [viewHeight] window to fractions of the canvas drawn at [content]. */
+    fun windowToCanvas(x: Double, y: Double, viewWidth: Int, viewHeight: Int,
+        content: com.shilapi.xcertplay.media.CarPlayVideoLayout): Pair<Double, Double> {
+        val canvasX = (x * viewWidth - content.left) / content.width.coerceAtLeast(1f)
+        val canvasY = (y * viewHeight - content.top) / content.height.coerceAtLeast(1f)
+        return canvasX.coerceIn(0.0, 1.0) to canvasY.coerceIn(0.0, 1.0)
+    }
+
+    /** A point of a [viewWidth] x [viewHeight] window as fractions of it. */
+    fun ofWindow(pointX: Float, pointY: Float, viewWidth: Int, viewHeight: Int): Pair<Double, Double>? {
+        if (viewWidth <= 0 || viewHeight <= 0 || !pointX.isFinite() || !pointY.isFinite()) return null
+        return (pointX.toDouble() / viewWidth).coerceIn(0.0, 1.0) to (pointY.toDouble() / viewHeight).coerceIn(0.0, 1.0)
+    }
+}
+
+/**
+ * Turns points kept in DiPlay's CarPlay window (shortcut taps and pinch centres, the navigation start and
+ * stop taps) into CarPlay canvas points, through the CarPlay host's current layout.
+ */
+internal object CarPlayWindowTaps {
+    /** A canvas point for a window point, with how it was worked out (for the log). */
+    data class Mapping(val x: Double, val y: Double, val detail: String)
+
+    /** How long a replay thread waits for the main thread to map a point before sending it as it is. */
+    private const val MAIN_THREAD_WAIT_MILLIS = 500L
+
+    private val main by lazy { Handler(Looper.getMainLooper()) }
+
+    /**
+     * Set by the CarPlay host while it exists: maps fractions of its CarPlay window to fractions of the
+     * session's canvas, as its touches are mapped, and logs it under the label. Called on the main thread.
+     */
+    @Volatile var mapper: ((label: String, x: Double, y: Double) -> Mapping?)? = null
+
+    /** The canvas point for window point [x], [y], or null without a CarPlay window. Any thread. */
+    fun toCanvas(label: String, x: Double, y: Double): Mapping? {
+        val map = mapper ?: return null
+        val mapped = if (Looper.myLooper() == Looper.getMainLooper()) runCatching { map(label, x, y) }.getOrNull() else {
+            val task = java.util.concurrent.FutureTask { map(label, x, y) }
+            if (!main.post(task)) return null
+            try {
+                task.get(MAIN_THREAD_WAIT_MILLIS, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (_: InterruptedException) {
+                // The replay is being stopped; let its own sleep see the interrupt.
+                Thread.currentThread().interrupt(); null
+            } catch (_: Exception) {
+                task.cancel(false); null
+            }
+        }
+        return mapped?.takeIf { it.x.isFinite() && it.y.isFinite() && it.x in 0.0..1.0 && it.y in 0.0..1.0 }
+    }
+
+    fun fraction(value: Double): String = String.format(java.util.Locale.US, "%.3f", value)
 }
 
 /** Observes forwarded CarPlay contacts; never dispatches or intercepts Android touches. */

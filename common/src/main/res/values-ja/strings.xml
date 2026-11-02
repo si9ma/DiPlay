@@ -63,7 +63,8 @@
     <string name="settings_shortcut_pinch_center">中心 X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">中心 X（5–95%、左端から）</string>
     <string name="settings_shortcut_pinch_y" formatted="false">中心 Y（5–95%、上端から）</string>
-    <string name="settings_shortcut_pinch_hint">CarPlay のメイン画面に実際の2本指ジェスチャーを送ります。メーター地図のズームではありません。中心座標は CarPlay キャンバス全体が基準です。分割画面やアプリのレイアウト変更後は調整が必要な場合があります。駐車中にテストしてください。停止、切断、手動タッチで残りの操作を中止します。ズームへの対応は現在のアプリによります。</string>
+    <string name="settings_shortcut_pinch_hint">CarPlay のメイン画面に実際の2本指ジェスチャーを送ります。メーター地図のズームではありません。中心座標は表示中の CarPlay ウィンドウに対する割合で、実行時に DiPlay が CarPlay 画面に変換します。駐車中にテストしてください。停止、切断、手動タッチで残りの操作を中止します。ズームへの対応は現在のアプリによります。</string>
+    <string name="settings_shortcut_pinch_canvas_note">以前のバージョンで設定：この中心は CarPlay キャンバス全体が基準で、表示中のウィンドウと異なる場合があります。ステップを削除して追加し直すと、ウィンドウ基準になります。</string>
     <string name="settings_cluster_music_layout">音楽ウィンドウのレイアウト</string>
     <string name="settings_cluster_music_mini">Mini</string>
     <string name="settings_cluster_music_card">大きなカード</string>
@@ -111,7 +112,8 @@
     <string name="shortcut_tap">CarPlay タップ</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">タップ位置を編集</string>
-    <string name="shortcut_tap_coordinates_hint">CarPlay キャンバス全体に対する左上からの割合です。記録済みのタップはすでにこの座標系です。停車中にテストしてください。アプリ・解像度・レイアウトが変わると別の位置が必要になる場合があります。</string>
+    <string name="shortcut_tap_coordinates_hint">表示中の CarPlay ウィンドウに対する左上からの割合です。実行時に DiPlay が CarPlay 画面に変換するため、CarPlay のサイズやレイアウトが変わっても同じ位置をタップします。停車中にテストしてください。</string>
+    <string name="shortcut_tap_canvas_hint">以前のバージョンで記録：CarPlay キャンバス全体に対する左上からの割合で、表示中のウィンドウと異なる場合があります。記録し直すとウィンドウ基準になります。停車中にテストしてください。</string>
     <string name="shortcut_tap_x" formatted="false">X（左から 0～100%）</string>
     <string name="shortcut_tap_y" formatted="false">Y（上から 0～100%）</string>
     <string name="settings_cluster_safe_area">地図のセーフエリア</string>

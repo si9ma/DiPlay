@@ -62,7 +62,8 @@
     <string name="settings_shortcut_pinch_center">Centre X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">Centre X (5–95%, from left)</string>
     <string name="settings_shortcut_pinch_y" formatted="false">Centre Y (5–95%, from top)</string>
-    <string name="settings_shortcut_pinch_hint">Sends a real two-finger gesture to the main CarPlay screen, not the instrument map. Centre coordinates refer to the full CarPlay canvas; split-screen or app layout changes may require adjustment. Test while parked. Stop, disconnection or manual touch cancels the remaining sequence. Whether zoom works depends on the current app.</string>
+    <string name="settings_shortcut_pinch_hint">Sends a real two-finger gesture to the main CarPlay screen, not the instrument map. Centre coordinates are percentages of the CarPlay window as you see it; DiPlay maps them to CarPlay when the shortcut runs. Test while parked. Stop, disconnection or manual touch cancels the remaining sequence. Whether zoom works depends on the current app.</string>
+    <string name="settings_shortcut_pinch_canvas_note">Set up by an earlier version: this centre refers to the full CarPlay canvas, which can differ from the window you see. Delete the step and add it again to make it follow the window.</string>
     <string name="settings_cluster_music_layout">Music window layout</string>
     <string name="settings_cluster_music_mini">Mini</string>
     <string name="settings_cluster_music_card">Large card</string>
@@ -110,7 +111,8 @@
     <string name="shortcut_tap">CarPlay tap</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">Edit tap position</string>
-    <string name="shortcut_tap_coordinates_hint">Percentages of the full CarPlay canvas, measured from the top-left. Recorded taps are already in this space. Test while parked; a changed app, resolution or layout may need a different position.</string>
+    <string name="shortcut_tap_coordinates_hint">Percentages of the CarPlay window as you see it, measured from the top-left. DiPlay maps them to CarPlay when the shortcut runs, so the same spot is pressed even if the CarPlay size or layout changes. Test while parked.</string>
+    <string name="shortcut_tap_canvas_hint">Recorded by an earlier version: percentages of the full CarPlay canvas, measured from the top-left, which can differ from the window you see. Record the tap again to make it follow the window. Test while parked.</string>
     <string name="shortcut_tap_x" formatted="false">X (0–100%, from left)</string>
     <string name="shortcut_tap_y" formatted="false">Y (0–100%, from top)</string>
     <string name="settings_cluster_safe_area">Map safe area</string>

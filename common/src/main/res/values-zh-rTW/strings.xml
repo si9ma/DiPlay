@@ -62,7 +62,8 @@
     <string name="settings_shortcut_pinch_center">中心 X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">中心 X（5–95%，從左側起算）</string>
     <string name="settings_shortcut_pinch_y" formatted="false">中心 Y（5–95%，從頂部起算）</string>
-    <string name="settings_shortcut_pinch_hint">向 CarPlay 主畫面傳送實際雙指手勢，不是儀表地圖縮放。中心座標以完整 CarPlay 畫布為準；分割畫面或 App 版面變更後可能需要調整。請停車測試。停止、斷線或手動觸控會取消剩餘動作，能否縮放取決於目前 App。</string>
+    <string name="settings_shortcut_pinch_hint">向 CarPlay 主畫面傳送實際雙指手勢，不是儀表地圖縮放。中心座標是相對於你看到的 CarPlay 視窗的百分比，執行時由 DiPlay 換算到 CarPlay 畫面。請停車測試。停止、斷線或手動觸控會取消剩餘動作，能否縮放取決於目前 App。</string>
+    <string name="settings_shortcut_pinch_canvas_note">由舊版本設定：此中心相對於整個 CarPlay 畫布，可能與你看到的視窗不一致。刪除此步驟後重新新增，即可改為跟隨視窗。</string>
     <string name="settings_cluster_music_layout">音樂小視窗樣式</string>
     <string name="settings_cluster_music_mini">Mini</string>
     <string name="settings_cluster_music_card">大卡片</string>
@@ -110,7 +111,8 @@
     <string name="shortcut_tap">CarPlay 點按</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">編輯點按位置</string>
-    <string name="shortcut_tap_coordinates_hint">相對於整個 CarPlay 畫面的百分比，從左上角起算。錄製的點按已在此座標系中。請駐車測試；應用程式、解析度或版面配置變更後可能需要調整位置。</string>
+    <string name="shortcut_tap_coordinates_hint">相對於你看到的 CarPlay 視窗的百分比，從左上角起算。執行時 DiPlay 會換算到 CarPlay 畫面，CarPlay 尺寸或版面配置變更後仍點在同一位置。請駐車測試。</string>
+    <string name="shortcut_tap_canvas_hint">由舊版本錄製：相對於整個 CarPlay 畫布的百分比，從左上角起算，可能與你看到的視窗不一致。重新錄製後會改為跟隨視窗。請駐車測試。</string>
     <string name="shortcut_tap_x" formatted="false">X（距左側 0–100%）</string>
     <string name="shortcut_tap_y" formatted="false">Y（距頂部 0–100%）</string>
     <string name="settings_cluster_safe_area">地圖安全區域</string>

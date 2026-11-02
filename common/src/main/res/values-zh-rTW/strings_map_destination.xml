@@ -77,6 +77,8 @@
     <string name="settings_carplay_tap_gap_recorded">按錄製時的節奏</string>
     <string name="settings_carplay_tap_gap_hint">錄製下來的間隔是你當時手速的偶然值。而面板動畫的時長是固定的，所以固定間隔往往更穩：太短，下一下會點在還沒切換完的畫面上；太長，則出發得晚。</string>
     <string name="settings_carplay_tap_edit">編輯點按位置</string>
+    <string name="settings_carplay_tap_space_window">位置是相對於你看到的 CarPlay 視窗的百分比，從左上角起算。重播時由 DiPlay 換算到 CarPlay 畫面。</string>
+    <string name="settings_carplay_tap_space_canvas">由舊版本錄製：位置相對於整個 CarPlay 畫布，可能與你看到的視窗不一致。重新錄製後會改為跟隨視窗。</string>
     <string name="settings_carplay_tap_number">點按 %1$d</string>
     <string name="settings_carplay_tap_x" formatted="false">X（距左側 0–100%）</string>
     <string name="settings_carplay_tap_y" formatted="false">Y（距頂部 0–100%）</string>

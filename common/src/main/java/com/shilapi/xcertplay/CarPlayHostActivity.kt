@@ -877,6 +877,7 @@ class CarPlayHostActivity : ComponentActivity() {
         )
         locationPermissionAvailable = hasFineLocationPermission()
         overlayMode = ProjectionOverlay.wanted(this)
+        CarPlayWindowTaps.mapper = windowTapMapper
         setContentView(buildContentView())
         if (overlayMode) {
             // CarPlay video and touch live in ProjectionOverlay; this activity keeps only the status page.
@@ -2185,6 +2186,8 @@ class CarPlayHostActivity : ComponentActivity() {
         if (MapMirrors.onChanged === mirrorsChanged) MapMirrors.onChanged = null
         dismissCustomWindows("activity_destroyed")
         dismissClusterPresentation()
+        // Identity, so a recreated host that already installed its own mapper keeps it.
+        if (CarPlayWindowTaps.mapper === windowTapMapper) CarPlayWindowTaps.mapper = null
         mainHandler.removeCallbacks(applyDisplaySize)
         mainHandler.removeCallbacks(expireOldLogLines)
         mainHandler.removeCallbacks(pollConfiguration)
@@ -6147,6 +6150,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun updateVideoLayout(viewWidth: Int, viewHeight: Int) {
         val view = videoView ?: return
         if (viewWidth <= 0 || viewHeight <= 0) return
+        lastShortcutViewSize = viewWidth to viewHeight
         val content = contentRect(viewWidth, viewHeight)
         blackCornerOverlay?.setContentBounds(RectF(content.left, content.top,
             content.left + content.width, content.top + content.height))
@@ -6949,11 +6953,11 @@ class CarPlayHostActivity : ComponentActivity() {
         val queued = controller?.sendTouch(contacts) ?: false
         if (CarPlayShortcuts.isTouchRecording()) {
             shortcutTapTracker.observe(event, contacts.singleOrNull(), queued && content.contains(event.x, event.y),
-                android.view.ViewConfiguration.get(this).scaledTouchSlop)?.let { CarPlayShortcuts.recordTap(it.x, it.y) }
+                android.view.ViewConfiguration.get(this).scaledTouchSlop)?.let { recordShortcutTap(view, event, content, it) }
         } else shortcutTapTracker.reset()
         // A calibration records the driver's real taps, which are forwarded as usual so the map reacts.
         if (event.actionMasked == MotionEvent.ACTION_UP && event.pointerCount == 1) {
-            recordGuidanceStopTap(contacts.firstOrNull(), event)
+            recordGuidanceStopTap(view, content, contacts.firstOrNull(), event)
         }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN,
@@ -6973,20 +6977,72 @@ class CarPlayHostActivity : ComponentActivity() {
      * Records one tap of a calibration, for whichever sequence is being recorded. Only a real tap
      * counts: a drag or a fling through the map would store a point the driver never meant to press.
      */
-    private fun recordGuidanceStopTap(contact: com.shilapi.xcertplay.airplay.AirPlayContact?, event: MotionEvent) {
+    private fun recordGuidanceStopTap(view: View, content: CarPlayVideoLayout,
+        contact: com.shilapi.xcertplay.airplay.AirPlayContact?, event: MotionEvent) {
         if (contact == null || CarPlayGuidanceStopper.remainingToRecord == null) return
         if (event.eventTime - event.downTime > GUIDANCE_TAP_MAX_MILLIS) return
         val slop = dp(GUIDANCE_TAP_SLOP_DP)
         if (kotlin.math.abs(event.x - guidanceTapDownX) > slop ||
             kotlin.math.abs(event.y - guidanceTapDownY) > slop) return
-        val remaining = CarPlayGuidanceStopper.recordCalibrationTap(this, contact.x, contact.y) ?: return
-        appendLog("Guidance stop calibration: tap recorded, $remaining to go")
+        // Kept where the driver pressed in this window, like a shortcut tap; mapped to the canvas when replayed.
+        val window = ShortcutTapSpace.ofWindow(event.x, event.y, view.width, view.height) ?: return
+        val remaining = CarPlayGuidanceStopper.recordCalibrationTap(this, window.first, window.second) ?: return
+        appendLog("Guidance stop calibration: tap recorded, $remaining to go " +
+            "window=${tapFraction(window.first)},${tapFraction(window.second)} " +
+            "canvas=${tapFraction(contact.x)},${tapFraction(contact.y)} touch=${event.x.toInt()},${event.y.toInt()} " +
+            tapGeometry(view.width, view.height, content))
         android.widget.Toast.makeText(this, if (remaining > 0) {
             getString(R.string.carplay_stop_calibration_progress, remaining)
         } else {
             getString(R.string.carplay_stop_calibration_done)
         }, android.widget.Toast.LENGTH_SHORT).show()
     }
+
+    /**
+     * Stores a recorded tap where the driver pressed in this window, and logs how that spot maps to the
+     * canvas now, so a replay that lands elsewhere can be compared with the recording.
+     */
+    private fun recordShortcutTap(view: View, event: MotionEvent, content: CarPlayVideoLayout,
+        contact: com.shilapi.xcertplay.airplay.AirPlayContact) {
+        val window = ShortcutTapSpace.ofWindow(event.x, event.y, view.width, view.height) ?: return
+        val recorded = CarPlayShortcuts.recordTap(window.first, window.second)
+        appendLog("Shortcut tap recorded=$recorded window=${tapFraction(window.first)},${tapFraction(window.second)} " +
+            "canvas=${tapFraction(contact.x)},${tapFraction(contact.y)} touch=${event.x.toInt()},${event.y.toInt()} " +
+            tapGeometry(view.width, view.height, content))
+    }
+
+    /** The window size a replayed tap is mapped against while the CarPlay view is away (overlay hidden). */
+    private var lastShortcutViewSize: Pair<Int, Int>? = null
+
+    private val windowTapMapper: (String, Double, Double) -> CarPlayWindowTaps.Mapping? =
+        { label, x, y -> windowPointToCanvas(label, x, y) }
+
+    /** Maps a stored window point (shortcut tap or pinch centre, navigation tap) as this window's touches are mapped. */
+    private fun windowPointToCanvas(label: String, x: Double, y: Double): CarPlayWindowTaps.Mapping? {
+        if (sessionDisplay == null) return null
+        val live = videoView?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width to it.height }
+        val (width, height) = live ?: lastShortcutViewSize ?: return null
+        val content = contentRect(width, height)
+        val (canvasX, canvasY) = ShortcutTapSpace.windowToCanvas(x, y, width, height, content)
+        val detail = (if (live == null) "cachedView " else "") + tapGeometry(width, height, content)
+        appendLog("$label replay window=${tapFraction(x)},${tapFraction(y)} " +
+            "canvas=${tapFraction(canvasX)},${tapFraction(canvasY)} $detail")
+        return CarPlayWindowTaps.Mapping(canvasX, canvasY, detail)
+    }
+
+    /** Window, picture placement, canvas and view area: everything that turns a window spot into a canvas point. */
+    private fun tapGeometry(viewWidth: Int, viewHeight: Int, content: CarPlayVideoLayout): String {
+        val display = sessionDisplay
+        val areas = display?.viewAreas
+        val area = areas?.let { it.areas[it.current] }
+        return "view=${viewWidth}x$viewHeight content=${content.left.toInt()},${content.top.toInt()} " +
+            "${content.width.toInt()}x${content.height.toInt()} canvas=${display?.width}x${display?.height} " +
+            "area=" + (if (areas == null || area == null) "none" else
+                "${areas.current}:${areas.kindOf(areas.current)} ${area.width}x${area.height}@${area.originX},${area.originY}") +
+            " overlay=$overlayMode projectionWidth=${ProjectionWindow.sessionPercent ?: "-"}%"
+    }
+
+    private fun tapFraction(value: Double) = String.format(Locale.US, "%.3f", value)
 
     private fun pointerCentroid(event: MotionEvent, horizontal: Boolean): Float {
         var total = 0f

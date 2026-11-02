@@ -77,6 +77,8 @@
     <string name="settings_carplay_tap_gap_recorded">Como se grabó</string>
     <string name="settings_carplay_tap_gap_hint">Una pausa grabada es lo que hizo tu dedo por casualidad. La animación de un panel tarda un tiempo fijo, así que una pausa fija suele ser más estable: demasiado corta y el siguiente toque cae antes de que cambie la pantalla; demasiado larga y el viaje empieza tarde.</string>
     <string name="settings_carplay_tap_edit">Editar posiciones de los toques</string>
+    <string name="settings_carplay_tap_space_window">Las posiciones son porcentajes de la ventana de CarPlay tal como la ves, desde la esquina superior izquierda. DiPlay las convierte al reproducir los toques.</string>
+    <string name="settings_carplay_tap_space_canvas">Grabado con una versión anterior: las posiciones se refieren a todo el lienzo de CarPlay, que puede no coincidir con la ventana que ves. Vuelve a grabar la secuencia para que siga la ventana.</string>
     <string name="settings_carplay_tap_number">Toque %1$d</string>
     <string name="settings_carplay_tap_x" formatted="false">X (0–100%, desde la izquierda)</string>
     <string name="settings_carplay_tap_y" formatted="false">Y (0–100%, desde arriba)</string>

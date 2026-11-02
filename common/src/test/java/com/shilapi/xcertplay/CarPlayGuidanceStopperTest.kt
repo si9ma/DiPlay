@@ -111,6 +111,23 @@ class CarPlayGuidanceStopperTest {
             CarPlayGuidanceStopper.decode(CarPlayGuidanceStopper.encode(many)).size)
     }
 
+    /** A calibration keeps the spot in DiPlay's window; a sequence from an earlier version stays on the canvas. */
+    @Test fun aWindowSequenceSurvivesStorageAndAnEarlierOneStaysOnTheCanvas() {
+        val window = taps.map { it.copy(inWindow = true) }
+        assertEquals(window, CarPlayGuidanceStopper.decode(CarPlayGuidanceStopper.encode(window)))
+        assertTrue(CarPlayGuidanceStopper.encode(window).contains("\"w\":true"))
+        assertTrue(CarPlayGuidanceStopper.decode("""[{"x":0.5,"y":0.5,"d":300}]""").single().inWindow.not())
+    }
+
+    @Test fun aCalibrationRecordsWindowPoints() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        CarPlayGuidanceStopper.beginCalibration(1, CarPlayGuidanceStopper.Action.START)
+        assertEquals(0, CarPlayGuidanceStopper.recordCalibrationTap(app, 0.8, 0.3))
+        val saved = CarPlayGuidanceStopper.taps(app, CarPlayGuidanceStopper.Action.START).single()
+        assertEquals(0.8, saved.x, 1e-9)
+        assertTrue(saved.inWindow)
+    }
+
     @Test fun theLabelNamesThePointAndThePause() {
         assertEquals("50%, 92% (+300ms)", taps.first().label())
     }

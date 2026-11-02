@@ -4919,6 +4919,9 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
         val xInputs = ArrayList<EditText>(current.size)
         val yInputs = ArrayList<EditText>(current.size)
         val delayInputs = ArrayList<EditText>(current.size)
+        // Positions keep the space they were recorded in; an earlier sequence stays on the canvas until recorded again.
+        fields.addView(label(getString(if (current.all { it.inWindow }) R.string.settings_carplay_tap_space_window
+            else R.string.settings_carplay_tap_space_canvas), 14, MUTED).apply { setPadding(0, 0, 0, dp(SETTINGS_BLOCK_GAP_DP)) })
         current.forEachIndexed { index, tap ->
             fields.addView(label(getString(R.string.settings_carplay_tap_number, index + 1), 16, TEXT, bold = true))
             fields.addView(label(getString(R.string.settings_carplay_tap_x), 14, MUTED))
@@ -4959,7 +4962,7 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                     val cd = delayInputs[index].text.toString().toLongOrNull()
                         ?.takeIf { it in CarPlayGuidanceStopper.MIN_DELAY_MILLIS..CarPlayGuidanceStopper.MAX_DELAY_MILLIS }
                     if (cx == null || cy == null || cd == null) { valid = false; break }
-                    edited.add(CarPlayGuidanceStopper.Tap(cx / 100.0, cy / 100.0, cd))
+                    edited.add(CarPlayGuidanceStopper.Tap(cx / 100.0, cy / 100.0, cd, current[index].inWindow))
                 }
                 if (!valid) {
                     toast(getString(R.string.settings_carplay_tap_invalid))

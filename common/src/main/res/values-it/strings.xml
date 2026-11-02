@@ -1080,4 +1080,7 @@
     <string name="settings_carmeter_map_source_main">Schermo centrale</string>
     <string name="settings_carmeter_wifi_found">Wi-Fi: CarMeter trovato (%1$s)</string>
     <string name="settings_carmeter_wifi_searching">Wi-Fi: ricerca di CarMeter…</string>
+    <string name="settings_shortcut_pinch_canvas_note">Impostato con una versione precedente: questo centro si riferisce all\'intera area di CarPlay, che può non coincidere con la finestra che vedi. Elimina il passaggio e aggiungilo di nuovo per farlo seguire la finestra.</string>
+    <string name="settings_carplay_tap_space_window">Le posizioni sono percentuali della finestra di CarPlay come la vedi, dall\'angolo in alto a sinistra. DiPlay le converte quando ripete i tocchi.</string>
+    <string name="settings_carplay_tap_space_canvas">Registrato con una versione precedente: le posizioni si riferiscono all\'intera area di CarPlay, che può non coincidere con la finestra che vedi. Registra di nuovo la sequenza per farla seguire la finestra.</string>
 </resources>

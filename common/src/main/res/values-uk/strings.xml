@@ -63,7 +63,8 @@
     <string name="settings_shortcut_pinch_center">Центр X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">Центр X (5–95%, від лівого краю)</string>
     <string name="settings_shortcut_pinch_y" formatted="false">Центр Y (5–95%, від верхнього краю)</string>
-    <string name="settings_shortcut_pinch_hint">Надсилає справжній жест двома пальцями на головний екран CarPlay, а не на карту приладів. Координати стосуються всього полотна CarPlay; після поділу екрана або зміни компонування застосунку може знадобитися налаштування. Перевіряйте на стоянці. Зупинка, розрив зв’язку або ручний дотик скасовують решту дій. Підтримка масштабування залежить від застосунку.</string>
+    <string name="settings_shortcut_pinch_hint">Надсилає справжній жест двома пальцями на головний екран CarPlay, а не на карту приладів. Координати центру — відсотки від вікна CarPlay, яким ви його бачите; під час запуску DiPlay перераховує їх для CarPlay. Перевіряйте на стоянці. Зупинка, розрив зв’язку або ручний дотик скасовують решту дій. Підтримка масштабування залежить від застосунку.</string>
+    <string name="settings_shortcut_pinch_canvas_note">Задано в попередній версії: цей центр стосується всього полотна CarPlay і може не збігатися з видимим вікном. Видаліть крок і додайте його знову, щоб він ішов за вікном.</string>
     <string name="settings_cluster_music_layout">Вигляд музичного вікна</string>
     <string name="settings_cluster_music_mini">Mini</string>
     <string name="settings_cluster_music_card">Велика картка</string>
@@ -114,7 +115,8 @@
     <string name="shortcut_tap">Дотик CarPlay</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">Змінити позицію дотику</string>
-    <string name="shortcut_tap_coordinates_hint">Відсотки від усього полотна CarPlay, від верхнього лівого кута. Записані дотики вже в цій системі координат. Перевіряйте на стоянці; при зміні програми, роздільної здатності чи розкладки може знадобитися інша позиція.</string>
+    <string name="shortcut_tap_coordinates_hint">Відсотки від вікна CarPlay, яким ви його бачите, від верхнього лівого кута. Під час запуску DiPlay перераховує їх для CarPlay, тож натискається те саме місце, навіть якщо розмір або розкладка CarPlay змінилися. Перевіряйте на стоянці.</string>
+    <string name="shortcut_tap_canvas_hint">Записано в попередній версії: відсотки від усього полотна CarPlay, від верхнього лівого кута; вони можуть не збігатися з видимим вікном. Запишіть дотик знову, щоб він ішов за вікном. Перевіряйте на стоянці.</string>
     <string name="shortcut_tap_x" formatted="false">X (0–100% зліва)</string>
     <string name="shortcut_tap_y" formatted="false">Y (0–100% зверху)</string>
     <string name="settings_cluster_safe_area">Безпечна область карти</string>

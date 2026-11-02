@@ -22,9 +22,12 @@ import java.util.concurrent.ScheduledExecutorService
  * another map app, a different negotiated size) makes it tap the wrong place with no warning. Hence
  * the guards: a recorded sequence is required, and park-only is the default.
  *
- * Coordinates are normalized to the video content, as [CarPlayTouchMapper] produces them, so they hold
- * across overlay sizes as long as the iPhone's own layout does not change. The delays are the driver's
- * own rhythm, measured during calibration, which covers the panel animations of a real map app.
+ * A calibration keeps each point where the driver pressed in DiPlay's CarPlay window ([Tap.inWindow]),
+ * and a replay maps it to the CarPlay canvas through the current layout, so the same spot is pressed
+ * whatever canvas, letterbox or view area the session uses. Sequences recorded by earlier versions are
+ * normalized to the video content, as [CarPlayTouchMapper] produces them, and are sent as they are. The
+ * delays are the driver's own rhythm, measured during calibration, which covers the panel animations of
+ * a real map app.
  */
 internal object CarPlayGuidanceStopper {
     private const val TAG = "DiPlay-GuidanceStop"
@@ -45,8 +48,12 @@ internal object CarPlayGuidanceStopper {
         START,
     }
 
-    /** [delayBeforeMillis] is the pause measured before this tap; the first tap's is the settle time. */
-    data class Tap(val x: Double, val y: Double, val delayBeforeMillis: Long) {
+    /**
+     * [delayBeforeMillis] is the pause measured before this tap; the first tap's is the settle time.
+     * [inWindow]: [x], [y] are fractions of DiPlay's CarPlay window, mapped to the canvas when replayed;
+     * false for sequences recorded by earlier versions, which are fractions of the canvas.
+     */
+    data class Tap(val x: Double, val y: Double, val delayBeforeMillis: Long, val inWindow: Boolean = false) {
         fun label(): String = String.format(Locale.US, "%.0f%%, %.0f%% (+%dms)", x * 100, y * 100, delayBeforeMillis)
     }
 
@@ -141,9 +148,9 @@ internal object CarPlayGuidanceStopper {
     }
 
     /**
-     * Records one tap of the calibration at a point normalized to the video content. Returns the number
-     * still wanted, or null when this tap was not part of a calibration. Zero means the sequence is
-     * complete and has been saved.
+     * Records one tap of the calibration at a point given as fractions of DiPlay's CarPlay window. Returns
+     * the number still wanted, or null when this tap was not part of a calibration. Zero means the
+     * sequence is complete and has been saved.
      */
     fun recordCalibrationTap(context: Context, x: Double, y: Double): Int? {
         val finished = synchronized(this) {
@@ -151,7 +158,7 @@ internal object CarPlayGuidanceStopper {
             val taps = recording ?: return null
             val now = SystemClock.uptimeMillis()
             taps.add(Tap(x.coerceIn(0.0, 1.0), y.coerceIn(0.0, 1.0),
-                (now - lastRecordedAt).coerceIn(MIN_DELAY_MILLIS, MAX_DELAY_MILLIS)))
+                (now - lastRecordedAt).coerceIn(MIN_DELAY_MILLIS, MAX_DELAY_MILLIS), inWindow = true))
             lastRecordedAt = now
             if (taps.size < wanted) return wanted - taps.size
             recording = null
@@ -268,7 +275,8 @@ internal object CarPlayGuidanceStopper {
                         result = Result.NO_SESSION
                         return@forEachIndexed
                     }
-                    val queued = controller.sendTouch(listOf(AirPlayContact(0, tap.x, tap.y, down = true)))
+                    val (x, y) = canvasPoint(action, index, tap)
+                    val queued = controller.sendTouch(listOf(AirPlayContact(0, x, y, down = true)))
                     step("tap ${index + 1}/${taps.size} down at ${tap.label()} after ${wait}ms queued=$queued")
                     Thread.sleep(HOLD_MILLIS)
                     // Lift at the point pressed, not with an empty report, which leaves the slot's
@@ -276,7 +284,7 @@ internal object CarPlayGuidanceStopper {
                     // finger keeps its coordinates on ACTION_UP (see CarPlayTouchMapper). The stop
                     // sequence worked with the empty release too, so iOS evidently ignores the
                     // position on a release; this is correctness, not a fix for a known symptom.
-                    controller.sendTouch(listOf(AirPlayContact(0, tap.x, tap.y, down = false)))
+                    controller.sendTouch(listOf(AirPlayContact(0, x, y, down = false)))
                     step("tap ${index + 1}/${taps.size} up at ${tap.label()} after ${HOLD_MILLIS}ms held")
                 }
                 step("$action finished: ${taps.size} tap(s) sent, foreground=$foreground " +
@@ -297,8 +305,30 @@ internal object CarPlayGuidanceStopper {
         }
     }
 
+    /**
+     * The canvas point for [tap], mapped through the CarPlay window's current layout when it was recorded
+     * there. Without a CarPlay window (a session kept in the background) a window point is sent as it is,
+     * which matches whenever the canvas fills the window.
+     */
+    private fun canvasPoint(action: Action, index: Int, tap: Tap): Pair<Double, Double> {
+        if (!tap.inWindow) {
+            step("tap ${index + 1} was recorded on the canvas by an earlier version; sent as it is")
+            return tap.x to tap.y
+        }
+        val mapped = CarPlayWindowTaps.toCanvas("Guidance $action tap ${index + 1}", tap.x, tap.y)
+        step("tap ${index + 1} window=${CarPlayWindowTaps.fraction(tap.x)},${CarPlayWindowTaps.fraction(tap.y)} -> " +
+            (mapped?.let { "canvas=${CarPlayWindowTaps.fraction(it.x)},${CarPlayWindowTaps.fraction(it.y)} ${it.detail}" }
+                ?: "canvas=unmapped (no CarPlay window), sent as recorded"))
+        return mapped?.let { it.x to it.y } ?: (tap.x to tap.y)
+    }
+
+    /** "w" marks a window point; an earlier app ignores it and replays the point on the canvas. */
     internal fun encode(taps: List<Tap>): String = JSONArray().apply {
-        taps.forEach { put(JSONObject().put("x", it.x).put("y", it.y).put("d", it.delayBeforeMillis)) }
+        taps.forEach {
+            put(JSONObject().put("x", it.x).put("y", it.y).put("d", it.delayBeforeMillis).apply {
+                if (it.inWindow) put("w", true)
+            })
+        }
     }.toString()
 
     internal fun decode(stored: String?): List<Tap> {
@@ -310,7 +340,8 @@ internal object CarPlayGuidanceStopper {
             val x = item.optDouble("x", -1.0)
             val y = item.optDouble("y", -1.0)
             if (x !in 0.0..1.0 || y !in 0.0..1.0) continue
-            taps.add(Tap(x, y, item.optLong("d", MIN_DELAY_MILLIS).coerceIn(MIN_DELAY_MILLIS, MAX_DELAY_MILLIS)))
+            taps.add(Tap(x, y, item.optLong("d", MIN_DELAY_MILLIS).coerceIn(MIN_DELAY_MILLIS, MAX_DELAY_MILLIS),
+                inWindow = item.optBoolean("w", false)))
         }
         return taps
     }

@@ -77,6 +77,8 @@
     <string name="settings_carplay_tap_gap_recorded">記録どおり</string>
     <string name="settings_carplay_tap_gap_hint">記録された間隔は、そのときの指の動きそのままです。パネルのアニメーションにかかる時間は一定なので、固定の間隔の方が安定することがよくあります。短すぎると画面が切り替わる前に次のタップが当たり、長すぎると案内の開始が遅れます。</string>
     <string name="settings_carplay_tap_edit">タップ位置を編集</string>
+    <string name="settings_carplay_tap_space_window">位置は表示中の CarPlay ウィンドウに対する左上からの割合です。再生時に DiPlay が CarPlay 画面に変換します。</string>
+    <string name="settings_carplay_tap_space_canvas">以前のバージョンで記録：位置は CarPlay キャンバス全体が基準で、表示中のウィンドウと異なる場合があります。記録し直すとウィンドウ基準になります。</string>
     <string name="settings_carplay_tap_number">タップ %1$d</string>
     <string name="settings_carplay_tap_x" formatted="false">X（左から 0～100%）</string>
     <string name="settings_carplay_tap_y" formatted="false">Y（上から 0～100%）</string>

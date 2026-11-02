@@ -63,7 +63,8 @@
     <string name="settings_shortcut_pinch_center">المركز X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">المركز X (5–95%، من اليسار)</string>
     <string name="settings_shortcut_pinch_y" formatted="false">المركز Y (5–95%، من الأعلى)</string>
-    <string name="settings_shortcut_pinch_hint">يرسل إيماءة فعلية بإصبعين إلى شاشة CarPlay الرئيسية، وليس خريطة العدادات. الإحداثيات بالنسبة إلى لوحة CarPlay كاملة؛ قد تحتاج إلى ضبط بعد تقسيم الشاشة أو تغير تخطيط التطبيق. اختبر أثناء الوقوف. الإيقاف أو انقطاع الاتصال أو اللمس اليدوي يلغي بقية الإجراءات. يعتمد التكبير على التطبيق الحالي.</string>
+    <string name="settings_shortcut_pinch_hint">يرسل إيماءة فعلية بإصبعين إلى شاشة CarPlay الرئيسية، وليس خريطة العدادات. إحداثيات المركز نسب مئوية من نافذة CarPlay كما تراها، ويحوّلها DiPlay عند تشغيل الاختصار. اختبر أثناء الوقوف. الإيقاف أو انقطاع الاتصال أو اللمس اليدوي يلغي بقية الإجراءات. يعتمد التكبير على التطبيق الحالي.</string>
+    <string name="settings_shortcut_pinch_canvas_note">مضبوط بإصدار سابق: هذا المركز بالنسبة إلى كامل لوحة CarPlay، وقد لا يطابق النافذة التي تراها. احذف الخطوة وأضفها مجددًا لتتبع النافذة.</string>
     <string name="settings_cluster_music_layout">تخطيط نافذة الموسيقى</string>
     <string name="settings_cluster_music_mini">مصغّر</string>
     <string name="settings_cluster_music_card">بطاقة كبيرة</string>
@@ -114,7 +115,8 @@
     <string name="shortcut_tap">نقرة CarPlay</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">تحرير موضع النقرة</string>
-    <string name="shortcut_tap_coordinates_hint">النسب المئوية لكامل لوحة CarPlay، مقيسة من الزاوية العلوية اليسرى. النقرات المسجلة موجودة بالفعل في هذا الفضاء. اختبر أثناء توقف السيارة؛ قد يحتاج تغيير التطبيق أو الدقة أو التخطيط إلى موضع مختلف.</string>
+    <string name="shortcut_tap_coordinates_hint">النسب المئوية لنافذة CarPlay كما تراها، مقيسة من الزاوية العلوية اليسرى. يحوّلها DiPlay عند تشغيل الاختصار، فيُضغط المكان نفسه حتى إذا تغيّر حجم CarPlay أو تخطيطه. اختبر أثناء توقف السيارة.</string>
+    <string name="shortcut_tap_canvas_hint">مسجّل بإصدار سابق: النسب المئوية لكامل لوحة CarPlay، مقيسة من الزاوية العلوية اليسرى، وقد لا تطابق النافذة التي تراها. سجّل النقرة مجددًا لتتبع النافذة. اختبر أثناء توقف السيارة.</string>
     <string name="shortcut_tap_x" formatted="false">X (0–100%، من اليسار)</string>
     <string name="shortcut_tap_y" formatted="false">Y (0–100%، من الأعلى)</string>
     <string name="settings_cluster_safe_area">المنطقة الآمنة للخريطة</string>

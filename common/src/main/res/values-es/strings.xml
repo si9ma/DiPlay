@@ -63,7 +63,8 @@
     <string name="settings_shortcut_pinch_center">Centro X %1$d%% · Y %2$d%%</string>
     <string name="settings_shortcut_pinch_x" formatted="false">Centro X (5–95%, desde la izquierda)</string>
     <string name="settings_shortcut_pinch_y" formatted="false">Centro Y (5–95%, desde arriba)</string>
-    <string name="settings_shortcut_pinch_hint">Envía un gesto real de dos dedos a la pantalla principal de CarPlay, no al mapa del cuadro. Las coordenadas se refieren al lienzo completo de CarPlay; la pantalla dividida o los cambios de distribución pueden requerir ajustes. Prueba aparcado. Detener, desconectar o tocar manualmente cancela la secuencia restante. El zoom depende de la app actual.</string>
+    <string name="settings_shortcut_pinch_hint">Envía un gesto real de dos dedos a la pantalla principal de CarPlay, no al mapa del cuadro. Las coordenadas del centro son porcentajes de la ventana de CarPlay tal como la ves; DiPlay las convierte al ejecutar el atajo. Prueba aparcado. Detener, desconectar o tocar manualmente cancela la secuencia restante. El zoom depende de la app actual.</string>
+    <string name="settings_shortcut_pinch_canvas_note">Configurado con una versión anterior: este centro se refiere a todo el lienzo de CarPlay, que puede no coincidir con la ventana que ves. Elimina el paso y vuelve a añadirlo para que siga la ventana.</string>
     <string name="settings_cluster_music_layout">Diseño de la ventana de música</string>
     <string name="settings_cluster_music_mini">Mini</string>
     <string name="settings_cluster_music_card">Tarjeta grande</string>
@@ -114,7 +115,8 @@
     <string name="shortcut_tap">Toque en CarPlay</string>
     <string name="shortcut_tap_point">X %1$d%% · Y %2$d%%</string>
     <string name="shortcut_tap_coordinates">Editar posición del toque</string>
-    <string name="shortcut_tap_coordinates_hint">Porcentajes de todo el lienzo de CarPlay, medidos desde la esquina superior izquierda. Los toques grabados ya están en este espacio. Prueba con el coche parado; un cambio de app, resolución o diseño puede requerir otra posición.</string>
+    <string name="shortcut_tap_coordinates_hint">Porcentajes de la ventana de CarPlay tal como la ves, medidos desde la esquina superior izquierda. DiPlay los convierte al ejecutar el atajo, así que se pulsa el mismo punto aunque cambie el tamaño o el diseño de CarPlay. Prueba con el coche parado.</string>
+    <string name="shortcut_tap_canvas_hint">Grabado con una versión anterior: porcentajes de todo el lienzo de CarPlay, medidos desde la esquina superior izquierda, que pueden no coincidir con la ventana que ves. Vuelve a grabar el toque para que siga la ventana. Prueba con el coche parado.</string>
     <string name="shortcut_tap_x" formatted="false">X (0–100%, desde la izquierda)</string>
     <string name="shortcut_tap_y" formatted="false">Y (0–100%, desde arriba)</string>
     <string name="settings_cluster_safe_area">Área segura del mapa</string>

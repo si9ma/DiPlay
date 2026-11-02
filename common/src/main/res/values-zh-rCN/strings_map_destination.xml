@@ -77,6 +77,8 @@
     <string name="settings_carplay_tap_gap_recorded">按录制时的节奏</string>
     <string name="settings_carplay_tap_gap_hint">录制下来的间隔是你当时手速的偶然值。而面板动画的时长是固定的，所以固定间隔往往更稳：太短，下一下会点在还没切换完的画面上；太长，则出发得晚。</string>
     <string name="settings_carplay_tap_edit">编辑点击位置</string>
+    <string name="settings_carplay_tap_space_window">位置是相对你看到的 CarPlay 窗口的百分比，从左上角起算。回放时由 DiPlay 换算到 CarPlay 画面。</string>
+    <string name="settings_carplay_tap_space_canvas">由旧版本录制：位置相对整个 CarPlay 画布，可能与你看到的窗口不一致。重新录制后会改为跟随窗口。</string>
     <string name="settings_carplay_tap_number">点击 %1$d</string>
     <string name="settings_carplay_tap_x" formatted="false">X（距左侧 0–100%）</string>
     <string name="settings_carplay_tap_y" formatted="false">Y（距顶部 0–100%）</string>

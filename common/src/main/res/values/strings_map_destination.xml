@@ -77,6 +77,8 @@
     <string name="settings_carplay_tap_gap_recorded">As recorded</string>
     <string name="settings_carplay_tap_gap_hint">A recorded pause is whatever your finger happened to do. A panel animation takes a fixed time, so a fixed pause is often steadier: too short and the next tap lands before the screen has changed, too long and the drive starts late.</string>
     <string name="settings_carplay_tap_edit">Edit tap positions</string>
+    <string name="settings_carplay_tap_space_window">Positions are percentages of the CarPlay window as you see it, from the top-left. DiPlay maps them to CarPlay when the taps are replayed.</string>
+    <string name="settings_carplay_tap_space_canvas">Recorded by an earlier version: positions are percentages of the full CarPlay canvas, which can differ from the window you see. Record the sequence again to make it follow the window.</string>
     <string name="settings_carplay_tap_number">Tap %1$d</string>
     <string name="settings_carplay_tap_x" formatted="false">X (0–100%, from left)</string>
     <string name="settings_carplay_tap_y" formatted="false">Y (0–100%, from top)</string>

@@ -1018,7 +1018,8 @@ internal object ShortcutEditor {
         private fun tapCoordinates(index: Int) {
             val step = draft.steps[index]
             page(R.string.shortcut_tap_coordinates) { editor() }
-            ui.add(body, ui.text(activity.getString(R.string.shortcut_tap_coordinates_hint), secondary = true))
+            ui.add(body, ui.text(activity.getString(if (step.inWindow) R.string.shortcut_tap_coordinates_hint
+                else R.string.shortcut_tap_canvas_hint), secondary = true))
             val x = ui.input(Math.round(step.tapX.coerceIn(0.0, 1.0) * 100).toString(),
                 R.string.shortcut_tap_x, "shortcut_tap_x", numeric = true, max = 3)
             val y = ui.input(Math.round(step.tapY.coerceIn(0.0, 1.0) * 100).toString(),
@@ -1044,8 +1045,11 @@ internal object ShortcutEditor {
         }
         private fun pinchEditor(index: Int?, action: ShortcutAction) {
             val previous = index?.let { draft.steps[it] }
+            // A new centre is in the window; an edited one keeps its space, so an earlier gesture does not move.
+            val inWindow = if (previous?.action?.pinch == true) previous.inWindow else true
             page(labels.getValue(action)) { if (index == null) chooseAction(null) else editor() }
             ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_hint), secondary = true))
+            if (!inWindow) ui.add(body, ui.text(activity.getString(R.string.settings_shortcut_pinch_canvas_note), secondary = true))
             val x = ui.input(Math.round((previous?.zoomCenterX ?: 0.5) * 100).toString(),
                 R.string.settings_shortcut_pinch_x, "shortcut_pinch_x", numeric = true, max = 2)
             val y = ui.input(Math.round((previous?.zoomCenterY ?: 0.5) * 100).toString(),
@@ -1086,7 +1090,8 @@ internal object ShortcutEditor {
                 if (cx == null || cy == null) message(activity, R.string.shortcut_invalid)
                 else {
                     val step = ShortcutStep(action, zoomCenterX = cx / 100.0, zoomCenterY = cy / 100.0,
-                        pinchScale = (scale.progress + 11) / 10.0).copy(keyCode = previous?.keyCode ?: -1, scanCode = previous?.scanCode ?: -1)
+                        pinchScale = (scale.progress + 11) / 10.0, inWindow = inWindow)
+                        .copy(keyCode = previous?.keyCode ?: -1, scanCode = previous?.scanCode ?: -1)
                     draft = draft.copy(steps = draft.steps.toMutableList().apply { if (index == null) add(step) else set(index, step) })
                     editor()
                 }
