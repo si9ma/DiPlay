@@ -970,6 +970,11 @@
     <string name="settings_low_latency_decoder_description">Просит видеодекодеры Qualcomm выдавать каждый кадр сразу после декодирования, не удерживая следующие, и показывает каждый декодированный кадр из отдельного потока, не дожидаясь прихода следующего. Может уменьшить задержку на десятки миллисекунд. Отключите, если на изображении появляются артефакты или оно зависает. Применяется при следующем подключении.</string>
     <string name="settings_fps_counter">Счётчик FPS</string>
     <string name="settings_fps_counter_description">Показывает счётчик в правом верхнем углу CarPlay: кадры на экране в секунду (зелёный от 50, жёлтый от 30, красный ниже), кадры от iPhone в секунду и время декодирования. На неподвижном экране кадров мало, потому что iPhone их не отправляет.</string>
+    <string name="settings_frame_capture">Сохранять кадры CarPlay</string>
+    <string name="settings_frame_capture_description">Добавляет «Сохранить кадр CarPlay» в меню полоски DiPlay у края экрана. Сохраняет текущее изображение CarPlay без элементов управления DiPlay в PNG в Downloads/DiPlay/vision как образец для распознавания изображения. На кадре могут быть видны ваше местоположение и маршрут. Ничего не отправляется.</string>
+    <string name="handle_capture_frame">Сохранить кадр CarPlay</string>
+    <string name="frame_capture_saved">Кадр сохранён: %1$s</string>
+    <string name="frame_capture_failed">Кадр не сохранён (%1$s)</string>
     <string name="car_button_in_carplay">Кнопка автомобиля в CarPlay</string>
     <string name="car_button_icon">Значок</string>
     <string name="car_button_icon_custom">Свой значок</string>

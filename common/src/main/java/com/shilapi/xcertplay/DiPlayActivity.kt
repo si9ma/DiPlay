@@ -1874,6 +1874,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
             card.addView(label(destination + getString(R.string.nothing_is_sent_automatically_protocol_payloads_and_creden), 14, MUTED).apply { setPadding(0, dp(12), 0, 0) })
             toggle(card, getString(R.string.settings_fps_counter), getString(R.string.settings_fps_counter_description),
                 AirPlayPersistence.loadFpsCounter(this)) { AirPlayPersistence.saveFpsCounter(this, it) }
+            toggle(card, getString(R.string.settings_frame_capture), getString(R.string.settings_frame_capture_description),
+                AirPlayPersistence.loadFrameCapture(this)) { AirPlayPersistence.saveFrameCapture(this, it) }
             toggle(card, getString(R.string.settings_report_raw_car_log), getString(R.string.settings_report_raw_car_log_description),
                 AirPlayPersistence.loadReportRawCarLog(this)) { AirPlayPersistence.saveReportRawCarLog(this, it) }
         }

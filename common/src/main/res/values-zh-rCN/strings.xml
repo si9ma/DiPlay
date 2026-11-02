@@ -1069,6 +1069,11 @@
     <string name="settings_low_latency_decoder_description">要求高通视频解码器在每一帧解码后立即输出，而不是保留后续帧，并由专用线程立即显示每个已解码的帧，无需等待下一帧到达。可将延迟降低数十毫秒。如果画面出现花屏或卡住，请关闭。下次连接时生效。</string>
     <string name="settings_fps_counter">FPS 计数器</string>
     <string name="settings_fps_counter_description">在 CarPlay 右上角显示计数器：每秒显示的帧数（50 及以上为绿色，30 及以上为黄色，低于 30 为红色）、每秒从 iPhone 接收的帧数以及解码时间。画面静止时帧数很少，因为 iPhone 不发送帧。</string>
+    <string name="settings_frame_capture">保存 CarPlay 画面</string>
+    <string name="settings_frame_capture_description">在屏幕边缘 DiPlay 小条的菜单中加入“保存 CarPlay 画面”：把 CarPlay 当前画面（不含 DiPlay 的控件）存为 PNG，保存到 Downloads/DiPlay/vision，用作画面识别样本。画面可能包含位置和路线。不会自动发送。</string>
+    <string name="handle_capture_frame">保存 CarPlay 画面</string>
+    <string name="frame_capture_saved">画面已保存：%1$s</string>
+    <string name="frame_capture_failed">画面未保存（%1$s）</string>
     <string name="car_button_in_carplay">CarPlay 中的车辆按钮</string>
     <string name="car_button_icon">图标</string>
     <string name="car_button_icon_custom">自定义图标</string>

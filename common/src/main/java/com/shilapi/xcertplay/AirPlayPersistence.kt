@@ -86,6 +86,7 @@ object AirPlayPersistence {
     private const val KEY_DIRECT_VIDEO_OUTPUT = "direct_video_output"
     private const val KEY_LOW_LATENCY_DECODER = "low_latency_decoder"
     private const val KEY_FPS_COUNTER = "fps_counter"
+    private const val KEY_FRAME_CAPTURE = "carplay_frame_capture"
     private const val KEY_MAP_DESTINATION_LISTEN = "head_unit_map_destination_listen"
     private const val KEY_NIGHT_SOURCE = "carplay_night_source"
     private const val KEY_MAP_DESTINATION_LINK = "head_unit_map_destination_link"
@@ -988,6 +989,14 @@ object AirPlayPersistence {
 
     fun saveFpsCounter(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_FPS_COUNTER, enabled).apply()
+    }
+
+    /** Whether the edge handle offers "Save CarPlay frame" (Diagnostics). */
+    fun loadFrameCapture(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_FRAME_CAPTURE, false)
+
+    fun saveFrameCapture(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_FRAME_CAPTURE, enabled).apply()
     }
 
     fun loadLowLatencyDecoder(context: Context): Boolean =

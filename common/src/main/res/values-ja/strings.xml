@@ -1054,6 +1054,11 @@
     <string name="settings_low_latency_decoder_description">Qualcomm製の映像デコーダーに対し、フレームを保持せずデコード直後に出力するよう要求します。専用スレッドで次のフレームの到着を待たずに表示し、数十ミリ秒の遅延を減らせる場合があります。映像が乱れたり停止したりする場合はオフにしてください。次回の接続から反映されます。</string>
     <string name="settings_fps_counter">FPSカウンター</string>
     <string name="settings_fps_counter_description">CarPlay右上に表示FPS（50以上は緑、30以上は黄、それ未満は赤）、iPhoneからの受信FPS、デコード時間を表示します。静止画面ではiPhoneが送るフレームが少ないため数値も小さくなります。</string>
+    <string name="settings_frame_capture">CarPlay画面を保存</string>
+    <string name="settings_frame_capture_description">画面端のDiPlayバーのメニューに「CarPlay画面を保存」を追加します。CarPlayの現在の画面（DiPlayの操作ボタンを除く）をPNGとしてDownloads/DiPlay/visionに保存し、画像認識のサンプルに使います。画面には現在地や経路が含まれることがあります。自動では送信されません。</string>
+    <string name="handle_capture_frame">CarPlay画面を保存</string>
+    <string name="frame_capture_saved">画面を保存しました：%1$s</string>
+    <string name="frame_capture_failed">画面を保存できませんでした（%1$s）</string>
     <string name="fps_counter_text">%1$d FPS\n受信 %2$d · %3$s</string>
     <string name="fps_counter_millis">%1$d ms</string>
     <string name="fps_counter_no_value">–</string>

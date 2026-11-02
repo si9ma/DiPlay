@@ -970,6 +970,11 @@
     <string name="settings_low_latency_decoder_description">يطلب من أجهزة فك ترميز الفيديو من Qualcomm إخراج كل إطار فور فك ترميزه بدلًا من الاحتفاظ بالإطارات التالية، ويعرض كل إطار مفكوك من سلسلة معالجة مخصصة دون انتظار وصول الإطار التالي. قد يقلل التأخير بعشرات المللي ثانية. أوقفه إذا ظهرت تشوهات في الصورة أو تجمّدت. يُطبَّق عند الاتصال التالي.</string>
     <string name="settings_fps_counter">عداد الإطارات في الثانية</string>
     <string name="settings_fps_counter_description">يعرض عدادًا في الزاوية العلوية اليمنى من CarPlay: الإطارات المعروضة في الثانية (أخضر من 50، أصفر من 30، أحمر أقل من ذلك)، والإطارات المستلمة من iPhone في الثانية، ووقت فك الترميز. تعرض الشاشة الثابتة إطارات قليلة لأن iPhone لا يرسل أي إطارات.</string>
+    <string name="settings_frame_capture">حفظ إطارات CarPlay</string>
+    <string name="settings_frame_capture_description">يضيف «حفظ إطار CarPlay» إلى قائمة شريط DiPlay على حافة الشاشة. يحفظ صورة CarPlay الحالية، دون عناصر تحكم DiPlay، كملف PNG في Downloads/DiPlay/vision لاستخدامها عينةً للتعرّف على الصور. قد تُظهر الصورة موقعك ومسارك. لا يُرسَل أي شيء.</string>
+    <string name="handle_capture_frame">حفظ إطار CarPlay</string>
+    <string name="frame_capture_saved">تم حفظ الإطار: %1$s</string>
+    <string name="frame_capture_failed">لم يُحفظ الإطار (%1$s)</string>
     <string name="car_button_in_carplay">زر السيارة في CarPlay</string>
     <string name="car_button_icon">الأيقونة</string>
     <string name="car_button_icon_custom">أيقونة مخصصة</string>

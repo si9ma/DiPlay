@@ -4,6 +4,8 @@
     <external-files-path name="external_reports" path="diagnostic-reports/" />
     <files-path name="map_frames" path="map-frames/" />
     <external-files-path name="external_map_frames" path="map-frames/" />
+    <files-path name="carplay_frames" path="carplay-frames/" />
+    <external-files-path name="external_carplay_frames" path="carplay-frames/" />
     <!-- Only DiPlay's own folder in the public Downloads, never the rest of shared storage. -->
     <external-path name="public_reports" path="Download/DiPlay/" />
 </paths>

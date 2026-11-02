@@ -146,11 +146,12 @@ internal object DiagnosticExportStore {
         saveDownload(resolver, fileName, "text/plain") { write(resolver, it, report) }
 
     @RequiresApi(Build.VERSION_CODES.Q)
-    internal fun saveDownload(resolver: ContentResolver, fileName: String, mime: String, writeContent: (Uri) -> Unit): Uri {
+    internal fun saveDownload(resolver: ContentResolver, fileName: String, mime: String,
+        folder: String = "DiPlay", writeContent: (Uri) -> Unit): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
             put(MediaStore.Downloads.MIME_TYPE, mime)
-            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/DiPlay")
+            put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$folder")
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)

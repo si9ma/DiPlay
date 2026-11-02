@@ -1108,6 +1108,11 @@
     <string name="settings_low_latency_decoder_description">Asks Qualcomm video decoders to output each frame as soon as it is decoded instead of holding the next ones, and shows each decoded frame from a dedicated thread without waiting for the next one to arrive. Can lower the delay by tens of milliseconds. Turn it off if the picture shows artifacts or freezes. Applies at the next connection.</string>
     <string name="settings_fps_counter">FPS counter</string>
     <string name="settings_fps_counter_description">Shows a counter in the top-right corner of CarPlay: frames shown per second (green from 50, yellow from 30, red below), frames received from the iPhone per second, and the decode time. A still screen shows few frames because the iPhone sends none.</string>
+    <string name="settings_frame_capture">Save CarPlay frames</string>
+    <string name="settings_frame_capture_description">Adds “Save CarPlay frame” to the menu of the DiPlay pill on the screen edge. It saves CarPlay’s current picture, without DiPlay’s controls, as a PNG in Downloads/DiPlay/vision, as a sample for picture recognition. The picture may show your location and route. Nothing is sent.</string>
+    <string name="handle_capture_frame">Save CarPlay frame</string>
+    <string name="frame_capture_saved">Frame saved: %1$s</string>
+    <string name="frame_capture_failed">Frame not saved (%1$s)</string>
     <string name="fps_counter_text" translatable="false">%1$d FPS\nRX %2$d · %3$s</string>
     <string name="fps_counter_millis" translatable="false">%1$d ms</string>
     <string name="fps_counter_no_value" translatable="false">–</string>

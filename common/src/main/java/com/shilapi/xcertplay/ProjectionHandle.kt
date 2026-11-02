@@ -26,6 +26,8 @@ internal class ProjectionHandle(
     /** Gravity.LEFT or Gravity.RIGHT. */
     private val side: Int,
     private val actions: List<Pair<String, () -> Unit>>,
+    /** Whether the action with this label is offered; asked each time the menu opens. */
+    private val offered: (String) -> Boolean = { true },
 ) {
     private val density = context.resources.displayMetrics.density
     private val main = Handler(Looper.getMainLooper())
@@ -113,6 +115,10 @@ internal class ProjectionHandle(
         main.removeCallbacks(closeMenu)
         menu.visibility = if (visible) View.VISIBLE else View.GONE
         if (visible) {
+            for (index in 0 until menu.childCount) {
+                val item = menu.getChildAt(index)
+                item.visibility = if (offered(actions[index].first)) View.VISIBLE else View.GONE
+            }
             val params = menu.layoutParams as FrameLayout.LayoutParams
             menu.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
             val top = (target.layoutParams as FrameLayout.LayoutParams).topMargin

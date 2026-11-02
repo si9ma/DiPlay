@@ -769,6 +769,11 @@
     <string name="settings_low_latency_decoder_description">Chiede ai decoder video Qualcomm di emettere ogni fotogramma appena decodificato invece di trattenere i successivi, e mostra ogni fotogramma decodificato da un thread dedicato senza attendere l’arrivo del successivo. Può ridurre il ritardo di decine di millisecondi. Disattivalo se l’immagine mostra artefatti o si blocca. Si applica alla prossima connessione.</string>
     <string name="settings_fps_counter">Contatore FPS</string>
     <string name="settings_fps_counter_description">Mostra un contatore nell’angolo in alto a destra di CarPlay: fotogrammi mostrati al secondo (verde da 50, giallo da 30, rosso sotto), fotogrammi ricevuti dall’iPhone al secondo e tempo di decodifica. Uno schermo fermo mostra pochi fotogrammi perché l’iPhone non ne invia.</string>
+    <string name="settings_frame_capture">Salva fotogrammi di CarPlay</string>
+    <string name="settings_frame_capture_description">Aggiunge «Salva fotogramma di CarPlay» al menu della barra di DiPlay sul bordo dello schermo. Salva l’immagine attuale di CarPlay, senza i controlli di DiPlay, come PNG in Downloads/DiPlay/vision, come campione per il riconoscimento delle immagini. L’immagine può mostrare la tua posizione e il percorso. Non viene inviato nulla.</string>
+    <string name="handle_capture_frame">Salva fotogramma di CarPlay</string>
+    <string name="frame_capture_saved">Fotogramma salvato: %1$s</string>
+    <string name="frame_capture_failed">Fotogramma non salvato (%1$s)</string>
     <string name="car_button_in_carplay">Pulsante dell’auto in CarPlay</string>
     <string name="car_button_icon">Icona</string>
     <string name="car_button_icon_custom">Icona personalizzata</string>

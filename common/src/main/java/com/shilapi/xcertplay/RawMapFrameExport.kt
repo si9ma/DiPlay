@@ -119,19 +119,25 @@ internal object RawMapFrameExport {
         output.use { if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) throw IOException("png_encode_failed") }
     }
 
-    internal fun savePng(context: Context, fileName: String, bitmap: Bitmap): DiagnosticExportStore.SavedReport {
+    /** Saves to Downloads/DiPlay (or Downloads/DiPlay/[subfolder]); falls back to app storage under [appFolder]. */
+    internal fun savePng(context: Context, fileName: String, bitmap: Bitmap, subfolder: String? = null,
+        appFolder: String = "map-frames"): DiagnosticExportStore.SavedReport {
+        val folder = listOfNotNull("DiPlay", subfolder).joinToString("/")
         if (Build.VERSION.SDK_INT >= 29) {
             try {
-                val uri = DiagnosticExportStore.saveDownload(context.contentResolver, fileName, "image/png") { uri ->
+                val uri = DiagnosticExportStore.saveDownload(context.contentResolver, fileName, "image/png", folder) { uri ->
                     writePng(bitmap, context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("destination_unavailable"))
                 }
-                return DiagnosticExportStore.SavedReport(uri, savedPath = "Downloads/DiPlay/$fileName")
+                return DiagnosticExportStore.SavedReport(uri, savedPath = "Downloads/$folder/$fileName")
             } catch (_: Exception) { }
         }
+        val inApp = File(context.filesDir, appFolder)
         val directories = buildList {
-            if (DiagnosticExportStore.canWritePublicDownloads(context)) add(DiagnosticExportStore.publicDownloadsDirectory())
-            runCatching { context.getExternalFilesDir(null) }.getOrNull()?.let { add(File(it, "map-frames")) }
-            add(File(context.filesDir, "map-frames"))
+            if (DiagnosticExportStore.canWritePublicDownloads(context)) {
+                add(DiagnosticExportStore.publicDownloadsDirectory().let { if (subfolder == null) it else File(it, subfolder) })
+            }
+            runCatching { context.getExternalFilesDir(null) }.getOrNull()?.let { add(File(it, appFolder)) }
+            add(inApp)
         }
         for (directory in directories) {
             var file: File? = null
@@ -140,7 +146,7 @@ internal object RawMapFrameExport {
                 file = File.createTempFile(fileName.removeSuffix(".png") + "-", ".png", directory)
                 writePng(bitmap, file.outputStream())
                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.diagnostic-reports", file)
-                return DiagnosticExportStore.SavedReport(uri, savedInApp = directory == File(context.filesDir, "map-frames"),
+                return DiagnosticExportStore.SavedReport(uri, savedInApp = directory == inApp,
                     savedPath = file.absolutePath)
             } catch (_: Exception) { file?.delete() }
             catch (error: OutOfMemoryError) { file?.delete(); throw error }

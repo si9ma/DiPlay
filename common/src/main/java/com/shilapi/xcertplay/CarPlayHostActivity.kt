@@ -7310,6 +7310,7 @@ class CarPlayHostActivity : ComponentActivity() {
             // Away from CarPlay's dock, which sits on the driver's side.
             if (rightHandDrive) Gravity.LEFT else Gravity.RIGHT
         }
+        val captureFrame = getString(R.string.handle_capture_frame)
         return ProjectionHandle(context, side, listOf(
             // Named for DiPlay's settings screen, so it goes there. It used to open the host's own
             // panel, from whose foot a second tap reached the real screen — reachable only after a
@@ -7326,6 +7327,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 appendLog("Edge handle: CarPlay panel menuAlreadyOpen=$menuOpen")
                 openSettingsMenu()
             },
+            // Diagnostics: a picture-recognition sample, offered only while that setting is on.
+            captureFrame to { saveCarPlayFrame() },
             getString(R.string.handle_minimize) to {
                 if (overlayMode) {
                     val done = ProjectionOverlay.minimize(this)
@@ -7339,7 +7342,38 @@ class CarPlayHostActivity : ComponentActivity() {
                 if (CarPlayBackgroundSession.hasSession()) CarPlayBackgroundSession.stop()
                 else shutdown(false, "Edge handle disconnect") { runOnUiThread { finish() } }
             },
-        ))
+        )) { label ->
+            label != captureFrame || (activeScreenStreamTypes.isNotEmpty() && AirPlayPersistence.loadFrameCapture(context))
+        }
+    }
+
+    /** Saves CarPlay's current main-screen picture as a PNG sample (Diagnostics: "Save CarPlay frames"). */
+    private fun saveCarPlayFrame() {
+        val app = applicationContext
+        val view = videoView
+        val display = sessionDisplay
+        val size = display?.let { it.width to it.height }
+            ?: view?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width to it.height }
+        if (activeScreenStreamTypes.isEmpty() || size == null) {
+            appendLog("Edge handle: CarPlay frame not saved (no picture)")
+            android.widget.Toast.makeText(app, getString(R.string.frame_capture_failed, "no_picture"),
+                android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // The view that shows CarPlay: the TextureView (also the overlay's), or else the SurfaceView fallback.
+        val texture = view as? TextureView
+        val started = CarPlayFrameCapture.save(app, texture, if (texture == null) fallbackVideoView else null, size) { result ->
+            result.onSuccess { saved ->
+                appendLog("Edge handle: CarPlay frame ${size.first}x${size.second} saved to ${saved.savedPath ?: saved.uri}")
+                android.widget.Toast.makeText(app, getString(R.string.frame_capture_saved, saved.savedPath ?: saved.uri.toString()),
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }.onFailure { error ->
+                appendLog("Edge handle: CarPlay frame not saved (${error.message})")
+                android.widget.Toast.makeText(app, getString(R.string.frame_capture_failed, error.message ?: "error"),
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        if (!started) appendLog("Edge handle: CarPlay frame skipped, the previous one is still saving")
     }
 
     private fun moveProjectionToBack() {
