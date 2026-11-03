@@ -161,11 +161,13 @@ internal object RouteReader {
         return routes to bg
     }
 
-    /** `radio_state`: true = filled (selected), false = ring, null = no circle. */
+    /** `radio_state`: true = filled (selected), false = ring, null = no circle.
+     * Day mode is dark ink on a white panel; night mode is the reverse, so find the circle by its
+     * absolute deviation from the background. */
     private fun radioState(gray: Gray, y0: Int, y1: Int, bg: Int): Boolean? {
         val reg = gray.crop(RADIO_X.first, y0, RADIO_X.second, y1)
         var count = 0; var minX = Int.MAX_VALUE; var maxX = -1; var minY = Int.MAX_VALUE; var maxY = -1
-        for (y in 0 until reg.h) for (x in 0 until reg.w) if (reg[x, y] > bg + RADIO_DIFF) {
+        for (y in 0 until reg.h) for (x in 0 until reg.w) if (abs(reg[x, y] - bg) > RADIO_DIFF) {
             count++; minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
         }
         if (count < 30) return null
@@ -175,7 +177,7 @@ internal object RouteReader {
         return count / (h * w).toDouble() > 0.5
     }
 
-    /** `find_card`: the white lines of the single-route card above the green button. */
+    /** `find_card`: the text lines of the single-route card above the green button. */
     private fun findCard(gray: Gray, btn: IntArray): Group? {
         val y0 = SEARCH_Y.first; val y1 = btn[1] - 3
         val x0 = TEXT_X.first; val x1 = TEXT_X.second
@@ -192,7 +194,9 @@ internal object RouteReader {
         for (r in Cv.runs(inkRow, 2)) {
             val hist = Hist()
             for (y in r.s until r.e) for (x in 0 until reg.w) { val v = reg[x, y]; if (abs(v - bg) > INK_DIFF) hist.add(v) }
-            if (hist.n > 0) cand += Cand(r.s, r.e, hist.percentile(90.0) - bg)
+            // Night mode: bright strokes (P90); day mode: dark strokes (P10). Measure the
+            // deviation from the background either way.
+            if (hist.n > 0) cand += Cand(r.s, r.e, abs(hist.percentile(if (bg < 128) 90.0 else 10.0) - bg))
         }
         if (cand.isEmpty()) return null
         val top = cand.maxOf { it.b }

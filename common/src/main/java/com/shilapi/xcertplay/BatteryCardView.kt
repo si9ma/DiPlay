@@ -42,7 +42,7 @@ internal object BatteryCardFormat {
     /** A wide value for each field, so the card keeps its size while the numbers change. */
     fun sample(field: BydBatteryField): String = when (field) {
         BydBatteryField.SOC, BydBatteryField.SOH, BydBatteryField.CHARGE_LIMIT -> "100%"
-        BydBatteryField.RANGE -> "8888 km"
+        BydBatteryField.RANGE -> "888 km"
         BydBatteryField.REMAINING_ENERGY, BydBatteryField.CHARGED_ENERGY -> "188.8 kWh"
         BydBatteryField.POWER -> "⚡888.8 kW"
         BydBatteryField.VOLTAGE -> "888 V"
@@ -157,10 +157,11 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
                 val gap = if (index == 0 && !miniSoc) 0f else u(MINI_GAP)
                 gap + textWidth(BatteryCardFormat.miniPrefix(field) + BatteryCardFormat.sample(field), 15f, true)
             }.sum()
-            val message = listOf(text.reading, text.noAdb, text.unsupported).maxOf { textWidth(it, 14f, false) } +
-                if (miniSoc) u(MINI_GAP) else 0f
             val soc = if (miniSoc) textWidth("100%", 17f, true) else 0f
-            val width = u(14f) + u(GLYPH_MINI_W + 3) + u(8f) + soc + maxOf(fields, message) + u(16f)
+            // The glyph belongs to the percentage: a mini card without SoC shows neither.
+            val glyph = if (miniSoc) u(GLYPH_MINI_W + 3) + u(8f) else 0f
+            // No width reserved for the no-data messages; they are shrunk into the fields' width.
+            val width = u(14f) + glyph + soc + fields + u(16f)
             ceil(width).toInt() to ceil(u(44f)).toInt()
         }
         BatteryCardStyle.STANDARD -> {
@@ -200,16 +201,17 @@ internal class BatteryCardView(context: Context, private val text: BatteryCardTe
     private fun drawMini(canvas: Canvas) {
         val centre = height / 2f
         var x = u(14f)
-        drawGlyph(canvas, x, centre - u(GLYPH_MINI_H) / 2, u(GLYPH_MINI_W), u(GLYPH_MINI_H))
-        x += u(GLYPH_MINI_W + 3) + u(8f)
         var first = true
         if (miniSoc) {
+            drawGlyph(canvas, x, centre - u(GLYPH_MINI_H) / 2, u(GLYPH_MINI_W), u(GLYPH_MINI_H))
+            x += u(GLYPH_MINI_W + 3) + u(8f)
             x += drawText(canvas, valueOf(BydBatteryField.SOC), x, centre, 17f, true, socColor())
             first = false
         }
         val status = status()
         if (status != null) {
-            drawText(canvas, status, x + if (first) 0f else u(MINI_GAP), centre, 14f, false, colors.secondary)
+            val gap = if (first) 0f else u(MINI_GAP)
+            fitText(canvas, status, x + gap, centre, width - (x + gap) - u(16f), 14f, false, colors.secondary)
             return
         }
         for (field in bodyFields()) {
