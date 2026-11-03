@@ -26,7 +26,8 @@ internal class RawMapFrameCapture(
     var busy = false
         private set
 
-    fun capture(surface: Surface, size: Pair<Int, Int>, current: () -> Boolean,
+    /** [into], when given, must be a mutable ARGB_8888 bitmap of [size]; it is recycled if the copy fails. */
+    fun capture(surface: Surface, size: Pair<Int, Int>, current: () -> Boolean, into: Bitmap? = null,
         completed: (Result<Bitmap>) -> Unit) {
         check(Looper.myLooper() == handler.looper)
         if (busy) { completed(Result.failure(IOException("busy"))); return }
@@ -35,7 +36,7 @@ internal class RawMapFrameCapture(
             completed(Result.failure(IOException("frame_size_unsupported"))); return
         }
         if (!runCatching(current).getOrDefault(false)) { completed(Result.failure(IOException("map_unavailable"))); return }
-        val bitmap = try { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
+        val bitmap = into ?: try { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
         catch (_: OutOfMemoryError) { completed(Result.failure(IOException("frame_memory"))); return }
         catch (_: RuntimeException) { completed(Result.failure(IOException("frame_allocation"))); return }
         busy = true

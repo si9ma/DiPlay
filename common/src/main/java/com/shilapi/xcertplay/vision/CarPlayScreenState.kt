@@ -13,7 +13,7 @@ internal data class VisionButton(val label: String, val score: Double, val box: 
 
 /** A labelled template image (file name up to the first "_" is the label). */
 internal class VisionTemplate(val label: String, val image: Gray) {
-    val float: FImage by lazy { image.toFloat() }
+    val match: MatchTemplate by lazy { MatchTemplate(image) }
 }
 
 /**
@@ -56,6 +56,8 @@ internal object CarPlayScreenState {
     private const val TPL_H = 2 * PILL_HALF_TEXT
     private const val MATCH_TH = 0.60
     const val MARGIN = 0.10
+    private const val SLIDE_TH = 0.80
+    private const val SLIDE_MARGIN = 0.15
     private const val CORNER_SLACK = 4
     private const val CORNER_MATCH_TH = 0.80
     private val CORNER_INSETS = intArrayOf(0, 4, 8, 12, 16, 20)
@@ -194,7 +196,8 @@ internal object CarPlayScreenState {
         return kept.sortedWith(compareBy<Pill>({ it.s }, { it.e }, { it.frac }, { it.yc }))
     }
 
-    private fun extractGlyph(hp: Gray, pill: Pill): Gray? {
+    /** `_extract_glyph`: the glyph feature and the top-band x of its first column. */
+    private fun extractGlyph(hp: Gray, pill: Pill): Pair<Gray, Int>? {
         val (s, e, _, yc0) = pill
         val win = PILL_HALF_TEXT + RECENTER
         val w0 = max(yc0 - win, 0)
@@ -222,14 +225,14 @@ internal object CarPlayScreenState {
         val f = crop.crop(c0, 0, c1 + 1, crop.h).toFloat()
         val p98 = max(Hist.ofWhole(f).percentile(98.0), 1.0).toFloat()
         for (i in f.px.indices) f.px[i] = (f.px[i] / p98).coerceIn(0f, 1f) * 255f
-        return Cv.gaussian3(f).truncateToGray()
+        return Cv.gaussian3(f).truncateToGray() to s + c0
     }
 
     /** `_ncc`: best match of [t] sliding ±SHIFT across and ±VSLACK down the glyph feature. */
-    private fun ncc(feat: Gray, t: FImage): Double {
+    private fun ncc(feat: Gray, t: MatchTemplate): Double {
         val padx = SHIFT + max(0, t.w - feat.w)
-        val cand = feat.border(0, max(0, t.h - feat.h), padx, padx).toFloat()
-        return Cv.peak(Cv.matchTemplate(cand, t)).toDouble()
+        val cand = feat.border(0, max(0, t.h - feat.h), padx, padx)
+        return Cv.matchPeak(cand, t).toDouble()
     }
 
     private data class Match(val label: String?, val best: Double)
@@ -247,9 +250,33 @@ internal object CarPlayScreenState {
         for (t in tpls) {
             val tw = t.image.w
             if (abs(feat.w - tw) > SIZE_TOL_W * tw) continue
-            best[t.label] = max(best[t.label] ?: -1.0, ncc(feat, t.float))
+            best[t.label] = max(best[t.label] ?: -1.0, ncc(feat, t.match))
         }
         return ranked(best, MATCH_TH)
+    }
+
+    private class Slid(val label: String?, val score: Double, val x: Int, val w: Int)
+
+    /**
+     * `slide`: a button closer than TEXT_GAP to map text joins it in one candidate that no template
+     * matches as a whole. Templates clearly narrower than the candidate slide across all of it.
+     * x is in the feature.
+     */
+    private fun slide(feat: Gray, tpls: List<VisionTemplate>): Slid {
+        val fw = feat.w; val fh = feat.h
+        val best = LinkedHashMap<String, Triple<Double, Int, Int>>()
+        for (t in tpls) {
+            val tw = t.image.w; val th = t.image.h
+            if (tw * (1 + SIZE_TOL_W) >= fw) continue // match() already compared templates of about this width
+            val cand = feat.border(0, max(0, th - fh), SHIFT, SHIFT)
+            val (sc, x, _) = Cv.matchArgmax(cand, t.match)
+            if (sc > (best[t.label]?.first ?: -2.0)) best[t.label] = Triple(sc.toDouble(), x - SHIFT, tw)
+        }
+        if (best.isEmpty()) return Slid(null, 0.0, 0, 0)
+        val ranked = best.entries.sortedByDescending { it.value.first }
+        val (s1, x, tw) = ranked[0].value
+        val s2 = if (ranked.size > 1) ranked[1].value.first else 0.0
+        return Slid(if (s1 >= SLIDE_TH && s1 - s2 >= SLIDE_MARGIN) ranked[0].key else null, s1, x, tw)
     }
 
     /** `read_buttons`: recognised top buttons, boxes on the reference frame. */
@@ -257,11 +284,16 @@ internal object CarPlayScreenState {
         val hp = bandHighpass(gray)
         val out = ArrayList<VisionButton>()
         for (p in topCandidates(hp)) {
-            val feat = extractGlyph(hp, p) ?: continue
+            val (feat, fx) = extractGlyph(hp, p) ?: continue
             val m = matchButton(feat, tpls)
-            val label = m.label ?: continue
-            out += VisionButton(label, round3(m.best), intArrayOf(TOP_BAND_X0 + p.s - PAD, p.yc - GLYPH_HALF,
-                TOP_BAND_X0 + p.e + PAD, p.yc + GLYPH_HALF))
+            var label = m.label; var score = m.best; var s = p.s; var e = p.e
+            if (label == null) {
+                val sl = slide(feat, tpls)
+                if (sl.label != null) { label = sl.label; score = sl.score; s = fx + sl.x; e = fx + sl.x + sl.w }
+            }
+            if (label == null) continue
+            out += VisionButton(label, round3(score), intArrayOf(TOP_BAND_X0 + s - PAD, p.yc - GLYPH_HALF,
+                TOP_BAND_X0 + e + PAD, p.yc + GLYPH_HALF))
         }
         return out
     }
@@ -279,7 +311,7 @@ internal object CarPlayScreenState {
         }
     }
 
-    private fun cornerFeature(gray: Gray, cx: Int, cy: Int): FImage? {
+    private fun cornerFeature(gray: Gray, cx: Int, cy: Int): Gray? {
         val r = CORNER_R + CORNER_SLACK
         val x0 = cx - r; val y0 = cy - r; val x1 = cx + r + 1; val y1 = cy + r + 1
         if (x0 < 0 || y0 < 0 || x1 > gray.w || y1 > gray.h) return null
@@ -288,14 +320,15 @@ internal object CarPlayScreenState {
         for (i in hp.px.indices) if (!mask[i]) hp.px[i] = 0f
         val p99 = max(Hist.ofWhole(hp).percentile(99.0), 1.0).toFloat()
         for (i in hp.px.indices) hp.px[i] = (hp.px[i] / p99).coerceIn(0f, 1f) * 255f
-        return hp.truncateToGray().toFloat()
+        return hp.truncateToGray()
     }
 
-    private fun matchCorner(feat: FImage, tpls: List<VisionTemplate>): Match {
+    private fun matchCorner(feat: Gray, tpls: List<VisionTemplate>): Match {
         val best = LinkedHashMap<String, Double>()
+        val ig = Integral(feat)
         for (t in tpls) {
             if (t.image.w > feat.w || t.image.h > feat.h) continue
-            best[t.label] = max(best[t.label] ?: -1.0, Cv.peak(Cv.matchTemplate(feat, t.float)).toDouble())
+            best[t.label] = max(best[t.label] ?: -1.0, Cv.matchCoarsePeak(feat, t.match, ig).toDouble())
         }
         return ranked(best, CORNER_MATCH_TH)
     }
@@ -304,17 +337,21 @@ internal object CarPlayScreenState {
     fun readCorner(gray: Gray, tpls: List<VisionTemplate>): List<VisionButton> {
         val w = gray.w
         var inset = 0; var best = -1.0
+        val bottom = HashMap<Int, Pair<Gray?, Match?>>()
         for (dx in CORNER_INSETS) {
             val (cx, cy) = cornerSlots(w - dx)[0]
-            val f = cornerFeature(gray, cx, cy) ?: continue
-            val m = matchCorner(f, tpls)
-            if (m.label != null && m.best > best) { inset = dx; best = m.best }
+            val f = cornerFeature(gray, cx, cy)
+            val m = f?.let { matchCorner(it, tpls) }
+            bottom[dx] = f to m
+            if (m?.label != null && m.best > best) { inset = dx; best = m.best }
         }
         val out = ArrayList<VisionButton>()
-        for ((cx, cy) in cornerSlots(w - inset)) {
-            val f = cornerFeature(gray, cx, cy) ?: continue
-            val m = matchCorner(f, tpls)
-            val label = m.label ?: continue
+        cornerSlots(w - inset).forEachIndexed { slot, (cx, cy) ->
+            val cached = if (slot == 0) bottom[inset] else null
+            val f = if (cached != null) cached.first else cornerFeature(gray, cx, cy)
+            if (f == null) return@forEachIndexed
+            val m = cached?.second ?: matchCorner(f, tpls)
+            val label = m.label ?: return@forEachIndexed
             val r = CORNER_R
             out += VisionButton(label, round3(m.best), intArrayOf(cx - r, cy - r, cx + r, cy + r))
         }

@@ -6,7 +6,7 @@ import kotlin.math.min
 
 /** One font's glyph templates (tools/vision/models/route/<font>): band height [h], row [slack]. */
 internal class GlyphModel(val h: Int, val slack: Int, val tokens: List<Pair<String, Gray>>) {
-    val floats: List<FImage> by lazy { tokens.map { it.second.toFloat() } }
+    val prepared: List<MatchTemplate> by lazy { tokens.map { MatchTemplate(it.second) } }
 }
 
 internal data class GlyphLine(val text: String, val scores: List<Double>, val skipped: Double, val margins: List<Double>)
@@ -63,23 +63,43 @@ internal object GlyphOcr {
         }
     }
 
+    /** A line feature and the model it was read with; equal only for the same pixels. */
+    private class LineKey(val model: GlyphModel, val f: Gray) {
+        private val hash = (System.identityHashCode(model) * 31 + f.w) * 31 + f.px.contentHashCode()
+        override fun hashCode(): Int = hash
+        override fun equals(other: Any?): Boolean =
+            other is LineKey && other.model === model && other.f.w == f.w && other.f.px.contentEquals(f.px)
+    }
+
+    /**
+     * Lines read lately. A route panel stays on screen for many frames with the same pixels; reading
+     * the same feature again gives the same result, so it is not matched again.
+     */
+    private val recent = object : LinkedHashMap<LineKey, GlyphLine>(32, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<LineKey, GlyphLine>?): Boolean = size > RECENT_LINES
+    }
+    private const val RECENT_LINES = 24
+
     /** `recognize_ex`: text, per-character scores, skipped ink, per-character margins over look-alikes. */
     fun recognize(f: Gray?, model: GlyphModel): GlyphLine {
-        val h = model.h; val s = model.slack
-        if (f == null || f.h < h) return GlyphLine("", emptyList(), 0.0, emptyList())
+        if (f == null || f.h < model.h) return GlyphLine("", emptyList(), 0.0, emptyList())
+        val key = LineKey(model, f)
+        synchronized(recent) { recent[key] }?.let { return it }
+        return read(f, model).also { line -> synchronized(recent) { recent[key] = line } }
+    }
+
+    /** Forget the lines read so far (tests that time a first read). */
+    fun forgetRecent() = synchronized(recent) { recent.clear() }
+
+    private fun read(f: Gray, model: GlyphModel): GlyphLine {
+        val h = model.h
         val w = f.w
-        val ink = colInk(f, s)
-        val ff = f.toFloat()
+        val ink = colInk(f, model.slack)
+        val ig = Integral(f)
         val toks = ArrayList<String>(); val ws = ArrayList<Int>(); val rs = ArrayList<FloatArray>()
         model.tokens.forEachIndexed { i, (t, img) ->
             if (img.w > w || img.h != h) return@forEachIndexed
-            val m = Cv.matchTemplate(ff, model.floats[i])
-            val col = FloatArray(m.w) { x ->
-                var best = Float.NEGATIVE_INFINITY
-                for (y in 0 until m.h) best = max(best, m[x, y])
-                if (best.isNaN()) 0f else best
-            }
-            toks += t; ws += img.w; rs += col
+            toks += t; ws += img.w; rs += Cv.matchColumnMax(f, model.prepared[i], ig)
         }
         val best = DoubleArray(w + 1) { Double.NEGATIVE_INFINITY }
         best[0] = 0.0

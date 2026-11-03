@@ -95,9 +95,13 @@ internal object CarPlayVision {
     private const val BLACK_MIN_RUN = 32
     private const val BLACK_ROW_STEP = 6
 
-    fun frameOf(bitmap: Bitmap): BgrFrame {
+    /**
+     * The bitmap's pixels as a frame. [buffer] (at least width × height) is reused when given; the
+     * frame then reads it in place until the next call that reuses it.
+     */
+    fun frameOf(bitmap: Bitmap, buffer: IntArray? = null): BgrFrame {
         val w = bitmap.width; val h = bitmap.height
-        val pixels = IntArray(w * h)
+        val pixels = buffer?.takeIf { it.size == w * h } ?: IntArray(w * h)
         bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
         return BgrFrame.fromArgb(pixels, w, h)
     }
@@ -109,8 +113,8 @@ internal object CarPlayVision {
             var y = 0
             var lit = false
             while (y < f.h) {
-                val i = y * f.w + x
-                if (f.b[i] > BLACK_MAX || f.g[i] > BLACK_MAX || f.r[i] > BLACK_MAX) { lit = true; break }
+                val c = f.rgb(y * f.w + x)
+                if (((c shr 16) and 0xFF) > BLACK_MAX || ((c shr 8) and 0xFF) > BLACK_MAX || (c and 0xFF) > BLACK_MAX) { lit = true; break }
                 y += BLACK_ROW_STEP
             }
             if (lit) { last = x; break }
@@ -145,7 +149,8 @@ internal object CarPlayVision {
         val corner = CarPlayScreenState.readCorner(gray, models.corner).map { scaleBox(it, s) }
         // route_reader.to_ref always uses INTER_AREA; it differs from the frame above only when enlarging.
         val routeRef = if (s >= 1.0) ref else RouteReader.toRef(bgr).first
-        val panel = RouteReader.readRoutePage(routeRef, s, models.route, models.green, nowMin)
+        val panel = RouteReader.readRoutePage(routeRef, s, models.route, models.green, nowMin,
+            gray = if (routeRef === ref) gray else null)
         val isMap = corner.isNotEmpty() || top.isNotEmpty() || panel.page != "none"
         return none.copy(app = if (isMap) "map" else "other", topButtons = top, cornerButtons = corner, panel = panel)
     }

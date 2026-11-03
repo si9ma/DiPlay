@@ -84,8 +84,13 @@ internal object RouteReader {
         val green = BooleanArray(reg.w * reg.h)
         val hsv = IntArray(3)
         for (i in green.indices) {
-            Cv.hsv(reg.b[i], reg.g[i], reg.r[i], hsv)
-            green[i] = hsv[0] > 35 && hsv[0] < 85 && hsv[1] > 110 && hsv[2] > 110
+            val c = reg.rgb(i)
+            val r = (c shr 16) and 0xFF; val g = (c shr 8) and 0xFF; val b = c and 0xFF
+            // 35 < H < 85 needs green to be the strict maximum (H is 0..30 or 150..180 when red ties
+            // or leads, 90..150 when blue does); V is then green.
+            if (g <= r || g <= b || g <= 110) continue
+            Cv.hsv(b, g, r, hsv)
+            green[i] = hsv[0] > 35 && hsv[0] < 85 && hsv[1] > 110
         }
         val rowMask = BooleanArray(reg.h) { y ->
             var c = 0
@@ -201,9 +206,9 @@ internal object RouteReader {
         return Group(rows[rows.size - min(3, rows.size)].first - 6, rows.last().second + 6, true, lines.size, lines)
     }
 
-    private fun analyzeGeometry(bgr: BgrFrame): Geometry? {
+    private fun analyzeGeometry(bgr: BgrFrame, grayOf: Gray?): Geometry? {
         val btn = findStartButton(bgr) ?: return null
-        val gray = bgr.gray()
+        val gray = grayOf ?: bgr.gray()
         val (found, _) = findRoutes(gray, btn)
         val isList = found.any { it.selected != null }
         val routes = found.filter { it.selected != null || (isList && it.nLines == 2) }.map { g ->
@@ -230,11 +235,11 @@ internal object RouteReader {
 
     private fun matchGreen(feat: Gray?, tpls: List<VisionTemplate>): Pair<String?, Double> {
         if (feat == null || tpls.isEmpty()) return null to 0.0
-        val ff = feat.toFloat()
+        val ig = Integral(feat)
         val best = LinkedHashMap<String, Double>()
         for (t in tpls) {
-            if (t.image.w > ff.w || t.image.h > ff.h) continue
-            best[t.label] = max(best[t.label] ?: -1.0, Cv.peak(Cv.matchTemplate(ff, t.float)).toDouble())
+            if (t.image.w > feat.w || t.image.h > feat.h) continue
+            best[t.label] = max(best[t.label] ?: -1.0, Cv.matchPeak(feat, t.match, ig).toDouble())
         }
         if (best.isEmpty()) return null to 0.0
         val ranked = best.entries.sortedByDescending { it.value }
@@ -346,11 +351,13 @@ internal object RouteReader {
 
     /**
      * `read_route_page` on a picture already at the reference height ([ref], [sc] = input px per
-     * reference px). [models] null = geometry only. Coordinates are returned on the input frame.
+     * reference px). [models] null = geometry only. [gray] is `ref`'s grey picture when already made.
+     * Coordinates are returned on the input frame.
      */
     fun readRoutePage(ref: BgrFrame, sc: Double, models: Map<String, GlyphModel>?, greenTpls: List<VisionTemplate>,
-        nowMin: Double?): VisionPanel {
-        val geo = analyzeGeometry(ref) ?: return VisionPanel.NONE
+        nowMin: Double?, gray: Gray? = null): VisionPanel {
+        require(gray == null || (gray.w == ref.w && gray.h == ref.h))
+        val geo = analyzeGeometry(ref, gray) ?: return VisionPanel.NONE
         val b = geo.btn
         val (text, tscore) = matchGreen(greenTextFeature(geo.gray, b), greenTpls)
         val page = when {

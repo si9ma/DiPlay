@@ -68,26 +68,64 @@ internal class FImage(val w: Int, val h: Int, val px: FloatArray = FloatArray(w 
     fun roundToGray(): Gray = Gray(w, h, IntArray(px.size) { Math.rint(px[it].toDouble()).toInt().coerceIn(0, 255) })
 }
 
-/** A BGR picture as three 8-bit planes (cv2.imread order). */
-internal class BgrFrame(val w: Int, val h: Int, val b: IntArray, val g: IntArray, val r: IntArray) {
-    init { require(b.size == w * h && g.size == w * h && r.size == w * h) }
-
-    /** cv2.cvtColor(BGR2GRAY) on 8-bit: OpenCV's fixed-point weights (15 fractional bits). */
-    fun gray(): Gray = Gray(w, h, IntArray(w * h) { (r[it] * 9798 + g[it] * 19235 + b[it] * 3735 + 16384) shr 15 })
-
-    /** `bgr[:, :width]`. */
-    fun cropWidth(width: Int): BgrFrame {
-        val nw = width.coerceIn(0, w)
-        if (nw == w) return this
-        fun plane(p: IntArray) = IntArray(nw * h).also { out ->
-            for (y in 0 until h) System.arraycopy(p, y * w, out, y * nw, nw)
-        }
-        return BgrFrame(nw, h, plane(b), plane(g), plane(r))
+/**
+ * A BGR picture (cv2.imread order). Backed either by Android ARGB_8888 pixels, read in place, or
+ * by three 8-bit planes; the planes of an ARGB picture are only split out when something asks for them.
+ */
+internal class BgrFrame private constructor(val w: Int, val h: Int, private val argb: IntArray?, private var planes: Array<IntArray>?) {
+    constructor(w: Int, h: Int, b: IntArray, g: IntArray, r: IntArray) : this(w, h, null, arrayOf(b, g, r)) {
+        require(b.size == w * h && g.size == w * h && r.size == w * h)
     }
 
+    val b: IntArray get() = planes()[0]
+    val g: IntArray get() = planes()[1]
+    val r: IntArray get() = planes()[2]
+
+    private fun planes(): Array<IntArray> = planes ?: run {
+        val a = argb!!
+        val n = w * h
+        val b = IntArray(n); val g = IntArray(n); val r = IntArray(n)
+        for (i in 0 until n) {
+            val c = a[i]
+            r[i] = (c shr 16) and 0xFF; g[i] = (c shr 8) and 0xFF; b[i] = c and 0xFF
+        }
+        arrayOf(b, g, r).also { planes = it }
+    }
+
+    /** Pixel [i] (row-major) as 0xRRGGBB. */
+    fun rgb(i: Int): Int {
+        val a = argb
+        if (a != null) return a[i] and 0xFFFFFF
+        val p = planes!!
+        return (p[2][i] shl 16) or (p[1][i] shl 8) or p[0][i]
+    }
+
+    /** cv2.cvtColor(BGR2GRAY) on 8-bit: OpenCV's fixed-point weights (15 fractional bits). */
+    fun gray(): Gray {
+        val a = argb
+        if (a != null) return Gray(w, h, IntArray(w * h) {
+            val c = a[it]
+            (((c shr 16) and 0xFF) * 9798 + ((c shr 8) and 0xFF) * 19235 + (c and 0xFF) * 3735 + 16384) shr 15
+        })
+        val (b, g, r) = planes!!
+        return Gray(w, h, IntArray(w * h) { (r[it] * 9798 + g[it] * 19235 + b[it] * 3735 + 16384) shr 15 })
+    }
+
+    /** `bgr[:, :width]`. */
+    fun cropWidth(width: Int): BgrFrame = crop(0, 0, width, h)
+
     fun crop(x0: Int, y0: Int, x1: Int, y1: Int): BgrFrame {
-        val bp = Gray(w, h, b).crop(x0, y0, x1, y1)
-        return BgrFrame(bp.w, bp.h, bp.px, Gray(w, h, g).crop(x0, y0, x1, y1).px, Gray(w, h, r).crop(x0, y0, x1, y1).px)
+        val ax0 = x0.coerceIn(0, w); val ax1 = x1.coerceIn(ax0, w)
+        val ay0 = y0.coerceIn(0, h); val ay1 = y1.coerceIn(ay0, h)
+        if (ax0 == 0 && ay0 == 0 && ax1 == w && ay1 == h) return this
+        val cw = ax1 - ax0; val ch = ay1 - ay0
+        fun plane(p: IntArray) = IntArray(cw * ch).also { out ->
+            for (y in 0 until ch) System.arraycopy(p, (ay0 + y) * w + ax0, out, y * cw, cw)
+        }
+        val a = argb
+        if (a != null) return BgrFrame(cw, ch, plane(a), null)
+        val (b, g, r) = planes!!
+        return BgrFrame(cw, ch, plane(b), plane(g), plane(r))
     }
 
     /** cv2.resize of an 8-bit BGR picture, plane by plane. */
@@ -97,15 +135,13 @@ internal class BgrFrame(val w: Int, val h: Int, val b: IntArray, val g: IntArray
     }
 
     companion object {
-        /** From Android ARGB_8888 pixels (Bitmap.getPixels); alpha is ignored. */
+        /**
+         * Android ARGB_8888 pixels (Bitmap.getPixels), alpha ignored. The frame reads [pixels] in
+         * place: they must not change while the frame is in use.
+         */
         fun fromArgb(pixels: IntArray, w: Int, h: Int): BgrFrame {
-            val n = w * h
-            val b = IntArray(n); val g = IntArray(n); val r = IntArray(n)
-            for (i in 0 until n) {
-                val c = pixels[i]
-                r[i] = (c shr 16) and 0xFF; g[i] = (c shr 8) and 0xFF; b[i] = c and 0xFF
-            }
-            return BgrFrame(w, h, b, g, r)
+            require(pixels.size >= w * h)
+            return BgrFrame(w, h, if (pixels.size == w * h) pixels else pixels.copyOf(w * h), null)
         }
     }
 }
@@ -166,20 +202,25 @@ internal object Cv {
         return p
     }
 
+    /** reflect101(i - [r], [n]) for i in 0 until n + 2r: the source index of each padded position. */
+    private fun reflectIndex(n: Int, r: Int): IntArray = IntArray(n + 2 * r) { reflect101(it - r, n) }
+
     /** cv2.GaussianBlur(src, (3, 3), 0) on 8-bit: kernel [1 2 1]/4 both ways, rounded half up. */
     fun gaussian3(src: Gray): Gray {
         val w = src.w; val h = src.h
         val out = Gray(w, h)
         if (src.isEmpty) return out
         val s = src.px
+        val xi = reflectIndex(w, 1); val yi = reflectIndex(h, 1)
         val tmp = IntArray(w * h)
         for (y in 0 until h) {
             val row = y * w
-            for (x in 0 until w) tmp[row + x] = s[row + reflect101(x - 1, w)] + 2 * s[row + x] + s[row + reflect101(x + 1, w)]
+            for (x in 0 until w) tmp[row + x] = s[row + xi[x]] + 2 * s[row + x] + s[row + xi[x + 2]]
         }
+        val o = out.px
         for (y in 0 until h) {
-            val up = reflect101(y - 1, h) * w; val dn = reflect101(y + 1, h) * w; val row = y * w
-            for (x in 0 until w) out.px[row + x] = (tmp[up + x] + 2 * tmp[row + x] + tmp[dn + x] + 8) shr 4
+            val up = yi[y] * w; val dn = yi[y + 2] * w; val row = y * w
+            for (x in 0 until w) o[row + x] = (tmp[up + x] + 2 * tmp[row + x] + tmp[dn + x] + 8) shr 4
         }
         return out
     }
@@ -209,20 +250,29 @@ internal object Cv {
         if (src.isEmpty) return out
         val r = k / 2
         val s = src.px
+        val xi = reflectIndex(w, r); val yi = reflectIndex(h, r)
         val tmp = IntArray(w * h)
         for (y in 0 until h) {
             val row = y * w
-            for (x in 0 until w) {
-                var sum = 0
-                for (d in -r..r) sum += s[row + reflect101(x + d, w)]
+            var sum = 0
+            for (d in 0 until 2 * r + 1) sum += s[row + xi[d]]
+            tmp[row] = sum
+            for (x in 1 until w) {
+                sum += s[row + xi[x + 2 * r]] - s[row + xi[x - 1]]
                 tmp[row + x] = sum
             }
         }
         val area = k * k
-        for (y in 0 until h) for (x in 0 until w) {
-            var sum = 0
-            for (d in -r..r) sum += tmp[reflect101(y + d, h) * w + x]
-            out.px[y * w + x] = (2 * sum + area) / (2 * area)
+        val col = IntArray(w)
+        for (d in 0 until 2 * r + 1) { val row = yi[d] * w; for (x in 0 until w) col[x] += tmp[row + x] }
+        val o = out.px
+        for (y in 0 until h) {
+            if (y > 0) {
+                val add = yi[y + 2 * r] * w; val sub = yi[y - 1] * w
+                for (x in 0 until w) col[x] += tmp[add + x] - tmp[sub + x]
+            }
+            val row = y * w
+            for (x in 0 until w) o[row + x] = (2 * col[x] + area) / (2 * area)
         }
         return out
     }
@@ -472,4 +522,221 @@ internal object Cv {
 
     private val SDIV = IntArray(256) { if (it == 0) 0 else Math.rint((255 shl 12) / it.toDouble()).toInt() }
     private val HDIV = IntArray(256) { if (it == 0) 0 else Math.rint((180 shl 12) / (6.0 * it)).toInt() }
+
+    /** cv2.matchTemplate(img, tpl, TM_CCOEFF_NORMED) on 8-bit pictures; [ig] may be shared by several templates. */
+    fun match(img: Gray, t: MatchTemplate, ig: Integral = Integral(img)): FImage {
+        val rw = img.w - t.w + 1; val rh = img.h - t.h + 1
+        require(rw > 0 && rh > 0) { "template larger than image" }
+        val out = FImage(rw, rh)
+        val dots = IntArray(rw)
+        for (v in 0 until rh) {
+            val rows = t.dotRow(img, v, dots)
+            for (u in 0 until rw) out.px[v * rw + u] = if (rows) t.scoreOf(ig, u, v, dots[u].toDouble()) else t.score(ig, u, v)
+        }
+        return out
+    }
+
+    /** `cv2.matchTemplate(...).max(0)`: the best score of each column. */
+    fun matchColumnMax(img: Gray, t: MatchTemplate, ig: Integral = Integral(img)): FloatArray {
+        val rw = img.w - t.w + 1; val rh = img.h - t.h + 1
+        require(rw > 0 && rh > 0) { "template larger than image" }
+        val best = FloatArray(rw) { Float.NEGATIVE_INFINITY }
+        val dots = IntArray(rw)
+        for (v in 0 until rh) {
+            if (!t.dotRow(img, v, dots)) {
+                for (u in 0 until rw) { val s = t.score(ig, u, v); if (s > best[u]) best[u] = s }
+                continue
+            }
+            for (u in 0 until rw) { val s = t.scoreOf(ig, u, v, dots[u].toDouble()); if (s > best[u]) best[u] = s }
+        }
+        return best
+    }
+
+    /** `cv2.matchTemplate(...).max()`. */
+    fun matchPeak(img: Gray, t: MatchTemplate, ig: Integral = Integral(img)): Float = matchArgmax(img, t, ig).first
+
+    /** The best score and where: (score, x, y), the first in row order on ties, as np.argmax. */
+    fun matchArgmax(img: Gray, t: MatchTemplate, ig: Integral = Integral(img)): Triple<Float, Int, Int> {
+        val rw = img.w - t.w + 1; val rh = img.h - t.h + 1
+        require(rw > 0 && rh > 0) { "template larger than image" }
+        var best = Float.NEGATIVE_INFINITY; var bx = 0; var by = 0
+        val dots = IntArray(rw)
+        for (v in 0 until rh) {
+            val rows = t.dotRow(img, v, dots)
+            for (u in 0 until rw) {
+                val s = if (rows) t.scoreOf(ig, u, v, dots[u].toDouble()) else t.score(ig, u, v)
+                if (s > best) { best = s; bx = u; by = v }
+            }
+        }
+        return Triple(best, bx, by)
+    }
+
+    /**
+     * button_text.py `coarse_peak` of the match result: the best of every other position, then the
+     * best in the 3x3 neighbourhood of that one.
+     */
+    fun matchCoarsePeak(img: Gray, t: MatchTemplate, ig: Integral = Integral(img)): Float {
+        val rw = img.w - t.w + 1; val rh = img.h - t.h + 1
+        require(rw > 0 && rh > 0) { "template larger than image" }
+        var best = Float.NEGATIVE_INFINITY; var bx = 0; var by = 0
+        for (v in 0 until rh step 2) for (u in 0 until rw step 2) {
+            val s = t.score(ig, u, v)
+            if (s > best) { best = s; bx = u; by = v }
+        }
+        for (v in max(0, by - 1)..min(rh - 1, by + 1)) for (u in max(0, bx - 1)..min(rw - 1, bx + 1)) {
+            if (u % 2 == 0 && v % 2 == 0) continue
+            val s = t.score(ig, u, v)
+            if (s > best) best = s
+        }
+        return best
+    }
+}
+
+/** Window sums of I and I² (integral images) of an 8-bit picture, shared by every template matched on it. */
+internal class Integral(val img: Gray) {
+    private val iw = img.w + 1
+    private val s1 = LongArray(iw * (img.h + 1))
+    private val s2 = LongArray(iw * (img.h + 1))
+
+    init {
+        val p = img.px
+        for (y in 0 until img.h) {
+            var r1 = 0L; var r2 = 0L
+            val src = y * img.w; val up = y * iw; val dn = (y + 1) * iw
+            for (x in 0 until img.w) {
+                val v = p[src + x].toLong()
+                r1 += v; r2 += v * v
+                s1[dn + x + 1] = s1[up + x + 1] + r1
+                s2[dn + x + 1] = s2[up + x + 1] + r2
+            }
+        }
+    }
+
+    fun sum(u: Int, v: Int, w: Int, h: Int): Long {
+        val a = v * iw + u; val c = (v + h) * iw + u
+        return s1[c + w] - s1[a + w] - s1[c] + s1[a]
+    }
+
+    fun sumSq(u: Int, v: Int, w: Int, h: Int): Long {
+        val a = v * iw + u; val c = (v + h) * iw + u
+        return s2[c + w] - s2[a + w] - s2[c] + s2[a]
+    }
+}
+
+/**
+ * An 8-bit template for TM_CCOEFF_NORMED, prepared once. The correlation is computed with whole
+ * numbers as sum(t * I) - sum(t) * sum(I) / n, which equals OpenCV's centred sum; a template that is
+ * mostly zero (the high-pass corner masks) only visits its non-zero pixels.
+ */
+internal class MatchTemplate(val image: Gray) {
+    val w = image.w
+    val h = image.h
+    private val n = w * h
+    private val sum: Long
+    private val norm: Double
+    /** OpenCV returns 1 everywhere for a template without variance. */
+    private val flat: Boolean
+    private val sparse: Boolean
+    private val nzY: IntArray
+    private val nzX: IntArray
+    private val nzV: IntArray
+    /** Sums fit an Int when every product 255 * 255 does, n times. */
+    private val small = n <= Int.MAX_VALUE / (255 * 255)
+    @Volatile private var offsets: Pair<Int, IntArray>? = null
+
+    init {
+        require(n > 0)
+        var s = 0L; var sq = 0L; var nz = 0
+        for (v in image.px) { s += v; sq += v.toLong() * v; if (v != 0) nz++ }
+        sum = s
+        val nVar = n * sq - s * s // n² · variance, exact
+        flat = nVar == 0L
+        norm = sqrt(nVar.toDouble() / n)
+        sparse = nz < n * 0.6
+        nzY = IntArray(if (sparse) nz else 0); nzX = IntArray(nzY.size); nzV = IntArray(nzY.size)
+        if (sparse) {
+            var k = 0
+            for (y in 0 until h) for (x in 0 until w) {
+                val v = image.px[y * w + x]
+                if (v != 0) { nzY[k] = y; nzX[k] = x; nzV[k] = v; k++ }
+            }
+        }
+    }
+
+    private fun offsetsFor(width: Int): IntArray {
+        offsets?.let { if (it.first == width) return it.second }
+        return IntArray(nzY.size) { nzY[it] * width + nzX[it] }.also { offsets = width to it }
+    }
+
+    private fun dot(img: Gray, u: Int, v: Int): Double {
+        val ip = img.px; val iw = img.w
+        val base = v * iw + u
+        if (sparse) {
+            val off = offsetsFor(iw)
+            if (small) {
+                var acc = 0
+                for (k in off.indices) acc += nzV[k] * ip[base + off[k]]
+                return acc.toDouble()
+            }
+            var acc = 0L
+            for (k in off.indices) acc += nzV[k].toLong() * ip[base + off[k]]
+            return acc.toDouble()
+        }
+        val tp = image.px
+        var tr = 0; var ir = base
+        if (small) {
+            var acc = 0
+            for (ty in 0 until h) {
+                for (tx in 0 until w) acc += tp[tr + tx] * ip[ir + tx]
+                tr += w; ir += iw
+            }
+            return acc.toDouble()
+        }
+        var acc = 0L
+        for (ty in 0 until h) {
+            for (tx in 0 until w) acc += tp[tr + tx].toLong() * ip[ir + tx]
+            tr += w; ir += iw
+        }
+        return acc.toDouble()
+    }
+
+    /**
+     * sum(t * I) for the template at row [v] and every column 0 until dots.size, into [dots]: one
+     * long multiply-add over the row per template pixel. False (nothing written) when the sums
+     * could overflow an Int.
+     */
+    fun dotRow(img: Gray, v: Int, dots: IntArray): Boolean {
+        if (!small) return false
+        dots.fill(0)
+        val ip = img.px; val iw = img.w; val tp = image.px
+        val n = dots.size
+        for (ty in 0 until h) {
+            val src = (v + ty) * iw
+            for (tx in 0 until w) {
+                val c = tp[ty * w + tx]
+                if (c == 0) continue
+                val base = src + tx
+                for (u in 0 until n) dots[u] += c * ip[base + u]
+            }
+        }
+        return true
+    }
+
+    /** The TM_CCOEFF_NORMED score with the template's top-left corner at ([u], [v]) of [ig]'s picture. */
+    fun score(ig: Integral, u: Int, v: Int): Float = if (flat) 1f else scoreOf(ig, u, v, dot(ig.img, u, v))
+
+    /** [score] from an already computed sum(t * I). */
+    fun scoreOf(ig: Integral, u: Int, v: Int, dot: Double): Float {
+        if (flat) return 1f
+        val s1 = ig.sum(u, v, w, h)
+        val s2 = ig.sumSq(u, v, w, h)
+        val num = dot - sum.toDouble() * s1 / n
+        val windowVar = (n * s2 - s1 * s1).toDouble() / n
+        val t = sqrt(max(windowVar, 0.0)) * norm
+        return when {
+            abs(num) < t -> (num / t).toFloat()
+            abs(num) < t * 1.125 -> if (num > 0) 1f else -1f
+            else -> 0f
+        }
+    }
 }

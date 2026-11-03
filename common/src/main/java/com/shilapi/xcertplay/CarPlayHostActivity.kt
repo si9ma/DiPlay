@@ -7406,11 +7406,13 @@ class CarPlayHostActivity : ComponentActivity() {
         val nowMin = CarPlayVisionTest.minuteOfDay()
         val started = SystemClock.elapsedRealtime()
         test.showBusy()
-        val accepted = CarPlayFrameCapture.capture(texture, if (texture == null) fallbackVideoView else null, size) { result ->
+        val accepted = CarPlayFrameCapture.capture(texture, if (texture == null) fallbackVideoView else null, size,
+            into = test.frame) { result ->
             val copyMs = SystemClock.elapsedRealtime() - started
             if (visionTest !== test) { result.getOrNull()?.recycle(); return@capture }
             result.onSuccess { bitmap -> test.read(bitmap, copyMs, nowMin, ::appendLog) }
                 .onFailure { error ->
+                    test.dropFrame()
                     appendLog("Picture recognition: frame not copied (${error.message})")
                     test.showError(error.message ?: "copy_failed")
                 }

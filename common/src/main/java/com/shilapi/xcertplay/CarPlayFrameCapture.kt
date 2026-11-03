@@ -63,28 +63,32 @@ internal object CarPlayFrameCapture {
 
     /**
      * Copies the picture as [save] does and hands the bitmap to [completed] on the main thread; the
-     * receiver owns and recycles it. Used by the picture recognition test. Main thread only. Returns
+     * receiver owns and recycles it. [into] is filled instead of a new bitmap when it is mutable,
+     * ARGB_8888 and of [size]. Used by the picture recognition test. Main thread only. Returns
      * false, without calling [completed], while an earlier copy or save is running.
      */
-    fun capture(texture: TextureView?, surface: SurfaceView?, size: Pair<Int, Int>,
+    fun capture(texture: TextureView?, surface: SurfaceView?, size: Pair<Int, Int>, into: Bitmap? = null,
         completed: (Result<Bitmap>) -> Unit): Boolean {
         check(Looper.myLooper() == Looper.getMainLooper())
         if (busy) return false
         val (width, height) = size
+        val reuse = into?.takeIf {
+            !it.isRecycled && it.isMutable && it.config == Bitmap.Config.ARGB_8888 && it.width == width && it.height == height
+        }
         copying = true
         val done: (Result<Bitmap>) -> Unit = { result -> copying = false; completed(result) }
         val holderSurface = surface?.holder?.surface
         when {
-            holderSurface != null -> surfaceCopy.capture(holderSurface, size, current = { holderSurface.isValid }, completed = done)
-            texture != null && texture.isAvailable -> done(copyTexture(texture, width, height))
+            holderSurface != null -> surfaceCopy.capture(holderSurface, size, current = { holderSurface.isValid }, into = reuse, completed = done)
+            texture != null && texture.isAvailable -> done(copyTexture(texture, width, height, reuse))
             else -> done(Result.failure(IOException("video_unavailable")))
         }
         return true
     }
 
-    private fun copyTexture(texture: TextureView, width: Int, height: Int): Result<Bitmap> {
+    private fun copyTexture(texture: TextureView, width: Int, height: Int, into: Bitmap?): Result<Bitmap> {
         if (width !in 1..4096 || height !in 1..4096) return Result.failure(IOException("frame_size_unsupported"))
-        val bitmap = try { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
+        val bitmap = into ?: try { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
         catch (_: OutOfMemoryError) { return Result.failure(IOException("frame_memory")) }
         catch (_: RuntimeException) { return Result.failure(IOException("frame_allocation")) }
         // The texture's own content, scaled to the bitmap; the view transform that places it is not applied.
@@ -92,7 +96,7 @@ internal object CarPlayFrameCapture {
             texture.getBitmap(bitmap)
             Result.success(bitmap)
         } catch (_: RuntimeException) {
-            bitmap.recycle()
+            if (bitmap !== into) bitmap.recycle()
             Result.failure(IOException("texture_copy_failed"))
         }
     }

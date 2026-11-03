@@ -87,7 +87,21 @@ internal class CarPlayVisionTest(
         closed = true
         main.removeCallbacksAndMessages(null)
         listOf(panel, overlay).forEach { (it.parent as? ViewGroup)?.removeView(it) }
+        // A read still running on the worker finishes with its own references; only drop ours.
+        if (!running) frame?.recycle()
+        frame = null
     }
+
+    /**
+     * The bitmap the next copy should fill (null: allocate one). It and the pixel buffer are kept
+     * between reads, so a read does not allocate two frame-sized buffers each time.
+     */
+    var frame: Bitmap? = null
+        private set
+    private var pixels: IntArray? = null
+
+    /** After a failed copy the copier may still own [frame] (a late PixelCopy); never reuse or recycle it. */
+    fun dropFrame() { frame = null }
 
     fun showBusy() {
         running = true
@@ -103,10 +117,12 @@ internal class CarPlayVisionTest(
     }
 
     /**
-     * Reads [bitmap] (recycled here) on the recognition thread. [copyMs] is the time the frame copy
-     * took; [nowMin] the minute of the day it was taken, to check a route card's arrival time.
+     * Reads [bitmap] on the recognition thread and keeps it for the next copy. [copyMs] is the time
+     * the frame copy took; [nowMin] the minute of the day it was taken, to check a route card's arrival time.
      */
     fun read(bitmap: Bitmap, copyMs: Long, nowMin: Double, log: (String) -> Unit) {
+        if (frame !== bitmap) frame?.recycle()
+        frame = bitmap
         try {
             worker.execute {
                 val outcome = runCatching {
@@ -114,7 +130,9 @@ internal class CarPlayVisionTest(
                     val loaded = models
                     val m = loaded ?: VisionModels.load(VisionModels.Assets(context.applicationContext.assets)).also { models = it }
                     val t1 = SystemClock.elapsedRealtimeNanos()
-                    val frame = try { CarPlayVision.frameOf(bitmap) } finally { bitmap.recycle() }
+                    val n = bitmap.width * bitmap.height
+                    val buffer = pixels?.takeIf { it.size == n } ?: IntArray(n).also { pixels = it }
+                    val frame = CarPlayVision.frameOf(bitmap, buffer)
                     val t2 = SystemClock.elapsedRealtimeNanos()
                     val result = CarPlayVision.analyze(frame, m, nowMin)
                     val t3 = SystemClock.elapsedRealtimeNanos()
@@ -122,7 +140,7 @@ internal class CarPlayVisionTest(
                         if (loaded == null) (t1 - t0) / 1_000_000 else 0L) to result
                 }
                 main.post {
-                    if (closed) return@post
+                    if (closed) { bitmap.recycle(); return@post }
                     running = false
                     recognizeButton.isEnabled = true
                     outcome.onSuccess { (timing, result) ->
@@ -138,14 +156,14 @@ internal class CarPlayVisionTest(
                 }
             }
         } catch (_: RuntimeException) {
-            bitmap.recycle()
             showError("worker_unavailable")
         }
     }
 
     private data class Timing(val copyMs: Long, val recognizeMs: Long, val convertMs: Long, val loadMs: Long) {
         fun describe(context: Context): String {
-            val base = context.getString(R.string.vision_test_timing, recognizeMs, copyMs + convertMs)
+            val base = context.getString(R.string.vision_test_timing, recognizeMs, copyMs + convertMs) +
+                " ($copyMs + $convertMs)"
             return if (loadMs > 0) base + " · " + context.getString(R.string.vision_test_models_loaded, loadMs) else base
         }
     }
