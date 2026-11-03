@@ -1,0 +1,102 @@
+{
+ "H": 26,
+ "slack": 3,
+ "tokens": {
+  "u002e.png": {
+   "char": ".",
+   "samples": 24
+  },
+  "u0030.png": {
+   "char": "0",
+   "samples": 8
+  },
+  "u0031.png": {
+   "char": "1",
+   "samples": 29
+  },
+  "u0032.png": {
+   "char": "2",
+   "samples": 30
+  },
+  "u0033.png": {
+   "char": "3",
+   "samples": 15
+  },
+  "u0034.png": {
+   "char": "4",
+   "samples": 15
+  },
+  "u0035.png": {
+   "char": "5",
+   "samples": 16
+  },
+  "u0036.png": {
+   "char": "6",
+   "samples": 14
+  },
+  "u0037.png": {
+   "char": "7",
+   "samples": 11
+  },
+  "u0038.png": {
+   "char": "8",
+   "samples": 19
+  },
+  "u0039.png": {
+   "char": "9",
+   "samples": 10
+  },
+  "u003a.png": {
+   "char": ":",
+   "samples": 1
+  },
+  "u00a5.png": {
+   "char": "¥",
+   "samples": 12
+  },
+  "u00b7.png": {
+   "char": "·",
+   "samples": 3
+  },
+  "u516c.png": {
+   "char": "公",
+   "samples": 26
+  },
+  "u5206.png": {
+   "char": "分",
+   "samples": 2
+  },
+  "u5c0f.png": {
+   "char": "小",
+   "samples": 1
+  },
+  "u65f6.png": {
+   "char": "时",
+   "samples": 1
+  },
+  "u706f.png": {
+   "char": "灯",
+   "samples": 20
+  },
+  "u7c73.png": {
+   "char": "米",
+   "samples": 3
+  },
+  "u7ea2.png": {
+   "char": "红",
+   "samples": 20
+  },
+  "u7eff.png": {
+   "char": "绿",
+   "samples": 20
+  },
+  "u91cc.png": {
+   "char": "里",
+   "samples": 26
+  },
+  "u949f.png": {
+   "char": "钟",
+   "samples": 2
+  }
+ }
+}

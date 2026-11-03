@@ -404,6 +404,8 @@ class CarPlayHostActivity : ComponentActivity() {
     private var pictureBinding: CarPlayPicture.Binding? = null
     private var picturePanel: View? = null
     private var picturePanelGeneration = 0
+    /** Diagnostics: the picture recognition test's floating panel and drawing, while open. */
+    private var visionTest: CarPlayVisionTest? = null
     private var gestureOverlay: View? = null
     private var settingsMenu: View? = null
     private var settingsMenuCategoryKey = "connection"
@@ -899,6 +901,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     if (picturePanel != null) {
                         closePicturePanel()
+                    } else if (visionTest != null) {
+                        closeVisionTest()
                     } else if (menuOpen) {
                         if (safeAreaEditorActive) closeSafeAreaEditor() else leaveSettingsMenu()
                     } else {
@@ -2029,6 +2033,7 @@ class CarPlayHostActivity : ComponentActivity() {
     override fun onStop() {
         fpsCounter?.stop()
         closePicturePanel()
+        closeVisionTest()
         // The controller, USB/iAP2 link, and VPN attachment intentionally outlive the UI.
         isActivityStarted = false
         logThemeState(ThemeModeDiagnostics.Source.STOP, resources.configuration)
@@ -7292,6 +7297,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private fun onProjectionOverlayHidden() {
         // DiPlay's own screen is in front; the texture listener has already detached the surface.
         if (overlayMode) videoView = null
+        closeVisionTest()
         appendLog("Projection overlay hidden while a DiPlay screen is in front")
     }
 
@@ -7311,6 +7317,7 @@ class CarPlayHostActivity : ComponentActivity() {
             if (rightHandDrive) Gravity.LEFT else Gravity.RIGHT
         }
         val captureFrame = getString(R.string.handle_capture_frame)
+        val visionTestLabel = getString(R.string.handle_vision_test)
         return ProjectionHandle(context, side, listOf(
             // Named for DiPlay's settings screen, so it goes there. It used to open the host's own
             // panel, from whose foot a second tap reached the real screen — reachable only after a
@@ -7329,6 +7336,8 @@ class CarPlayHostActivity : ComponentActivity() {
             },
             // Diagnostics: a picture-recognition sample, offered only while that setting is on.
             captureFrame to { saveCarPlayFrame() },
+            // Diagnostics too: reads the current picture and draws what it recognised over CarPlay.
+            visionTestLabel to { openVisionTest() },
             getString(R.string.handle_minimize) to {
                 if (overlayMode) {
                     val done = ProjectionOverlay.minimize(this)
@@ -7343,8 +7352,70 @@ class CarPlayHostActivity : ComponentActivity() {
                 else shutdown(false, "Edge handle disconnect") { runOnUiThread { finish() } }
             },
         )) { label ->
-            label != captureFrame || (activeScreenStreamTypes.isNotEmpty() && AirPlayPersistence.loadFrameCapture(context))
+            (label != captureFrame && label != visionTestLabel) ||
+                (activeScreenStreamTypes.isNotEmpty() && AirPlayPersistence.loadFrameCapture(context))
         }
+    }
+
+    /** Diagnostics: opens the picture recognition test's floating panel over CarPlay. */
+    private fun openVisionTest() {
+        closeVisionTest()
+        val root = videoView?.parent as? FrameLayout
+        if (root == null || activeScreenStreamTypes.isEmpty()) {
+            appendLog("Edge handle: picture recognition test not opened (no picture)")
+            android.widget.Toast.makeText(applicationContext, getString(R.string.vision_test_failed, "no_picture"),
+                android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val test = CarPlayVisionTest(this, overlayPalette, ::visionContentBounds,
+            recognize = ::runVisionTest, exit = ::closeVisionTest)
+        root.addView(test.overlay, FrameLayout.LayoutParams(-1, -1))
+        root.addView(test.panel, FrameLayout.LayoutParams(test.panelWidth(root.width), -2,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(16) })
+        visionTest = test
+        appendLog("Edge handle: picture recognition test opened")
+    }
+
+    private fun closeVisionTest() {
+        val test = visionTest ?: return
+        visionTest = null
+        test.close()
+        appendLog("Picture recognition test closed")
+    }
+
+    /** Where CarPlay's whole canvas lies in the video view's container, as the video is laid out. */
+    private fun visionContentBounds(): RectF? {
+        val view = videoView ?: return null
+        if (view.width <= 0 || view.height <= 0) return null
+        val content = contentRect(view.width, view.height)
+        val left = view.left + content.left; val top = view.top + content.top
+        return RectF(left, top, left + content.width, top + content.height)
+    }
+
+    /** Copies the current CarPlay picture, as "Save CarPlay frame" does, and hands it to the test. */
+    private fun runVisionTest() {
+        val test = visionTest ?: return
+        val view = videoView
+        val size = sessionDisplay?.let { it.width to it.height }
+            ?: view?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width to it.height }
+        if (activeScreenStreamTypes.isEmpty() || view == null || size == null) {
+            test.showError("no_picture")
+            return
+        }
+        val texture = view as? TextureView
+        val nowMin = CarPlayVisionTest.minuteOfDay()
+        val started = SystemClock.elapsedRealtime()
+        test.showBusy()
+        val accepted = CarPlayFrameCapture.capture(texture, if (texture == null) fallbackVideoView else null, size) { result ->
+            val copyMs = SystemClock.elapsedRealtime() - started
+            if (visionTest !== test) { result.getOrNull()?.recycle(); return@capture }
+            result.onSuccess { bitmap -> test.read(bitmap, copyMs, nowMin, ::appendLog) }
+                .onFailure { error ->
+                    appendLog("Picture recognition: frame not copied (${error.message})")
+                    test.showError(error.message ?: "copy_failed")
+                }
+        }
+        if (!accepted) test.showError("busy")
     }
 
     /** Saves CarPlay's current main-screen picture as a PNG sample (Diagnostics: "Save CarPlay frames"). */

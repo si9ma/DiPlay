@@ -1,0 +1,62 @@
+{
+ "H": 34,
+ "slack": 3,
+ "tokens": {
+  "u0030.png": {
+   "char": "0",
+   "samples": 2
+  },
+  "u0031.png": {
+   "char": "1",
+   "samples": 15
+  },
+  "u0032.png": {
+   "char": "2",
+   "samples": 11
+  },
+  "u0033.png": {
+   "char": "3",
+   "samples": 8
+  },
+  "u0034.png": {
+   "char": "4",
+   "samples": 2
+  },
+  "u0035.png": {
+   "char": "5",
+   "samples": 9
+  },
+  "u0036.png": {
+   "char": "6",
+   "samples": 3
+  },
+  "u0037.png": {
+   "char": "7",
+   "samples": 3
+  },
+  "u0038.png": {
+   "char": "8",
+   "samples": 8
+  },
+  "u0039.png": {
+   "char": "9",
+   "samples": 3
+  },
+  "u5206.png": {
+   "char": "分",
+   "samples": 26
+  },
+  "u5c0f.png": {
+   "char": "小",
+   "samples": 13
+  },
+  "u65f6.png": {
+   "char": "时",
+   "samples": 13
+  },
+  "u949f.png": {
+   "char": "钟",
+   "samples": 13
+  }
+ }
+}

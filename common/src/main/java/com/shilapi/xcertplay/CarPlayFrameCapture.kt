@@ -24,7 +24,8 @@ internal object CarPlayFrameCapture {
     private val surfaceCopy = RawMapFrameCapture(main)
     private val writer by lazy { Executors.newSingleThreadExecutor { Thread(it, "diplay-carplay-frame").apply { isDaemon = true } } }
     private var exporting = false
-    val busy get() = exporting || surfaceCopy.busy
+    private var copying = false
+    val busy get() = exporting || copying || surfaceCopy.busy
 
     fun fileName(width: Int, height: Int, date: Date = Date()): String =
         "DiPlay-vision-${SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US).format(date)}-${width}x${height}.png"
@@ -36,30 +37,42 @@ internal object CarPlayFrameCapture {
     fun save(context: Context, texture: TextureView?, surface: SurfaceView?, size: Pair<Int, Int>,
         completed: (Result<DiagnosticExportStore.SavedReport>) -> Unit): Boolean {
         check(Looper.myLooper() == Looper.getMainLooper())
-        if (busy) return false
         val app = context.applicationContext
         val (width, height) = size
         val name = fileName(width, height)
-        exporting = true
-        val done: (Result<Bitmap>) -> Unit = { result ->
+        return capture(texture, surface, size) { result ->
             val bitmap = result.getOrNull()
             if (bitmap == null) {
-                exporting = false
                 completed(Result.failure(result.exceptionOrNull() ?: IOException("copy_failed")))
-            } else {
-                try {
-                    writer.execute {
-                        val saved = try {
-                            runCatching { RawMapFrameExport.savePng(app, name, bitmap, SUBFOLDER, APP_FOLDER) }
-                        } finally { bitmap.recycle() }
-                        main.post { exporting = false; completed(saved) }
-                    }
-                } catch (_: RuntimeException) {
-                    bitmap.recycle(); exporting = false
-                    completed(Result.failure(IOException("writer_unavailable")))
+                return@capture
+            }
+            exporting = true
+            try {
+                writer.execute {
+                    val saved = try {
+                        runCatching { RawMapFrameExport.savePng(app, name, bitmap, SUBFOLDER, APP_FOLDER) }
+                    } finally { bitmap.recycle() }
+                    main.post { exporting = false; completed(saved) }
                 }
+            } catch (_: RuntimeException) {
+                bitmap.recycle(); exporting = false
+                completed(Result.failure(IOException("writer_unavailable")))
             }
         }
+    }
+
+    /**
+     * Copies the picture as [save] does and hands the bitmap to [completed] on the main thread; the
+     * receiver owns and recycles it. Used by the picture recognition test. Main thread only. Returns
+     * false, without calling [completed], while an earlier copy or save is running.
+     */
+    fun capture(texture: TextureView?, surface: SurfaceView?, size: Pair<Int, Int>,
+        completed: (Result<Bitmap>) -> Unit): Boolean {
+        check(Looper.myLooper() == Looper.getMainLooper())
+        if (busy) return false
+        val (width, height) = size
+        copying = true
+        val done: (Result<Bitmap>) -> Unit = { result -> copying = false; completed(result) }
         val holderSurface = surface?.holder?.surface
         when {
             holderSurface != null -> surfaceCopy.capture(holderSurface, size, current = { holderSurface.isValid }, completed = done)
